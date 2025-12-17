@@ -46,50 +46,57 @@ namespace FFV_ScreenReader.Core
         private static MelonPreferences_Entry<bool> prefPathfindingFilter;
         private static MelonPreferences_Entry<bool> prefMapExitFilter;
 
-        // Menu cursor tracking for initial announcement
-        private string lastCursorContext = "";  // Tracks cursor name + parent context
-        private float cursorCheckCooldown = 0f;
-        private const float CURSOR_CHECK_INTERVAL = 0.1f; // Check every 100ms
-
         public override void OnInitializeMelon()
         {
             LoggerInstance.Msg("FFV Screen Reader Mod loaded!");
-            
+
+            // Subscribe to scene load events for automatic component caching
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene, UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
-            
+
+            // Initialize preferences
             prefsCategory = MelonPreferences.CreateCategory("FFV_ScreenReader");
             prefPathfindingFilter = prefsCategory.CreateEntry<bool>("PathfindingFilter", false, "Pathfinding Filter", "Only show entities with valid paths when cycling");
             prefMapExitFilter = prefsCategory.CreateEntry<bool>("MapExitFilter", false, "Map Exit Filter", "Filter multiple map exits to the same destination, showing only the closest one");
-            
+
+            // Load saved preferences
             filterByPathfinding = prefPathfindingFilter.Value;
             filterMapExits = prefMapExitFilter.Value;
-            
+
+            // Initialize Tolk for screen reader support
             tolk = new TolkWrapper();
             tolk.Load();
-            
+
+            // Initialize entity cache and navigator
             entityCache = new EntityCache(ENTITY_SCAN_INTERVAL);
 
             entityNavigator = new EntityNavigator(entityCache);
             entityNavigator.FilterByPathfinding = filterByPathfinding;
             entityNavigator.FilterMapExits = filterMapExits;
 
+            // Initialize input manager
             inputManager = new InputManager(this);
         }
 
         public override void OnDeinitializeMelon()
         {
+            // Unsubscribe from scene load events
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene, UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
 
             CoroutineManager.CleanupAll();
             tolk?.Unload();
         }
-        
+
+        /// <summary>
+        /// Called when a new scene is loaded.
+        /// Automatically caches commonly-used Unity components to avoid expensive FindObjectOfType calls.
+        /// </summary>
         private void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
         {
             try
             {
                 LoggerInstance.Msg($"[ComponentCache] Scene loaded: {scene.name}");
 
+                // Try to find and cache FieldPlayerController
                 var playerController = UnityEngine.Object.FindObjectOfType<Il2CppLast.Map.FieldPlayerController>();
                 if (playerController != null)
                 {
@@ -100,13 +107,15 @@ namespace FFV_ScreenReader.Core
                 {
                     LoggerInstance.Msg("[ComponentCache] No FieldPlayerController found in scene");
                 }
-                
+
+                // Try to find and cache FieldMap
                 var fieldMap = UnityEngine.Object.FindObjectOfType<Il2Cpp.FieldMap>();
                 if (fieldMap != null)
                 {
                     GameObjectCache.Register(fieldMap);
                     LoggerInstance.Msg($"[ComponentCache] Cached FieldMap: {fieldMap.gameObject?.name}");
-                    
+
+                    // Delay entity scan to allow scene to fully initialize
                     CoroutineManager.StartManaged(DelayedInitialScan());
                 }
                 else
@@ -119,20 +128,30 @@ namespace FFV_ScreenReader.Core
                 LoggerInstance.Error($"[ComponentCache] Error in OnSceneLoaded: {ex.Message}");
             }
         }
-        
+
+        /// <summary>
+        /// Coroutine that delays entity scanning to allow scene to fully initialize.
+        /// </summary>
         private System.Collections.IEnumerator DelayedInitialScan()
         {
+            // Wait 0.5 seconds for scene to fully initialize and entities to spawn
             yield return new UnityEngine.WaitForSeconds(0.5f);
-            
+
+            // Scan for entities - EntityNavigator will be updated via OnEntityAdded events
             entityCache.ForceScan();
 
             LoggerInstance.Msg("[ComponentCache] Delayed initial entity scan completed");
         }
-        
+
+        /// <summary>
+        /// Coroutine that delays entity scanning after map transition to allow entities to spawn.
+        /// </summary>
         private System.Collections.IEnumerator DelayedMapTransitionScan()
         {
+            // Wait 0.5 seconds for new map entities to spawn
             yield return new UnityEngine.WaitForSeconds(0.5f);
-            
+
+            // Scan for entities - EntityNavigator will be updated via OnEntityAdded/OnEntityRemoved events
             entityCache.ForceScan();
 
             LoggerInstance.Msg("[ComponentCache] Delayed map transition entity scan completed");
@@ -140,183 +159,38 @@ namespace FFV_ScreenReader.Core
 
         public override void OnUpdate()
         {
+            // Update entity cache (handles periodic rescanning)
             entityCache.Update();
 
+            // Check for map transitions
             CheckMapTransition();
 
-            // Menu initialization feature disabled - was causing issues with
-            // interrupting other announcements and reading wrong menu items
-            // CheckForNewMenuCursor();
-
+            // Handle all input
             inputManager.Update();
         }
 
         /// <summary>
-        /// Check if a new menu cursor has become active and announce its current item.
-        /// This handles announcing the first item when menus open.
+        /// Checks for map transitions and announces the new map name.
         /// </summary>
-        private void CheckForNewMenuCursor()
-        {
-            try
-            {
-                // Rate limit cursor checks
-                cursorCheckCooldown -= Time.deltaTime;
-                if (cursorCheckCooldown > 0f)
-                {
-                    return;
-                }
-                cursorCheckCooldown = CURSOR_CHECK_INTERVAL;
-
-                // Skip if in battle (let battle patches handle it)
-                var enemyEntities = UnityEngine.Object.FindObjectsOfType<Il2CppLast.Battle.BattleEnemyEntity>();
-                if (enemyEntities != null && enemyEntities.Length > 0)
-                {
-                    lastCursorContext = ""; // Reset tracking when entering battle
-                    return;
-                }
-
-                // Find all active cursors
-                var cursors = UnityEngine.Object.FindObjectsOfType<GameCursor>();
-                if (cursors == null || cursors.Length == 0)
-                {
-                    if (!string.IsNullOrEmpty(lastCursorContext))
-                    {
-                        lastCursorContext = ""; // Reset when no cursors active
-                    }
-                    return;
-                }
-
-                // Find the first active and visible cursor
-                GameCursor activeCursor = null;
-                foreach (var cursor in cursors)
-                {
-                    if (cursor != null && cursor.gameObject != null &&
-                        cursor.gameObject.activeInHierarchy)
-                    {
-                        activeCursor = cursor;
-                        break;
-                    }
-                }
-
-                if (activeCursor == null)
-                {
-                    if (!string.IsNullOrEmpty(lastCursorContext))
-                    {
-                        lastCursorContext = "";
-                    }
-                    return;
-                }
-
-                // Build a context string that includes cursor name AND parent hierarchy
-                // This way we detect when the same cursor is used in a different menu
-                string currentContext = GetCursorContext(activeCursor);
-
-                if (currentContext != lastCursorContext)
-                {
-                    LoggerInstance.Msg($"[Menu Init] New cursor context detected: {currentContext}");
-                    LoggerInstance.Msg($"[Menu Init] Previous context was: {lastCursorContext}");
-                    lastCursorContext = currentContext;
-
-                    // Wait a frame for UI to settle, then announce
-                    CoroutineManager.StartManaged(DelayedMenuAnnouncement(activeCursor));
-                }
-            }
-            catch (System.Exception ex)
-            {
-                LoggerInstance.Warning($"Error in CheckForNewMenuCursor: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Get a context string for a cursor that includes its name and key parent names.
-        /// This helps detect when the same cursor object is used in different menus.
-        /// </summary>
-        private string GetCursorContext(GameCursor cursor)
-        {
-            try
-            {
-                var parts = new System.Collections.Generic.List<string>();
-                parts.Add(cursor.gameObject.name);
-
-                // Walk up the hierarchy and collect significant parent names
-                Transform current = cursor.transform.parent;
-                int depth = 0;
-
-                while (current != null && depth < 5)
-                {
-                    string parentName = current.name.ToLower();
-
-                    // Include parent names that indicate menu context
-                    if (parentName.Contains("menu") || parentName.Contains("window") ||
-                        parentName.Contains("content") || parentName.Contains("select") ||
-                        parentName.Contains("status") || parentName.Contains("equip") ||
-                        parentName.Contains("item") || parentName.Contains("command") ||
-                        parentName.Contains("party") || parentName.Contains("save") ||
-                        parentName.Contains("load") || parentName.Contains("config"))
-                    {
-                        parts.Add(current.name);
-                    }
-
-                    current = current.parent;
-                    depth++;
-                }
-
-                return string.Join("/", parts);
-            }
-            catch
-            {
-                return cursor.gameObject.name;
-            }
-        }
-
-        private System.Collections.IEnumerator DelayedMenuAnnouncement(GameCursor cursor)
-        {
-            // Wait 2 frames for UI to fully update
-            yield return null;
-            yield return null;
-
-            try
-            {
-                if (cursor == null || cursor.gameObject == null || !cursor.gameObject.activeInHierarchy)
-                {
-                    yield break;
-                }
-
-                LoggerInstance.Msg($"[Menu Init] Announcing initial cursor position for: {cursor.gameObject.name}");
-
-                // Use the same menu text discovery as cursor navigation
-                var coroutine = MenuTextDiscovery.WaitAndReadCursor(
-                    cursor,
-                    "MenuInit",
-                    -1,
-                    false
-                );
-                CoroutineManager.StartManaged(coroutine);
-            }
-            catch (System.Exception ex)
-            {
-                LoggerInstance.Warning($"Error in DelayedMenuAnnouncement: {ex.Message}");
-            }
-        }
-        
         private void CheckMapTransition()
         {
             try
             {
-                var userDataManager = UserDataManager.instance;
+                var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
                 if (userDataManager != null)
                 {
                     int currentMapId = userDataManager.CurrentMapId;
                     if (currentMapId != lastAnnouncedMapId && lastAnnouncedMapId != -1)
                     {
-                        //string mapName = MapNameResolver.GetCurrentMapName();
-                        //SpeakText($"Entering {mapName}", interrupt: false);
+                        // Map has changed
                         lastAnnouncedMapId = currentMapId;
-                        
+
+                        // Delay entity scan to allow new map to fully initialize
                         CoroutineManager.StartManaged(DelayedMapTransitionScan());
                     }
                     else if (lastAnnouncedMapId == -1)
                     {
+                        // First run, just store the current map without announcing
                         lastAnnouncedMapId = currentMapId;
                     }
                 }
@@ -568,15 +442,11 @@ namespace FFV_ScreenReader.Core
             return "unknown";
         }
 
-        private void AnnounceCurrentCharacterStatus()
-        {
-        }
-
         internal void AnnounceGilAmount()
         {
             try
             {
-                var userDataManager = UserDataManager.instance;
+                var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
 
                 if (userDataManager == null)
                 {
@@ -598,36 +468,25 @@ namespace FFV_ScreenReader.Core
 
         internal void AnnounceCurrentMap()
         {
-        }
-        
-        internal void AnnounceAirshipOrCharacterStatus()
-        {
+            // Map announcement feature not yet implemented for FFV
+            SpeakText("Map announcement not available");
         }
 
-        private void AnnounceAirshipStatus()
+        internal void AnnounceAirshipOrCharacterStatus()
         {
+            // Airship/character status not yet implemented for FFV
+            SpeakText("Status not available");
         }
-        
+
+        /// <summary>
+        /// Speak text through the screen reader.
+        /// Thread-safe: TolkWrapper uses locking to prevent concurrent native calls.
+        /// </summary>
+        /// <param name="text">Text to speak</param>
+        /// <param name="interrupt">Whether to interrupt current speech (true for user actions, false for game events)</param>
         public static void SpeakText(string text, bool interrupt = true)
         {
-            try
-            {
-                MelonLogger.Msg($"[SpeakText] Called with text: '{text}', interrupt: {interrupt}");
-                
-                if (tolk == null)
-                {
-                    MelonLogger.Warning("[SpeakText] Tolk wrapper is null!");
-                    return;
-                }
-                
-                MelonLogger.Msg($"[SpeakText] Calling tolk.Speak...");
-                tolk.Speak(text, interrupt);
-                MelonLogger.Msg($"[SpeakText] tolk.Speak completed");
-            }
-            catch (System.Exception ex)
-            {
-                MelonLogger.Error($"[SpeakText] Exception: {ex.Message}");
-            }
+            tolk?.Speak(text, interrupt);
         }
     }
 }

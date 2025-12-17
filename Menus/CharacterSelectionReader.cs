@@ -1,4 +1,7 @@
 using System;
+using Il2CppLast.Data.User;
+using Il2CppLast.Defaine.User;
+using Il2CppLast.Management;
 using MelonLoader;
 using UnityEngine;
 using static FFV_ScreenReader.Utils.TextUtils;
@@ -7,11 +10,12 @@ namespace FFV_ScreenReader.Menus
 {
     /// <summary>
     /// Handles reading character information from character selection screens.
-    /// Used in menus like Status, Equipment, Skills, etc.
-    /// Extracts and announces: character name, job, level, HP, MP.
+    /// Used in menus like Formation, Status, Equipment, Skills, Relics, etc.
+    /// Extracts and announces: character name, job, level, HP, MP, and other stats.
     /// </summary>
     public static class CharacterSelectionReader
     {
+
         /// <summary>
         /// Try to read character information from the current cursor position.
         /// Returns a formatted string with character information, or null if not a character selection.
@@ -28,27 +32,47 @@ namespace FFV_ScreenReader.Menus
 
                 while (current != null && depth < 15)
                 {
-                    string name = current.name.ToLower();
-
                     // Look for character selection menu structures
-                    if (name.Contains("chara") || name.Contains("status") ||
-                        name.Contains("party") || name.Contains("member"))
+                    if (current.name.Contains("character") || current.name.Contains("chara") ||
+                        current.name.Contains("status") || current.name.Contains("formation") ||
+                        current.name.Contains("party") || current.name.Contains("member"))
                     {
                         MelonLogger.Msg($"Found potential character menu structure: {current.name}");
 
-                        // Strategy 1: Try to find Content list with indexed children
-                        Transform contentList = FindTransformInChildren(current, "Content");
+                        // Try to find Content list (common pattern: Scroll View -> Viewport -> Content)
+                        Transform contentList = FindContentList(current);
+
                         if (contentList != null && cursorIndex >= 0 && cursorIndex < contentList.childCount)
                         {
                             Transform characterSlot = contentList.GetChild(cursorIndex);
-                            MelonLogger.Msg($"Found character slot via Content at index {cursorIndex}: {characterSlot.name}");
-                            string info = ReadFromTextComponents(characterSlot);
-                            if (info != null) return info;
+                            MelonLogger.Msg($"Found character slot at index {cursorIndex}: {characterSlot.name}");
+
+                            // Try to read the character information
+                            string characterInfo = ReadCharacterInformation(characterSlot, cursorIndex);
+                            if (characterInfo != null)
+                            {
+                                return characterInfo;
+                            }
+                        }
+                    }
+
+                    // Also check if we're directly on a character info element
+                    // BUT skip if this is the equipment slot screen (handled by EquipmentInfoWindowController.UpdateView patch)
+                    if (current.name.Contains("info_content") || current.name.Contains("status_info"))
+                    {
+                        // Check if this is equipment slot navigation (has part_text and last_text)
+                        // Use non-allocating existence checks instead of GetComponentsInChildren
+                        bool hasPartText = HasTextWithNameContaining(current, "part_text");
+                        bool hasLastText = HasTextWithNameContaining(current, "last_text");
+
+                        if (hasPartText && hasLastText)
+                        {
+                            MelonLogger.Msg("Skipping equipment slot navigation (handled by EquipmentInfoWindowController patch)");
+                            return null;
                         }
 
-                        // Strategy 2: Read directly from this panel (for status_info_content style)
-                        MelonLogger.Msg($"Trying to read directly from: {current.name}");
-                        string characterInfo = ReadFromTextComponents(current);
+                        MelonLogger.Msg($"Found character info element: {current.name}");
+                        string characterInfo = ReadCharacterInformation(current, cursorIndex);
                         if (characterInfo != null)
                         {
                             return characterInfo;
@@ -70,12 +94,55 @@ namespace FFV_ScreenReader.Menus
         }
 
         /// <summary>
-        /// Read character information from text components.
+        /// Find the Content transform within a ScrollView structure.
         /// </summary>
-        private static string ReadFromTextComponents(Transform slotTransform)
+        private static Transform FindContentList(Transform root)
         {
             try
             {
+                // Use non-allocating recursive search
+                var content = FindTransformInChildren(root, "Content");
+                if (content != null && content.parent != null &&
+                    (content.parent.name == "Viewport" || content.parent.parent?.name == "Scroll View"))
+                {
+                    return content;
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error finding content list: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Read character information from a character slot transform.
+        /// Returns formatted announcement string or null if unable to read.
+        /// </summary>
+        private static string ReadCharacterInformation(Transform slotTransform, int slotIndex)
+        {
+            try
+            {
+                // Try direct text extraction
+                MelonLogger.Msg("Trying text component reading");
+                return ReadFromTextComponents(slotTransform, slotIndex);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error reading character information: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Read character information from text components.
+        /// </summary>
+        private static string ReadFromTextComponents(Transform slotTransform, int slotIndex)
+        {
+            try
+            {
+                // Look for specific text patterns
                 string characterName = null;
                 string jobName = null;
                 string level = null;
@@ -83,11 +150,9 @@ namespace FFV_ScreenReader.Menus
                 string maxHP = null;
                 string currentMP = null;
                 string maxMP = null;
-                string firstValidText = null; // Fallback for character name
                 int textCount = 0;
-                bool foundLvLabel = false;
 
-                // Use non-allocating traversal
+                // Use non-allocating traversal instead of GetComponentsInChildren
                 ForEachTextInChildren(slotTransform, text =>
                 {
                     textCount++;
@@ -96,136 +161,60 @@ namespace FFV_ScreenReader.Menus
                     string content = text.text.Trim();
                     if (string.IsNullOrEmpty(content)) return;
 
-                    string textName = text.name.ToLower();
+                    MelonLogger.Msg($"  Text component '{text.name}': '{content}'");
 
-                    MelonLogger.Msg($"  Text '{text.name}': '{content}'");
-
-                    // Track labels
-                    string upperContent = content.ToUpper();
-                    if (upperContent == "LV" || upperContent == "LEVEL")
+                    // Check for character name
+                    if (text.name.Contains("name") && !text.name.Contains("job") &&
+                        !text.name.Contains("area") && !text.name.Contains("floor"))
                     {
-                        foundLvLabel = true;
-                        return;
-                    }
-                    if (upperContent == "HP" || upperContent == "MP")
-                    {
-                        return; // Skip labels
-                    }
-                    if (content == "/" || content == ":")
-                    {
-                        return;
-                    }
-
-                    // Character name - look for name fields but not job_name
-                    if (textName.Contains("name") && !textName.Contains("job"))
-                    {
-                        if (content.Length > 1 && content.Length < 20 && !IsNumeric(content))
+                        // Skip labels like "Name:" or very short text
+                        if (content.Length > 2 && !content.Contains(":") && !content.Equals("HP") && !content.Equals("MP"))
                         {
                             characterName = content;
-                            MelonLogger.Msg($"  -> Found character name: '{content}'");
                         }
                     }
-                    // Job name
-                    else if (textName.Contains("job") || textName.Contains("class"))
+                    // Check for job/class name
+                    else if (text.name.Contains("job") || text.name.Contains("class"))
                     {
-                        if (content.Length > 0 && !IsNumeric(content))
-                        {
-                            jobName = content;
-                            MelonLogger.Msg($"  -> Found job: '{content}'");
-                        }
+                        jobName = content;
                     }
-                    // Level - look for numeric value in level-related fields OR small number after LV label
-                    else if (textName.Contains("lv") || textName.Contains("level"))
+                    // Check for level
+                    else if ((text.name.Contains("lv") || text.name.Contains("level")) &&
+                             !text.name.Contains("label"))
                     {
-                        if (IsNumeric(content))
+                        // Skip "Lv" label, get the number
+                        if (content != "Lv" && content != "Level")
                         {
                             level = content;
-                            MelonLogger.Msg($"  -> Found level: '{content}'");
                         }
                     }
-                    // HP values - match by field name containing "hp"
-                    else if (textName.Contains("hp"))
+                    // Check for HP values
+                    else if (text.name.Contains("hp") && !text.name.Contains("label"))
                     {
-                        if (IsNumeric(content))
+                        if (text.name.Contains("current") || text.name.Contains("now"))
                         {
-                            // Check for "current" or "max" in the name
-                            if (textName.Contains("current") || textName.Contains("now"))
-                            {
-                                // Only update if we don't have a value yet, or if current value is "0"
-                                if (currentHP == null || currentHP == "0")
-                                {
-                                    currentHP = content;
-                                    MelonLogger.Msg($"  -> Found current HP: '{content}'");
-                                }
-                            }
-                            else if (textName.Contains("max"))
-                            {
-                                // Only update if we don't have a value yet, or if current value is "0"
-                                if (maxHP == null || maxHP == "0")
-                                {
-                                    maxHP = content;
-                                    MelonLogger.Msg($"  -> Found max HP: '{content}'");
-                                }
-                            }
+                            currentHP = content;
+                        }
+                        else if (text.name.Contains("max"))
+                        {
+                            maxHP = content;
                         }
                     }
-                    // MP values - match by field name containing "mp"
-                    else if (textName.Contains("mp"))
+                    // Check for MP values
+                    else if (text.name.Contains("mp") && !text.name.Contains("label"))
                     {
-                        if (IsNumeric(content))
+                        if (text.name.Contains("current") || text.name.Contains("now"))
                         {
-                            // Check for "current" or "max" in the name
-                            if (textName.Contains("current") || textName.Contains("now"))
-                            {
-                                if (currentMP == null || currentMP == "0")
-                                {
-                                    currentMP = content;
-                                    MelonLogger.Msg($"  -> Found current MP: '{content}'");
-                                }
-                            }
-                            else if (textName.Contains("max"))
-                            {
-                                if (maxMP == null || maxMP == "0")
-                                {
-                                    maxMP = content;
-                                    MelonLogger.Msg($"  -> Found max MP: '{content}'");
-                                }
-                            }
+                            currentMP = content;
                         }
-                    }
-                    // Track first valid text as potential character name fallback
-                    // Must be non-numeric, not a known label, and reasonable length
-                    else if (firstValidText == null && !IsNumeric(content) &&
-                             content.Length >= 2 && content.Length <= 15 &&
-                             upperContent != "LV" && upperContent != "HP" && upperContent != "MP" &&
-                             upperContent != "LEVEL")
-                    {
-                        firstValidText = content;
-                        MelonLogger.Msg($"  -> Tracking as potential name: '{content}'");
-                    }
-                    // If we found an LV label and this is a small number, it's probably the level
-                    else if (foundLvLabel && level == null && IsNumeric(content) && content.Length <= 3)
-                    {
-                        int val;
-                        if (int.TryParse(content, out val) && val >= 1 && val <= 99)
+                        else if (text.name.Contains("max"))
                         {
-                            level = content;
-                            MelonLogger.Msg($"  -> Found level after label: '{content}'");
+                            maxMP = content;
                         }
                     }
                 });
 
                 MelonLogger.Msg($"Found {textCount} text components in character slot");
-
-                // If we didn't find a character name via "name" field, use first valid text as fallback
-                if (string.IsNullOrEmpty(characterName) && !string.IsNullOrEmpty(firstValidText))
-                {
-                    if (firstValidText != jobName)
-                    {
-                        characterName = firstValidText;
-                        MelonLogger.Msg($"  Using fallback for character name: '{characterName}'");
-                    }
-                }
 
                 // Build announcement string
                 string announcement = "";
@@ -234,19 +223,6 @@ namespace FFV_ScreenReader.Menus
                 if (!string.IsNullOrEmpty(characterName))
                 {
                     announcement = characterName;
-                }
-
-                // Add level
-                if (!string.IsNullOrEmpty(level))
-                {
-                    if (!string.IsNullOrEmpty(announcement))
-                    {
-                        announcement += ", Level " + level;
-                    }
-                    else
-                    {
-                        announcement = "Level " + level;
-                    }
                 }
 
                 // Add job name
@@ -260,6 +236,42 @@ namespace FFV_ScreenReader.Menus
                     {
                         announcement = jobName;
                     }
+                }
+
+                // Add level
+                if (!string.IsNullOrEmpty(level))
+                {
+                    announcement += ", Level " + level;
+                }
+
+                // Add row information (Front Row / Back Row) - useful on all character screens
+                try
+                {
+                    var userDataManager = UserDataManager.Instance();
+                    if (userDataManager != null)
+                    {
+                        var corpsList = userDataManager.GetCorpsListClone();
+                        if (corpsList != null && slotIndex >= 0 && slotIndex < corpsList.Count)
+                        {
+                            var corps = corpsList[slotIndex];
+                            if (corps != null)
+                            {
+                                CorpsId corpsId = corps.Id;
+                                if (corpsId == CorpsId.Front)
+                                {
+                                    announcement += ", Front Row";
+                                }
+                                else if (corpsId == CorpsId.Back)
+                                {
+                                    announcement += ", Back Row";
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MelonLogger.Warning($"Could not read row info: {ex.Message}");
                 }
 
                 // Add HP
@@ -294,19 +306,6 @@ namespace FFV_ScreenReader.Menus
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Check if a string is numeric
-        /// </summary>
-        private static bool IsNumeric(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return false;
-            foreach (char c in text)
-            {
-                if (!char.IsDigit(c)) return false;
-            }
-            return true;
         }
     }
 }

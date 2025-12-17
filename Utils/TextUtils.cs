@@ -74,6 +74,33 @@ namespace FFV_ScreenReader.Utils
         }
 
         /// <summary>
+        /// Checks if any Text component exists whose GameObject name contains the specified substring.
+        /// More efficient than GetComponentsInChildren as it stops on first match.
+        /// </summary>
+        public static bool HasTextWithNameContaining(Transform parent, string nameContains)
+        {
+            if (parent == null)
+                return false;
+
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var child = parent.GetChild(i);
+                if (child.name != null && child.name.Contains(nameContains))
+                {
+                    var text = child.GetComponent<UnityEngine.UI.Text>();
+                    if (text != null)
+                        return true;
+                }
+
+                // Recurse into children
+                if (HasTextWithNameContaining(child, nameContains))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Iterates through all Text components in children and invokes the callback for each one.
         /// </summary>
         public static void ForEachTextInChildren(Transform parent, Action<UnityEngine.UI.Text> callback, bool includeInactive = true)

@@ -5,6 +5,8 @@ using FFV_ScreenReader.Utils;
 using MelonLoader;
 using Il2CppSerial.FF5.UI.KeyInput;
 using FFV_ScreenReader.Menus;
+using ConfigActualDetailsControllerBase_KeyInput = Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase;
+using ConfigActualDetailsControllerBase_Touch = Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase;
 
 namespace FFV_ScreenReader.Core
 {
@@ -203,8 +205,105 @@ namespace FFV_ScreenReader.Core
             if (Input.GetKeyDown(KeyCode.T))
             {
             }
+
+            // 'I' key - announce config option tooltip/description
+            if (Input.GetKeyDown(KeyCode.I))
+            {
+                AnnounceConfigTooltip();
+            }
         }
-        
+
+        /// <summary>
+        /// Announces the description/tooltip text for the currently highlighted config option.
+        /// Only works when in the in-game config menu.
+        /// </summary>
+        private void AnnounceConfigTooltip()
+        {
+            try
+            {
+                // Try KeyInput controller (in-game config menu)
+                var keyInputController = Object.FindObjectOfType<ConfigActualDetailsControllerBase_KeyInput>();
+                if (keyInputController != null && keyInputController.gameObject.activeInHierarchy)
+                {
+                    string description = GetDescriptionText(keyInputController);
+                    if (!string.IsNullOrEmpty(description))
+                    {
+                        MelonLogger.Msg($"[Config Tooltip] {description}");
+                        FFV_ScreenReaderMod.SpeakText(description);
+                        return;
+                    }
+                }
+
+                // Try Touch controller
+                var touchController = Object.FindObjectOfType<ConfigActualDetailsControllerBase_Touch>();
+                if (touchController != null && touchController.gameObject.activeInHierarchy)
+                {
+                    string description = GetDescriptionTextTouch(touchController);
+                    if (!string.IsNullOrEmpty(description))
+                    {
+                        MelonLogger.Msg($"[Config Tooltip] {description}");
+                        FFV_ScreenReaderMod.SpeakText(description);
+                        return;
+                    }
+                }
+
+                // Not in a config menu or no description available
+                MelonLogger.Msg("[Config Tooltip] No config menu active or no description available");
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Error($"Error reading config tooltip: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the description text from a KeyInput ConfigActualDetailsControllerBase.
+        /// </summary>
+        private string GetDescriptionText(ConfigActualDetailsControllerBase_KeyInput controller)
+        {
+            if (controller == null) return null;
+
+            try
+            {
+                // Access the descriptionText field
+                var descText = controller.descriptionText;
+                if (descText != null && !string.IsNullOrWhiteSpace(descText.text))
+                {
+                    return descText.text.Trim();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Warning($"Error accessing description text: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the description text from a Touch ConfigActualDetailsControllerBase.
+        /// </summary>
+        private string GetDescriptionTextTouch(ConfigActualDetailsControllerBase_Touch controller)
+        {
+            if (controller == null) return null;
+
+            try
+            {
+                // Access the descriptionText field
+                var descText = controller.descriptionText;
+                if (descText != null && !string.IsNullOrWhiteSpace(descText.text))
+                {
+                    return descText.text.Trim();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Warning($"Error accessing touch description text: {ex.Message}");
+            }
+
+            return null;
+        }
+
         private bool IsShiftHeld()
         {
             return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);

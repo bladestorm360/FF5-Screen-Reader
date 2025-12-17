@@ -13,25 +13,24 @@ using static FFV_ScreenReader.Utils.TextUtils;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Patches for item and equipment menu navigation in FF5.
-    /// Announces item/equipment name, quantity, and description when browsing.
+    /// Shared helper for item menu patches.
     /// </summary>
-    public static class ItemMenuHelper
+    internal static class ItemMenuPatchHelper
     {
         /// <summary>
-        /// Speak text with a small delay (one frame) to separate from menu sound effects.
+        /// Helper coroutine to speak text after one frame delay.
         /// </summary>
-        public static void SpeakDelayed(string text)
-        {
-            MelonLoader.MelonCoroutines.Start(DelayedSpeech(text));
-        }
-
-        private static IEnumerator DelayedSpeech(string text)
+        internal static IEnumerator DelayedSpeech(string text)
         {
             yield return null; // Wait one frame
             FFV_ScreenReaderMod.SpeakText(text);
         }
     }
+
+    /// <summary>
+    /// Patches for item and equipment menu navigation in FF5.
+    /// Announces item/equipment name, quantity, and description when browsing.
+    /// </summary>
 
     // Patch ItemListController.SelectContent to announce items when navigating
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ItemListController), "SelectContent", new Type[] {
@@ -127,7 +126,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncementTime = currentTime;
 
                 MelonLogger.Msg($"[Item Menu] {announcement}");
-                ItemMenuHelper.SpeakDelayed(announcement);
+                CoroutineManager.StartManaged(ItemMenuPatchHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {
@@ -231,7 +230,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncementTime = currentTime;
 
                 MelonLogger.Msg($"[Equipment Menu] {announcement}");
-                ItemMenuHelper.SpeakDelayed(announcement);
+                CoroutineManager.StartManaged(ItemMenuPatchHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {
@@ -331,7 +330,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncementTime = currentTime;
 
                 MelonLogger.Msg($"[Equipment Slot] {announcement}");
-                ItemMenuHelper.SpeakDelayed(announcement);
+                CoroutineManager.StartManaged(ItemMenuPatchHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {

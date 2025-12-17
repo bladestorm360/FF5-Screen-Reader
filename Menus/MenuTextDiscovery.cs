@@ -28,6 +28,10 @@ namespace FFV_ScreenReader.Menus
 {
     public static class MenuTextDiscovery
     {
+        // Track last announced cursor state - only announce when cursor actually changes
+        private static int lastAnnouncedCursorIndex = -1;
+        private static string lastAnnouncedCursorName = "";
+
         public static System.Collections.IEnumerator WaitAndReadCursor(GameCursor cursor, string direction, int count, bool isLoop)
         {
             // Small delay to let UI update, but shorter than a full frame
@@ -52,33 +56,55 @@ namespace FFV_ScreenReader.Menus
                     MelonLogger.Msg("Cursor transform is null, skipping");
                     yield break;
                 }
-                
+
+                string cursorName = cursor.gameObject.name;
+                int cursorIndex = cursor.Index;
+
+                // Only announce if cursor has actually moved to a different index
+                // This prevents repeated announcements when the game calls these methods
+                // repeatedly for the same position
+                if (cursorName == lastAnnouncedCursorName && cursorIndex == lastAnnouncedCursorIndex)
+                {
+                    // Cursor hasn't actually moved - skip announcement entirely
+                    yield break;
+                }
+
                 var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
 
                 MelonLogger.Msg($"=== {direction} called (delayed) ===");
                 MelonLogger.Msg($"Scene: {sceneName}");
-                MelonLogger.Msg($"Cursor Index: {cursor.Index}");
-                MelonLogger.Msg($"Cursor GameObject: {cursor.gameObject?.name ?? "null"}");
+                MelonLogger.Msg($"Cursor Index: {cursorIndex}");
+                MelonLogger.Msg($"Cursor GameObject: {cursorName}");
                 MelonLogger.Msg($"Count: {count}, IsLoop: {isLoop}");
-                
+
                 string menuText = TryAllStrategies(cursor);
 
                 if (!string.IsNullOrEmpty(menuText))
                 {
-                    string configValue = ConfigMenuReader.FindConfigValueText(cursor.transform, cursor.Index);
+                    string configValue = ConfigMenuReader.FindConfigValueText(cursor.transform, cursorIndex);
+                    string fullText;
                     if (configValue != null)
                     {
                         MelonLogger.Msg($"Found config value: '{configValue}'");
-                        string fullText = $"{menuText}: {configValue}";
-                        FFV_ScreenReaderMod.SpeakText(fullText);
+                        fullText = $"{menuText}: {configValue}";
                     }
                     else
                     {
-                        FFV_ScreenReaderMod.SpeakText(menuText);
+                        fullText = menuText;
                     }
+
+                    // Update tracking BEFORE speaking
+                    lastAnnouncedCursorIndex = cursorIndex;
+                    lastAnnouncedCursorName = cursorName;
+
+                    FFV_ScreenReaderMod.SpeakText(fullText);
                 }
                 else if (menuText == null)
                 {
+                    // Still update tracking even if no text found, to prevent repeated attempts
+                    lastAnnouncedCursorIndex = cursorIndex;
+                    lastAnnouncedCursorName = cursorName;
+
                     // Only log if no strategy matched (null)
                     // Empty string means a strategy handled it silently (e.g., target selection)
                     MelonLogger.Msg("No menu text found in hierarchy");
@@ -90,6 +116,15 @@ namespace FFV_ScreenReader.Menus
             {
                 MelonLogger.Error($"Error in delayed cursor read: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Resets the duplicate tracking state. Call this when menus open/close or change.
+        /// </summary>
+        public static void ResetAnnouncementTracking()
+        {
+            lastAnnouncedCursorIndex = -1;
+            lastAnnouncedCursorName = "";
         }
         
         private static string TryAllStrategies(GameCursor cursor)

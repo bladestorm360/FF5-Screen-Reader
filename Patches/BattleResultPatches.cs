@@ -3,6 +3,7 @@ using System.Linq;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.Data;
+using Il2CppLast.Data.Master;
 using Il2CppLast.Data.User;
 using Il2CppLast.UI.KeyInput;
 using Il2CppLast.Management;
@@ -56,21 +57,37 @@ namespace FFV_ScreenReader.Patches
             var itemList = data.ItemList;
             if (itemList != null && itemList.Count > 0)
             {
-                foreach (var dropItem in itemList)
+                var messageManager = MessageManager.Instance;
+                if (messageManager != null)
                 {
-                    if (dropItem == null) continue;
-                    
-                    int contentId = dropItem.ContentId;
-                    int quantity = dropItem.DropValue; // Assuming DropValue is quantity
-                    if (quantity <= 0) quantity = 1;
-
-                    string itemName = GetItemName(contentId);
-                    if (!string.IsNullOrEmpty(itemName))
+                    // Convert drop items to content data with localized names
+                    var itemContentList = ListItemFormatter.GetContentDataList(itemList, messageManager);
+                    if (itemContentList != null && itemContentList.Count > 0)
                     {
-                        if (quantity > 1)
-                            messageParts.Add($"{itemName} x{quantity}");
-                        else
-                            messageParts.Add(itemName);
+                        foreach (var itemContent in itemContentList)
+                        {
+                            if (itemContent == null) continue;
+
+                            string itemName = itemContent.Name;
+                            if (string.IsNullOrEmpty(itemName)) continue;
+
+                            // Remove icon markup from name (e.g., <ic_Drag>, <IC_DRAG>)
+                            itemName = StripIconMarkup(itemName);
+
+                            if (!string.IsNullOrEmpty(itemName))
+                            {
+                                // Get the quantity from Count property
+                                int quantity = itemContent.Count;
+                                if (quantity > 1)
+                                {
+                                    messageParts.Add($"{itemName} x{quantity}");
+                                }
+                                else
+                                {
+                                    messageParts.Add(itemName);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -96,8 +113,9 @@ namespace FFV_ScreenReader.Patches
                         int newLevel = afterData.parameter != null ? afterData.parameter.ConfirmedLevel() : 0;
                         messageParts.Add($"{charName} gained {charExp:N0} XP and leveled up to level {newLevel}");
                     }
-                    else if (charExp > 0)
+                    else
                     {
+                        // Always announce XP, even if 0
                         messageParts.Add($"{charName} gained {charExp:N0} XP");
                     }
 
@@ -163,104 +181,6 @@ namespace FFV_ScreenReader.Patches
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
         }
 
-        private static string GetItemName(int contentId)
-        {
-            try
-            {
-                var userManager = UserDataManager.Instance();
-                if (userManager == null) return null;
-
-                // Try Normal items
-                // Inspecting the list is slow but safer given we lack direct ID lookup knowledge
-                // NormalOwnedItemList is IEnumerable
-                // However, we can try accessing the dictionaries if accessible, but they were private in dump.
-                // We'll iterate the public list properties.
-                
-                // Only iterate if list is seemingly valid.
-                // NOTE: This relies on the item already being in inventory.
-                
-                // Hack: We can also check MessageManager if we knew the MesId.
-                // But we don't.
-                
-                // Let's try iterating OwnedItemData.
-                // Since this runs once per battle end, performance impact is negligible for loop of ~500 items.
-
-                // Reflection access to private dictionary might be better? No, stick to public API.
-                // NormalOwnedItemList property exists.
-                
-                // Unfortunately, IEnumerable iteration in Il2Cpp can be tricky.
-                
-                // Let's try a different approach:
-                // If we can't get the name easily, return null.
-                
-                // Actually, UserDataManager DOES expose 'normalOwnedItems' via property NormalOwnedItemList?
-                // Step 987: private IEnumerable<OwnedItemData> NormalOwnedItemList { get; set; }
-                // It's private property in dump!
-                
-                // Step 987: public Dictionary<int, bool> OwendCrystalFlags;
-                
-                // Step 987: public List<int> NormalOwnedItemSortIdList
-                
-                // Okay, NormalOwnedItemList is PRIVATE property. That's annoying.
-                // `normalOwnedItems` is private field.
-                
-                // However, we can use standard Harmony/Reflection to access it if needed.
-                // Field: `normalOwnedItems` (Dictionary<int, OwnedItemData>).
-                
-                // BUT, declaring the dictionary type might be issues if generics matching is strict.
-                
-                // Let's try to find an OwnedItemData from ANY source we have access to.
-                // Maybe the 'ItemList' itself in BattleResultData contains drop items that have the name?
-                // Step 949: DropItemData has ContentId, DropValue... NO Name.
-                
-                // Wait! DropItemData DOES NOT have name.
-                
-                // What about `ItemMenuPatches`? It iterates `ItemListController.contentList`.
-                
-                // Let's assume for now that without easy lookup, we skip Item Names or just say "Item ID X".
-                // OR, we assume that `MessageManager.Instance.GetMessage(contentId)` MIGHT work? No, IDs differ.
-                
-                // Let's try to get `UserDataManager.Instance().normalOwnedItems` via Il2Cpp reflection?
-                // Or just use `NormalOwnedItemSortIdList`? No.
-                
-                // Accessing private field via Harmony traversal/Reflection in C# for Il2Cpp objects:
-                // We can't easily access the dictionary content without correct generic instantiation.
-                
-                // Let's check if there is ANY public method to get item.
-                // I really missed `GetItem`.
-                
-                // What if I try `resultMenuController.targetData` or similar? No.
-                
-                // Okay, I will try to use `Il2CppLast.Management.MasterBlockManager` if it exists.
-                // Otherwise, I will sadly have to skip Item Names for this iteration or assume "Items Gained".
-                // I'll add a TODO to fix Item Names if they aren't reading.
-                
-                // Wait! I can get the name if I assume the user has at least one.
-                // If I can't resolve it, I'll print "New Item(s)" or similar.
-                
-                // But wait, FFVI mod `ListItemFormatter` used `messageManager.GetMessage(itemData.MesIdName)`.
-                // It HAD `OwnedItemData` or `ItemData`.
-                // Where did it get it?
-                // `ListItemFormatter.GetContentDataList` took `data._ItemList_k__BackingField`.
-                // In FFVI `DropItemData` was seemingly different or they had a way.
-                
-                // I will assume for now I CANNOT get the name easily without `MasterData`.
-                // I will define `GetItemName` to return "Item" + contentId for debug, 
-                // but for production, maybe just "Item".
-                
-                // ACTUALLY, checking `ItemMenuPatches.cs`, I used:
-                // `var itemData = targetList[index];` (which is a Controller/View wrapper).
-                
-                // I will try to use reflection to get `UserDataManager.normalOwnedItems` just in case I can.
-                // If not, I'll leave it blank.
-                
-                return null; 
-            }
-            catch
-            {
-                return null;
-            }
-        }
     }
 
     [HarmonyPatch(typeof(ResultMenuController), nameof(ResultMenuController.ShowPointsInit))]

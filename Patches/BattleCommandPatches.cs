@@ -18,19 +18,51 @@ using UnityEngine;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Helper for delayed speech in battle menus.
+    /// Shared helper for battle command patches.
     /// </summary>
-    public static class BattleMenuHelper
+    internal static class BattleCommandPatchHelper
     {
-        public static void SpeakDelayed(string text)
-        {
-            MelonLoader.MelonCoroutines.Start(DelayedSpeech(text));
-        }
-
-        private static IEnumerator DelayedSpeech(string text)
+        /// <summary>
+        /// Helper coroutine to speak text after one frame delay.
+        /// </summary>
+        internal static IEnumerator DelayedSpeech(string text)
         {
             yield return null; // Wait one frame
             FFV_ScreenReaderMod.SpeakText(text);
+        }
+    }
+
+    /// <summary>
+    /// Patch for SetCommandData - announces when a character's turn becomes active.
+    /// </summary>
+    [HarmonyPatch(typeof(BattleCommandSelectController), nameof(BattleCommandSelectController.SetCommandData))]
+    public static class BattleCommandSelectController_SetCommandData_Patch
+    {
+        private static int lastCharacterId = -1;
+
+        [HarmonyPostfix]
+        public static void Postfix(BattleCommandSelectController __instance, OwnedCharacterData data)
+        {
+            try
+            {
+                if (data == null) return;
+
+                // Only announce if it's a different character than last time
+                int characterId = data.Id;
+                if (characterId == lastCharacterId) return;
+                lastCharacterId = characterId;
+
+                string characterName = data.Name;
+                if (string.IsNullOrEmpty(characterName)) return;
+
+                string announcement = $"{characterName}'s turn";
+                MelonLogger.Msg($"[Battle Turn] {announcement}");
+                FFV_ScreenReaderMod.SpeakText(announcement);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in BattleCommandSelectController.SetCommandData patch: {ex.Message}");
+            }
         }
     }
 
@@ -82,7 +114,7 @@ namespace FFV_ScreenReader.Patches
                 if (string.IsNullOrWhiteSpace(commandName)) return;
 
                 MelonLogger.Msg($"[Battle Command] {commandName}");
-                BattleMenuHelper.SpeakDelayed(commandName);
+                CoroutineManager.StartManaged(BattleCommandPatchHelper.DelayedSpeech(commandName));
             }
             catch (Exception ex)
             {
@@ -181,7 +213,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncement = announcement;
 
                 MelonLogger.Msg($"[Battle Item/Tool] {announcement}");
-                BattleMenuHelper.SpeakDelayed(announcement);
+                CoroutineManager.StartManaged(BattleCommandPatchHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {
@@ -248,7 +280,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncement = announcement;
 
                 MelonLogger.Msg($"[Battle Ability] {announcement}");
-                BattleMenuHelper.SpeakDelayed(announcement);
+                CoroutineManager.StartManaged(BattleCommandPatchHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {
@@ -256,6 +288,4 @@ namespace FFV_ScreenReader.Patches
             }
         }
     }
-
-
 }
