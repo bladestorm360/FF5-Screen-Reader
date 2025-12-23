@@ -12,11 +12,181 @@ using Key = Il2CppSystem.Input.Key;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Patches for config/options menu accessibility in FF5.
-    /// Announces option values when values change via left/right arrows.
+    /// Controller-based patches for config menu navigation.
+    /// Announces menu items directly from ConfigCommandController when navigating with up/down arrows.
     /// </summary>
-    public static class ConfigMenuPatches
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigCommandController), nameof(Il2CppLast.UI.KeyInput.ConfigCommandController.SetFocus))]
+    public static class ConfigCommandController_SetFocus_Patch
     {
+        private static string lastAnnouncedText = "";
+
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.UI.KeyInput.ConfigCommandController __instance, bool isFocus)
+        {
+            try
+            {
+                // Only announce when gaining focus (not losing it)
+                if (!isFocus)
+                {
+                    return;
+                }
+
+                // Safety checks
+                if (__instance == null)
+                {
+                    return;
+                }
+
+                // Don't announce if controller is not active (prevents announcements during scene loading)
+                if (!__instance.gameObject.activeInHierarchy)
+                {
+                    return;
+                }
+
+                // Get the view which contains the localized text
+                var view = __instance.view;
+                if (view == null)
+                {
+                    return;
+                }
+
+                // Get the name text (localized)
+                var nameText = view.nameText;
+                if (nameText == null || string.IsNullOrWhiteSpace(nameText.text))
+                {
+                    return;
+                }
+
+                string menuText = nameText.text.Trim();
+
+                // Skip duplicate announcements
+                if (menuText == lastAnnouncedText)
+                {
+                    return;
+                }
+                lastAnnouncedText = menuText;
+
+                // Also try to get the current value for this config option
+                string configValue = ConfigMenuReader.FindConfigValueFromController(__instance);
+
+                string announcement = menuText;
+                if (!string.IsNullOrWhiteSpace(configValue))
+                {
+                    announcement = $"{menuText}: {configValue}";
+                }
+
+                MelonLogger.Msg($"[Config Menu] {announcement}");
+                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in ConfigCommandController.SetFocus patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Patch for keyboard/gamepad/mouse control settings.
+    /// Announces action name and current key binding when navigating.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigKeysSettingController), nameof(Il2CppLast.UI.KeyInput.ConfigKeysSettingController.SelectContent),
+        new Type[] { typeof(int), typeof(Il2CppLast.UI.CustomScrollView), typeof(Il2CppLast.UI.Cursor),
+                     typeof(Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ConfigControllCommandController>),
+                     typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
+    public static class ConfigKeysSettingController_SelectContent_Patch
+    {
+        private static string lastAnnouncedText = "";
+
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.UI.KeyInput.ConfigKeysSettingController __instance, int index,
+            Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ConfigControllCommandController> contentList)
+        {
+            try
+            {
+                // Safety checks
+                if (__instance == null || contentList == null)
+                {
+                    return;
+                }
+
+                // Convert to list for index access
+                var list = contentList.TryCast<Il2CppSystem.Collections.Generic.List<Il2CppLast.UI.KeyInput.ConfigControllCommandController>>();
+                if (list == null || list.Count == 0 || index < 0 || index >= list.Count)
+                {
+                    return;
+                }
+
+                // Get the command at the cursor index
+                var command = list[index];
+                if (command == null)
+                {
+                    return;
+                }
+
+                var textParts = new System.Collections.Generic.List<string>();
+
+                // Read action name from the view's nameTexts
+                if (command.view != null && command.view.nameTexts != null && command.view.nameTexts.Count > 0)
+                {
+                    foreach (var textComp in command.view.nameTexts)
+                    {
+                        if (textComp != null && !string.IsNullOrWhiteSpace(textComp.text))
+                        {
+                            string text = textComp.text.Trim();
+                            if (!text.StartsWith("MENU_") && !textParts.Contains(text))
+                            {
+                                textParts.Add(text);
+                            }
+                        }
+                    }
+                }
+
+                // Read key bindings from keyboardIconController.view (only works for keyboard settings)
+                if (command.keyboardIconController != null && command.keyboardIconController.view != null)
+                {
+                    // Read from iconTextList - contains the actual key names (e.g., "Enter", "Backspace")
+                    if (command.keyboardIconController.view.iconTextList != null)
+                    {
+                        for (int i = 0; i < command.keyboardIconController.view.iconTextList.Count; i++)
+                        {
+                            var iconText = command.keyboardIconController.view.iconTextList[i];
+                            if (iconText != null && !string.IsNullOrWhiteSpace(iconText.text))
+                            {
+                                string text = iconText.text.Trim();
+                                if (!textParts.Contains(text))
+                                {
+                                    textParts.Add(text);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Note: Gamepad button bindings are not readable as text (displayed as button sprites)
+                // We only announce the action name for gamepad settings
+
+                if (textParts.Count == 0)
+                {
+                    return;
+                }
+
+                string announcement = string.Join(" ", textParts);
+
+                // Skip duplicate announcements
+                if (announcement == lastAnnouncedText)
+                {
+                    return;
+                }
+                lastAnnouncedText = announcement;
+
+                MelonLogger.Msg($"[Config Menu] {announcement}");
+                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in ConfigKeysSettingController.SelectContent patch: {ex.Message}");
+            }
+        }
     }
 
     /// <summary>
@@ -36,24 +206,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (controller == null) return;
-
-                // Small delay to let the UI update
-                CoroutineManager.StartManaged(DelayedAnnounce(controller));
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error($"Error in SwitchArrowSelectTypeProcess patch: {ex.Message}");
-            }
-        }
-
-        private static IEnumerator DelayedAnnounce(ConfigCommandController controller)
-        {
-            yield return new WaitForSeconds(0.05f);
-
-            try
-            {
-                if (controller == null || controller.view == null) yield break;
+                if (controller == null || controller.view == null) return;
 
                 var view = controller.view;
 
@@ -72,15 +225,12 @@ namespace FFV_ScreenReader.Patches
                                 textValue != "←" && textValue != "→")
                             {
                                 // Only announce if value changed
-                                if (textValue == lastArrowValue)
-                                {
-                                    yield break;
-                                }
+                                if (textValue == lastArrowValue) return;
 
                                 lastArrowValue = textValue;
                                 MelonLogger.Msg($"[ConfigMenu] Arrow value changed: {textValue}");
-                                FFV_ScreenReaderMod.SpeakText(textValue);
-                                yield break;
+                                FFV_ScreenReaderMod.SpeakText(textValue, interrupt: true);
+                                return;
                             }
                         }
                     }
@@ -88,7 +238,7 @@ namespace FFV_ScreenReader.Patches
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in delayed arrow announce: {ex.Message}");
+                MelonLogger.Error($"Error in SwitchArrowSelectTypeProcess patch: {ex.Message}");
             }
         }
     }
@@ -140,7 +290,7 @@ namespace FFV_ScreenReader.Patches
                 lastSliderPercentage = percentage;
 
                 MelonLogger.Msg($"[ConfigMenu] Slider value changed: {percentage}");
-                FFV_ScreenReaderMod.SpeakText(percentage);
+                FFV_ScreenReaderMod.SpeakText(percentage, interrupt: true);
             }
             catch (Exception ex)
             {
@@ -168,23 +318,7 @@ namespace FFV_ScreenReader.Patches
             {
                 if (controller == null || controller.view == null) return;
 
-                // Small delay to let the UI update
-                CoroutineManager.StartManaged(DelayedAnnounceTouch(controller));
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error($"Error in Touch SwitchArrowTypeProcess patch: {ex.Message}");
-            }
-        }
-
-        private static IEnumerator DelayedAnnounceTouch(Il2CppLast.UI.Touch.ConfigCommandController controller)
-        {
-            yield return new WaitForSeconds(0.05f);
-
-            try
-            {
                 var view = controller.view;
-                if (view == null) yield break;
 
                 // Check arrow button type
                 if (view.ArrowButtonTypeRoot != null && view.ArrowButtonTypeRoot.activeSelf)
@@ -199,15 +333,12 @@ namespace FFV_ScreenReader.Patches
                                 textValue != "←" && textValue != "→")
                             {
                                 // Only announce if value changed
-                                if (textValue == lastTouchArrowValue)
-                                {
-                                    yield break;
-                                }
+                                if (textValue == lastTouchArrowValue) return;
 
                                 lastTouchArrowValue = textValue;
                                 MelonLogger.Msg($"[ConfigMenu] Touch arrow value changed: {textValue}");
-                                FFV_ScreenReaderMod.SpeakText(textValue);
-                                yield break;
+                                FFV_ScreenReaderMod.SpeakText(textValue, interrupt: true);
+                                return;
                             }
                         }
                     }
@@ -215,7 +346,7 @@ namespace FFV_ScreenReader.Patches
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in delayed touch announce: {ex.Message}");
+                MelonLogger.Error($"Error in Touch SwitchArrowTypeProcess patch: {ex.Message}");
             }
         }
     }
@@ -271,7 +402,7 @@ namespace FFV_ScreenReader.Patches
                 lastTouchSliderPercentage = percentage;
 
                 MelonLogger.Msg($"[ConfigMenu] Touch slider value changed: {percentage}");
-                FFV_ScreenReaderMod.SpeakText(percentage);
+                FFV_ScreenReaderMod.SpeakText(percentage, interrupt: true);
             }
             catch (Exception ex)
             {

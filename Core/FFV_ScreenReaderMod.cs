@@ -182,8 +182,12 @@ namespace FFV_ScreenReader.Core
                     int currentMapId = userDataManager.CurrentMapId;
                     if (currentMapId != lastAnnouncedMapId && lastAnnouncedMapId != -1)
                     {
-                        // Map has changed
+                        // Map has changed - ANNOUNCE IT
                         lastAnnouncedMapId = currentMapId;
+
+                        // Get map name and announce
+                        string mapName = FFV_ScreenReader.Field.MapNameResolver.GetCurrentMapName();
+                        SpeakText($"Entering {mapName}", interrupt: false);
 
                         // Delay entity scan to allow new map to fully initialize
                         CoroutineManager.StartManaged(DelayedMapTransitionScan());
@@ -468,14 +472,125 @@ namespace FFV_ScreenReader.Core
 
         internal void AnnounceCurrentMap()
         {
-            // Map announcement feature not yet implemented for FFV
-            SpeakText("Map announcement not available");
+            try
+            {
+                string mapName = FFV_ScreenReader.Field.MapNameResolver.GetCurrentMapName();
+                SpeakText(mapName);
+            }
+            catch (System.Exception ex)
+            {
+                LoggerInstance.Warning($"Error announcing current map: {ex.Message}");
+                SpeakText("Error reading map name");
+            }
         }
 
         internal void AnnounceAirshipOrCharacterStatus()
         {
-            // Airship/character status not yet implemented for FFV
-            SpeakText("Status not available");
+            // Check if we're on the airship by finding an active airship controller with input enabled
+            var allControllers = UnityEngine.Object.FindObjectsOfType<Il2CppLast.Map.FieldPlayerController>();
+            Il2CppLast.Map.FieldPlayerKeyAirshipController activeAirshipController = null;
+
+            foreach (var controller in allControllers)
+            {
+                if (controller != null && controller.gameObject != null && controller.gameObject.activeInHierarchy)
+                {
+                    var airshipController = controller.TryCast<Il2CppLast.Map.FieldPlayerKeyAirshipController>();
+                    if (airshipController != null && airshipController.InputEnable)
+                    {
+                        activeAirshipController = airshipController;
+                        break;
+                    }
+                }
+            }
+
+            if (activeAirshipController != null)
+            {
+                // TODO: Implement airship status announcement (can be done later)
+                SpeakText("Airship status not yet implemented");
+            }
+            else
+            {
+                // Fall back to battle character status
+                AnnounceCurrentCharacterStatus();
+            }
+        }
+
+        private void AnnounceCurrentCharacterStatus()
+        {
+            try
+            {
+                // Get the currently active character from the battle patch
+                var activeCharacter = FFV_ScreenReader.Patches.ActiveBattleCharacterTracker.CurrentActiveCharacter;
+
+                if (activeCharacter == null)
+                {
+                    SpeakText("Not in battle or no active character");
+                    return;
+                }
+
+                string characterName = activeCharacter.Name;
+
+                // Read HP/MP directly from character parameter
+                if (activeCharacter.Parameter == null)
+                {
+                    SpeakText($"{characterName}, status information not available");
+                    return;
+                }
+
+                var param = activeCharacter.Parameter;
+                var statusParts = new System.Collections.Generic.List<string>();
+                statusParts.Add(characterName);
+
+                // Add HP
+                int currentHP = param.CurrentHP;
+                int maxHP = param.ConfirmedMaxHp();
+                statusParts.Add($"HP {currentHP} of {maxHP}");
+
+                // Add MP
+                int currentMP = param.CurrentMP;
+                int maxMP = param.ConfirmedMaxMp();
+                statusParts.Add($"MP {currentMP} of {maxMP}");
+
+                // Add status conditions
+                var conditionList = param.ConfirmedConditionList();
+                if (conditionList != null && conditionList.Count > 0)
+                {
+                    var conditionNames = new System.Collections.Generic.List<string>();
+                    foreach (var condition in conditionList)
+                    {
+                        if (condition != null)
+                        {
+                            // Get the condition name from the message ID
+                            string conditionMesId = condition.MesIdName;
+                            if (!string.IsNullOrEmpty(conditionMesId) && conditionMesId != "None")
+                            {
+                                var messageManager = Il2CppLast.Management.MessageManager.Instance;
+                                if (messageManager != null)
+                                {
+                                    string conditionName = messageManager.GetMessage(conditionMesId);
+                                    if (!string.IsNullOrEmpty(conditionName))
+                                    {
+                                        conditionNames.Add(conditionName);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (conditionNames.Count > 0)
+                    {
+                        statusParts.Add(string.Join(", ", conditionNames));
+                    }
+                }
+
+                string statusMessage = string.Join(", ", statusParts);
+                SpeakText(statusMessage);
+            }
+            catch (System.Exception ex)
+            {
+                LoggerInstance.Warning($"Error announcing character status: {ex.Message}");
+                SpeakText("Error reading character status");
+            }
         }
 
         /// <summary>

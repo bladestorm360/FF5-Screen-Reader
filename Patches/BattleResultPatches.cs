@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.Data;
@@ -142,23 +141,8 @@ namespace FFV_ScreenReader.Patches
                         var messageManager = MessageManager.Instance;
                         if (messageManager != null && afterData.OwnedAbilityList != null)
                         {
-                            foreach (int abilityId in learningList)
-                            {
-                                // Find ability name in owned list
-                                string abilityName = null;
-                                    // FIXME: Unable to resolve Ability Name due to proxy issues
-                                    /*if (ability != null && ability.Ability != null && ability.Ability.Id == abilityId)
-                                    {
-                                        if (ability.Content != null)
-                                            abilityName = ability.Content.Name;
-                                        break;
-                                    }*/
-
-                                if (!string.IsNullOrEmpty(abilityName))
-                                {
-                                    messageParts.Add($"{charName} learned {abilityName}");
-                                }
-                            }
+                            // FIXME: Ability name lookup disabled due to proxy issues
+                            // foreach (int abilityId in learningList) { ... }
                         }
                     }
                 }

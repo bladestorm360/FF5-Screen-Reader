@@ -204,12 +204,28 @@ namespace FFV_ScreenReader.Core
             
             if (Input.GetKeyDown(KeyCode.T))
             {
+                if (IsShiftHeld())
+                {
+                    Patches.TimerHelper.ToggleTimerFreeze();
+                }
+                else
+                {
+                    Patches.TimerHelper.AnnounceActiveTimers();
+                }
             }
 
-            // 'I' key - announce config option tooltip/description
+            // 'I' key - announce config option tooltip/description OR job details
             if (Input.GetKeyDown(KeyCode.I))
             {
-                AnnounceConfigTooltip();
+                // Check if job menu is active
+                if (FFV_ScreenReader.Patches.JobMenuTracker.IsJobMenuActive)
+                {
+                    FFV_ScreenReader.Patches.JobDetailsAnnouncer.AnnounceCurrentJobDetails();
+                }
+                else
+                {
+                    AnnounceConfigTooltip();
+                }
             }
         }
 

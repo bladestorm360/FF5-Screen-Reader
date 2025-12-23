@@ -2,6 +2,8 @@ using System;
 using Il2CppLast.Data.User;
 using Il2CppLast.Defaine.User;
 using Il2CppLast.Management;
+using Il2CppLast.UI;
+using Il2CppSerial.FF5.UI.KeyInput;
 using MelonLoader;
 using UnityEngine;
 using static FFV_ScreenReader.Utils.TextUtils;
@@ -15,7 +17,6 @@ namespace FFV_ScreenReader.Menus
     /// </summary>
     public static class CharacterSelectionReader
     {
-
         /// <summary>
         /// Try to read character information from the current cursor position.
         /// Returns a formatted string with character information, or null if not a character selection.
@@ -79,6 +80,18 @@ namespace FFV_ScreenReader.Menus
                         }
                     }
 
+                    // Skip ability command slot navigation (handled by AbilityCommandController.SelectContent patch)
+                    if (current.name.Contains("comand_menu") || current.name.Contains("command_menu"))
+                    {
+                        // Check if this is ability command slots by looking for AbilityCommandController
+                        var abilityCommandController = current.GetComponentInParent<Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController>();
+                        if (abilityCommandController != null)
+                        {
+                            MelonLogger.Msg("Skipping ability command slot navigation (handled by AbilityCommandController.SelectContent patch)");
+                            return null;
+                        }
+                    }
+
                     current = current.parent;
                     depth++;
                 }
@@ -123,7 +136,31 @@ namespace FFV_ScreenReader.Menus
         {
             try
             {
-                // Try direct text extraction
+                // Try to get ICharaStatusContentController component
+                var statusController = slotTransform.GetComponent<ICharaStatusContentController>();
+                if (statusController == null)
+                {
+                    statusController = slotTransform.GetComponentInChildren<ICharaStatusContentController>();
+                }
+
+                // Try to get MenuCharacterController component
+                var menuCharController = slotTransform.GetComponent<MenuCharacterController>();
+                if (menuCharController == null)
+                {
+                    menuCharController = slotTransform.GetComponentInChildren<MenuCharacterController>();
+                }
+
+                // Log what we found
+                if (statusController != null)
+                {
+                    MelonLogger.Msg("Found ICharaStatusContentController");
+                }
+                if (menuCharController != null)
+                {
+                    MelonLogger.Msg("Found MenuCharacterController");
+                }
+
+                // Try direct text extraction as fallback
                 MelonLogger.Msg("Trying text component reading");
                 return ReadFromTextComponents(slotTransform, slotIndex);
             }

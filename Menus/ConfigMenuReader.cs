@@ -15,6 +15,28 @@ namespace FFV_ScreenReader.Menus
     public static class ConfigMenuReader
     {
         /// <summary>
+        /// Find config value directly from a ConfigCommandController instance.
+        /// This is used by the controller-based patch system.
+        /// </summary>
+        public static string FindConfigValueFromController(ConfigCommandController_KeyInput controller)
+        {
+            try
+            {
+                if (controller == null)
+                {
+                    return null;
+                }
+
+                return GetValueFromKeyInputCommand(controller);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error reading config value from controller: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Finds and returns the current value text for a config option.
         /// Returns null if not in a config menu or no value found.
         /// For slider options, returns the percentage value.

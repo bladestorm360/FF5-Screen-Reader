@@ -17,19 +17,10 @@ using UnityEngine;
 
 namespace FFV_ScreenReader.Patches
 {
-    /// <summary>
-    /// Shared helper for battle command patches.
-    /// </summary>
-    internal static class BattleCommandPatchHelper
+    // Track current active character for status announcements (H key)
+    public static class ActiveBattleCharacterTracker
     {
-        /// <summary>
-        /// Helper coroutine to speak text after one frame delay.
-        /// </summary>
-        internal static IEnumerator DelayedSpeech(string text)
-        {
-            yield return null; // Wait one frame
-            FFV_ScreenReaderMod.SpeakText(text);
-        }
+        public static OwnedCharacterData CurrentActiveCharacter { get; set; }
     }
 
     /// <summary>
@@ -46,6 +37,9 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 if (data == null) return;
+
+                // Track the active character for H key status announcement
+                ActiveBattleCharacterTracker.CurrentActiveCharacter = data;
 
                 // Only announce if it's a different character than last time
                 int characterId = data.Id;
@@ -114,7 +108,7 @@ namespace FFV_ScreenReader.Patches
                 if (string.IsNullOrWhiteSpace(commandName)) return;
 
                 MelonLogger.Msg($"[Battle Command] {commandName}");
-                CoroutineManager.StartManaged(BattleCommandPatchHelper.DelayedSpeech(commandName));
+                CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(commandName));
             }
             catch (Exception ex)
             {
@@ -213,7 +207,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncement = announcement;
 
                 MelonLogger.Msg($"[Battle Item/Tool] {announcement}");
-                CoroutineManager.StartManaged(BattleCommandPatchHelper.DelayedSpeech(announcement));
+                CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {
@@ -280,7 +274,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncement = announcement;
 
                 MelonLogger.Msg($"[Battle Ability] {announcement}");
-                CoroutineManager.StartManaged(BattleCommandPatchHelper.DelayedSpeech(announcement));
+                CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
             {

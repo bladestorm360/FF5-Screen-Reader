@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
+using Il2CppSerial.FF5.UI.KeyInput;
 using Il2CppLast.Data.User;
+using Il2CppLast.UI.KeyInput;
 using MelonLoader;
+using UnityEngine.UI;
 
 namespace FFV_ScreenReader.Menus
 {
     /// <summary>
     /// Handles reading character status details.
     /// Provides stat reading functions for physical and magical stats.
+    /// Ported from FF6 screen reader.
     /// </summary>
     public static class StatusDetailsReader
     {
@@ -21,6 +25,117 @@ namespace FFV_ScreenReader.Menus
         public static void ClearCurrentCharacterData()
         {
             currentCharacterData = null;
+        }
+
+        /// <summary>
+        /// Read all character status information from the status details view.
+        /// Returns a formatted string with all relevant information.
+        /// </summary>
+        public static string ReadStatusDetails(StatusDetailsController controller)
+        {
+            if (controller == null)
+            {
+                return null;
+            }
+
+            var statusView = controller.statusController?.view as AbilityCharaStatusView;
+            var detailsView = controller.view;
+
+            if (statusView == null && detailsView == null)
+            {
+                return null;
+            }
+
+            var parts = new List<string>();
+
+            // Character name and level
+            if (statusView != null)
+            {
+                string name = GetTextSafe(statusView.NameText);
+                string level = GetTextSafe(statusView.CurrentLevelText);
+
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    parts.Add(name);
+                }
+
+                if (!string.IsNullOrWhiteSpace(level))
+                {
+                    parts.Add($"Level {level}");
+                }
+            }
+
+            // HP and MP
+            if (statusView != null)
+            {
+                string currentHp = GetTextSafe(statusView.CurrentHpText);
+                string maxHp = GetTextSafe(statusView.MaxHpText);
+                string currentMp = GetTextSafe(statusView.CurrentMpText);
+                string maxMp = GetTextSafe(statusView.MaxMpText);
+
+                if (!string.IsNullOrWhiteSpace(currentHp) && !string.IsNullOrWhiteSpace(maxHp))
+                {
+                    parts.Add($"HP: {currentHp} / {maxHp}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(currentMp) && !string.IsNullOrWhiteSpace(maxMp))
+                {
+                    parts.Add($"MP: {currentMp} / {maxMp}");
+                }
+            }
+
+            // Experience info (if available)
+            if (detailsView != null)
+            {
+                try
+                {
+                    string exp = GetTextSafe(detailsView.ExpText);
+                    string nextExp = GetTextSafe(detailsView.NextExpText);
+
+                    if (!string.IsNullOrWhiteSpace(exp))
+                    {
+                        parts.Add($"Experience: {exp}");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(nextExp))
+                    {
+                        parts.Add($"Next Level: {nextExp}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MelonLogger.Warning($"Could not read experience info: {ex.Message}");
+                }
+            }
+
+            return parts.Count > 0 ? string.Join(". ", parts) : null;
+        }
+
+        /// <summary>
+        /// Safely get text from a Text component, returning null if invalid.
+        /// </summary>
+        private static string GetTextSafe(Text textComponent)
+        {
+            if (textComponent == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                string text = textComponent.text;
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return null;
+                }
+
+                // Trim and return
+                return text.Trim();
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>
