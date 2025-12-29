@@ -427,7 +427,7 @@ namespace FFV_ScreenReader.Patches
     }
 
     // FF5 specific: Patching MessageChoiceWindowManager for choice menus
-    [HarmonyPatch(typeof(Il2CppLast.Management.MessageChoiceWindowManager), "Play")]
+    [HarmonyPatch(typeof(Il2CppLast.Management.MessageChoiceWindowManager), "Play", new Type[] { typeof(string[]) })]
     public static class MessageChoiceWindowManager_Play_Patch
     {
         [HarmonyPostfix]

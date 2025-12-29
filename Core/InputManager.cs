@@ -81,13 +81,53 @@ namespace FFV_ScreenReader.Core
         
         private void HandleStatusScreenInput()
         {
-            if (Input.GetKeyDown(KeyCode.J) || Input.GetKeyDown(KeyCode.LeftBracket))
+            // Arrow key navigation for individual stats
+            if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                if (IsCtrlHeld())
+                {
+                    // Ctrl + Down = Jump to bottom
+                    StatusNavigationReader.JumpToBottom();
+                }
+                else if (IsShiftHeld())
+                {
+                    // Shift + Down = Jump to next group
+                    StatusNavigationReader.JumpToNextGroup();
+                }
+                else
+                {
+                    // Down = Next stat
+                    StatusNavigationReader.NavigateNext();
+                }
+            }
+
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                if (IsCtrlHeld())
+                {
+                    // Ctrl + Up = Jump to top
+                    StatusNavigationReader.JumpToTop();
+                }
+                else if (IsShiftHeld())
+                {
+                    // Shift + Up = Jump to previous group
+                    StatusNavigationReader.JumpToPreviousGroup();
+                }
+                else
+                {
+                    // Up = Previous stat
+                    StatusNavigationReader.NavigatePrevious();
+                }
+            }
+
+            // Existing hotkeys for bulk stat reading
+            if (Input.GetKeyDown(KeyCode.LeftBracket))
             {
                 string physicalStats = StatusDetailsReader.ReadPhysicalStats();
                 FFV_ScreenReaderMod.SpeakText(physicalStats);
             }
 
-            if (Input.GetKeyDown(KeyCode.L) || Input.GetKeyDown(KeyCode.RightBracket))
+            if (Input.GetKeyDown(KeyCode.RightBracket))
             {
                 string magicalStats = StatusDetailsReader.ReadMagicalStats();
                 FFV_ScreenReaderMod.SpeakText(magicalStats);
@@ -96,7 +136,7 @@ namespace FFV_ScreenReader.Core
         
         private void HandleFieldInput()
         {
-            if (Input.GetKeyDown(KeyCode.J) || Input.GetKeyDown(KeyCode.LeftBracket))
+            if (Input.GetKeyDown(KeyCode.LeftBracket))
             {
                 if (IsShiftHeld())
                 {
@@ -107,13 +147,8 @@ namespace FFV_ScreenReader.Core
                     mod.CyclePrevious();
                 }
             }
-            
-            if (Input.GetKeyDown(KeyCode.K))
-            {
-                mod.AnnounceEntityOnly();
-            }
-            
-            if (Input.GetKeyDown(KeyCode.L) || Input.GetKeyDown(KeyCode.RightBracket))
+
+            if (Input.GetKeyDown(KeyCode.RightBracket))
             {
                 if (IsShiftHeld())
                 {
@@ -124,8 +159,8 @@ namespace FFV_ScreenReader.Core
                     mod.CycleNext();
                 }
             }
-            
-            if (Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(KeyCode.Backslash))
+
+            if (Input.GetKeyDown(KeyCode.Backslash))
             {
                 if (IsShiftHeld())
                 {
@@ -138,9 +173,66 @@ namespace FFV_ScreenReader.Core
             }
         }
         
+        private void HandleWaypointInput()
+        {
+            // Comma: Cycle waypoints
+            if (Input.GetKeyDown(KeyCode.Comma))
+            {
+                if (IsShiftHeld())
+                {
+                    mod.CyclePreviousWaypointCategory();
+                }
+                else
+                {
+                    mod.CyclePreviousWaypoint();
+                }
+            }
+
+            // Period: Cycle waypoints
+            if (Input.GetKeyDown(KeyCode.Period))
+            {
+                if (IsShiftHeld())
+                {
+                    mod.CycleNextWaypointCategory();
+                }
+                else
+                {
+                    mod.CycleNextWaypoint();
+                }
+            }
+
+            // Slash: Waypoint actions
+            if (Input.GetKeyDown(KeyCode.Slash))
+            {
+                if (IsCtrlHeld() && IsShiftHeld())
+                {
+                    mod.ClearAllWaypointsForMap(); // Double-press confirmation
+                }
+                else if (IsCtrlHeld())
+                {
+                    mod.RemoveCurrentWaypoint();
+                }
+                else if (IsShiftHeld())
+                {
+                    mod.AddNewWaypoint();
+                }
+                else
+                {
+                    mod.PathfindToCurrentWaypoint();
+                }
+            }
+        }
+
         private void HandleGlobalInput()
         {
-            if (IsCtrlHeld())
+            // Handle waypoint hotkeys (works anywhere on field)
+            HandleWaypointInput();
+
+            // Don't handle Ctrl+Arrow for teleportation if status screen is active
+            // (status screen uses Ctrl+Arrow for stat navigation)
+            bool statusScreenActive = IsStatusScreenActive();
+
+            if (IsCtrlHeld() && !statusScreenActive)
             {
                 if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
@@ -187,11 +279,6 @@ namespace FFV_ScreenReader.Core
                 mod.ResetToAllCategory();
             }
 
-            if (Input.GetKeyDown(KeyCode.K) && IsShiftHeld())
-            {
-                mod.ResetToAllCategory();
-            }
-            
             if (Input.GetKeyDown(KeyCode.Equals))
             {
                 mod.CycleNextCategory();
@@ -214,19 +301,32 @@ namespace FFV_ScreenReader.Core
                 }
             }
 
-            // 'I' key - announce config option tooltip/description OR job details
+            // 'I' key - announce item/job/ability/spell details or config option description
             if (Input.GetKeyDown(KeyCode.I))
             {
+                // Check shop menu first (highest priority)
+                if (FFV_ScreenReader.Patches.ShopMenuTracker.ValidateState())
+                {
+                    FFV_ScreenReader.Patches.ShopDetailsAnnouncer.AnnounceCurrentItemDetails();
+                }
                 // Check if job menu is active
-                if (FFV_ScreenReader.Patches.JobMenuTracker.IsJobMenuActive)
+                else if (FFV_ScreenReader.Patches.JobMenuTracker.ValidateState())
                 {
                     FFV_ScreenReader.Patches.JobDetailsAnnouncer.AnnounceCurrentJobDetails();
+                }
+                // Check if ability/magic menu is active
+                else if (FFV_ScreenReader.Patches.AbilityMenuTracker.ValidateState())
+                {
+                    FFV_ScreenReader.Patches.AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails();
                 }
                 else
                 {
                     AnnounceConfigTooltip();
                 }
             }
+
+            // Pathfinding keys
+            HandlePathfindingInput();
         }
 
         /// <summary>
@@ -328,6 +428,57 @@ namespace FFV_ScreenReader.Core
         private bool IsCtrlHeld()
         {
             return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+        }
+
+        /// <summary>
+        /// Handle pathfinding keyboard input (J/K/L/P)
+        /// </summary>
+        private void HandlePathfindingInput()
+        {
+            // J: Cycle to previous entity (same as [ bracket)
+            if (Input.GetKeyDown(KeyCode.J))
+            {
+                if (IsShiftHeld())
+                {
+                    mod.CyclePreviousCategory();
+                }
+                else
+                {
+                    mod.CyclePrevious();
+                }
+            }
+
+            // K: Announce current entity (same as \ backslash)
+            if (Input.GetKeyDown(KeyCode.K))
+            {
+                if (IsShiftHeld())
+                {
+                    mod.TogglePathfindingFilter();
+                }
+                else
+                {
+                    mod.AnnounceCurrentEntity();
+                }
+            }
+
+            // L: Cycle to next entity (same as ] bracket)
+            if (Input.GetKeyDown(KeyCode.L))
+            {
+                if (IsShiftHeld())
+                {
+                    mod.CycleNextCategory();
+                }
+                else
+                {
+                    mod.CycleNext();
+                }
+            }
+
+            // P: Pathfind to current entity (show directions)
+            if (Input.GetKeyDown(KeyCode.P))
+            {
+                mod.PathfindToCurrentEntity();
+            }
         }
     }
 }

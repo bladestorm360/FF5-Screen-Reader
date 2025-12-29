@@ -106,32 +106,30 @@ namespace FFV_ScreenReader.Patches
                     int charExp = charResult.GetExp;
                     int charAbp = charResult.GetABP;
 
-                    // Level up check
-                    if (charResult.IsLevelUp)
+                    // ALWAYS announce XP and ABP (spell ABP as "A B P" for NVDA)
+                    if (charAbp > 0)
                     {
-                        int newLevel = afterData.parameter != null ? afterData.parameter.ConfirmedLevel() : 0;
-                        messageParts.Add($"{charName} gained {charExp:N0} XP and leveled up to level {newLevel}");
+                        // Use "A B P" with spaces so NVDA reads individual letters
+                        messageParts.Add($"{charName} earned {charExp:N0} XP and {charAbp} A B P");
                     }
                     else
                     {
-                        // Always announce XP, even if 0
-                        messageParts.Add($"{charName} gained {charExp:N0} XP");
+                        // No ABP earned (rare)
+                        messageParts.Add($"{charName} earned {charExp:N0} XP");
                     }
 
-                    // ABP check
-                    if (charAbp > 0)
+                    // Separate level up announcement
+                    if (charResult.IsLevelUp)
                     {
-                        // Don't spam ABP if it's routine, but user asked for job points. 
-                        // Maybe simplified: "3 ABP" if shared? Or per character?
-                        // Usually ABP is global for the party but assigned per character.
-                        // We'll append it to the character status line or separate?
-                        // Let's treat it per character to be safe.
-                        // Actually, often ABP is just "Gained 3 ABP" globally.
-                        // But here it is on charResult. Let's mention it if significant (Job Level Up).
-                        if (charResult.IsJobLevelUp)
-                        {
-                            messageParts.Add($"{charName} gained {charAbp} ABP and Job Level Up!");
-                        }
+                        int newLevel = afterData.parameter != null ? afterData.parameter.ConfirmedLevel() : 0;
+                        messageParts.Add($"{charName} leveled up to level {newLevel}");
+                    }
+
+                    // Job level up announcement
+                    if (charResult.IsJobLevelUp)
+                    {
+                        // Basic announcement (job name/level requires research)
+                        messageParts.Add($"{charName} job level up!");
                     }
 
                     // Abilities learned

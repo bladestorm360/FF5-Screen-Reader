@@ -37,25 +37,7 @@ namespace FFV_ScreenReader.Field
 
             return entity;
         }
-        
-        public static List<NavigableEntity> CreateFromFieldEntities(
-            IEnumerable<FieldEntity> fieldEntities,
-            Vector3 playerPos)
-        {
-            var results = new List<NavigableEntity>();
 
-            foreach (var fieldEntity in fieldEntities)
-            {
-                var entity = CreateFromFieldEntity(fieldEntity, playerPos);
-                if (entity != null)
-                {
-                    results.Add(entity);
-                }
-            }
-
-            return results;
-        }
-        
         private static bool IsNonInteractiveType(MapConstants.ObjectType objectType)
         {
             return objectType == MapConstants.ObjectType.PointIn ||

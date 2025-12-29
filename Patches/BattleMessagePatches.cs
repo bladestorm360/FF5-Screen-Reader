@@ -16,6 +16,7 @@ using UnityEngine;
 using BattleCommandMessageController_KeyInput = Il2CppLast.UI.KeyInput.BattleCommandMessageController;
 using BattleCommandMessageController_Touch = Il2CppLast.UI.Touch.BattleCommandMessageController;
 using BattlePlayerData = Il2Cpp.BattlePlayerData;
+using Il2CppLast.Data.User;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -259,6 +260,7 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 string targetName = "Unknown";
+                bool isEnemy = false;
 
                 // Check if this is a BattlePlayerData (player character)
                 var playerData = data.TryCast<Il2Cpp.BattlePlayerData>();
@@ -282,6 +284,7 @@ namespace FFV_ScreenReader.Patches
                 var enemyData = data.TryCast<Il2CppLast.Battle.BattleEnemyData>();
                 if (enemyData != null)
                 {
+                    isEnemy = true;
                     try
                     {
                         string mesIdName = enemyData.GetMesIdName();
@@ -297,7 +300,7 @@ namespace FFV_ScreenReader.Patches
                     }
                     catch (Exception ex)
                     {
-                        MelonLogger.Warning($"Error getting enemy name: {ex.Message}");
+                        MelonLogger.Warning($"Error getting enemy name/HP: {ex.Message}");
                     }
                 }
 
@@ -319,7 +322,7 @@ namespace FFV_ScreenReader.Patches
                     message = $"{targetName}: {value} damage";
                 }
 
-                // Use global tracker but don't dedupe damage - each hit is unique
+                // Announce damage/recovery
                 MelonLogger.Msg($"[Damage] {message}");
                 FFV_ScreenReaderMod.SpeakText(message, interrupt: false);
             }
@@ -357,4 +360,181 @@ namespace FFV_ScreenReader.Patches
     // The ActFunctionProvider.ViewMessage patch now handles actor+action announcements
     // The ScrollMessageManager.Play patch handles system messages like "Preemptive Strike"
     // All use GlobalBattleMessageTracker for deduplication
+
+    /// <summary>
+    /// Patch BattleStealItemPlug.StealItem to announce when items are stolen
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.Battle.BattleStealItemPlug), nameof(Il2CppLast.Battle.BattleStealItemPlug.StealItem))]
+    public static class BattleStealItemPlug_StealItem_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(int contentId, int cnt)
+        {
+            try
+            {
+                if (contentId <= 0)
+                {
+                    // No item stolen (contentId 0 or negative means nothing to steal)
+                    MelonLogger.Msg("[Steal] Nothing to steal");
+                    return;
+                }
+
+                // Get item name from contentId using MessageManager directly
+                var messageManager = MessageManager.Instance;
+                if (messageManager == null)
+                {
+                    MelonLogger.Warning("[Steal] MessageManager not available");
+                    return;
+                }
+
+                // Get the item name message ID using ContentUtitlity
+                string itemMesId = ContentUtitlity.GetMesIdItemName(contentId);
+                if (!string.IsNullOrEmpty(itemMesId))
+                {
+                    string itemName = messageManager.GetMessage(itemMesId);
+                    if (!string.IsNullOrEmpty(itemName))
+                    {
+                        // Remove icon markup from name
+                        itemName = Utils.TextUtils.StripIconMarkup(itemName);
+
+                        string announcement;
+                        if (cnt > 1)
+                        {
+                            announcement = $"Stole {itemName} x{cnt}";
+                        }
+                        else
+                        {
+                            announcement = $"Stole {itemName}";
+                        }
+
+                        MelonLogger.Msg($"[Steal] {announcement}");
+                        FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                        return;
+                    }
+                }
+
+                // Fallback if we couldn't get the item name
+                MelonLogger.Msg($"[Steal] Stole item (contentId: {contentId}, count: {cnt})");
+                FFV_ScreenReaderMod.SpeakText($"Stole item", interrupt: false);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in BattleStealItemPlug.StealItem patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Patch BattleConditionController.Add to announce status effects when applied
+    /// This includes KO (UnableFight), Poison, Silence, Sleep, and all other conditions
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.Battle.BattleConditionController), nameof(Il2CppLast.Battle.BattleConditionController.Add))]
+    public static class BattleConditionController_Add_Patch
+    {
+        private static string lastAnnouncement = "";
+
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id)
+        {
+            try
+            {
+                if (battleUnitData == null)
+                {
+                    return;
+                }
+
+                // Get target name
+                string targetName = "Unknown";
+                var playerData = battleUnitData.TryCast<BattlePlayerData>();
+                if (playerData?.ownedCharacterData != null)
+                {
+                    targetName = playerData.ownedCharacterData.Name;
+                }
+                else
+                {
+                    var enemyData = battleUnitData.TryCast<BattleEnemyData>();
+                    if (enemyData != null)
+                    {
+                        string mesIdName = enemyData.GetMesIdName();
+                        var messageManager = MessageManager.Instance;
+                        if (messageManager != null && !string.IsNullOrEmpty(mesIdName))
+                        {
+                            string localizedName = messageManager.GetMessage(mesIdName);
+                            if (!string.IsNullOrEmpty(localizedName))
+                            {
+                                targetName = localizedName;
+                            }
+                        }
+                    }
+                }
+
+                // Get condition name from ID - look up from ConfirmedConditionList
+                string conditionName = null;
+                try
+                {
+                    var unitDataInfo = battleUnitData.BattleUnitDataInfo;
+                    if (unitDataInfo?.Parameter != null)
+                    {
+                        var confirmedList = unitDataInfo.Parameter.ConfirmedConditionList();
+                        if (confirmedList != null && confirmedList.Count > 0)
+                        {
+                            // Look for condition matching our ID
+                            foreach (var condition in confirmedList)
+                            {
+                                if (condition != null && condition.Id == id)
+                                {
+                                    string conditionMesId = condition.MesIdName;
+
+                                    // Skip conditions with no message ID (internal/hidden statuses)
+                                    if (string.IsNullOrEmpty(conditionMesId) || conditionMesId == "None")
+                                    {
+                                        return; // Skip this status announcement
+                                    }
+
+                                    var messageManager = MessageManager.Instance;
+                                    if (messageManager != null)
+                                    {
+                                        string localizedConditionName = messageManager.GetMessage(conditionMesId);
+                                        if (!string.IsNullOrEmpty(localizedConditionName))
+                                        {
+                                            conditionName = localizedConditionName;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Fallback: Announce raw ID if we couldn't resolve the name
+                    if (conditionName == null)
+                    {
+                        conditionName = $"Status {id}";
+                        MelonLogger.Warning($"[Status] Could not resolve condition ID {id}, announcing as raw ID");
+                    }
+                }
+                catch (Exception condEx)
+                {
+                    MelonLogger.Warning($"Error resolving condition ID {id}: {condEx.Message}");
+                    conditionName = $"Status {id}";
+                }
+
+                string announcement = $"{targetName}: {conditionName}";
+
+                // Skip duplicates
+                if (announcement == lastAnnouncement)
+                {
+                    return;
+                }
+                lastAnnouncement = announcement;
+
+                MelonLogger.Msg($"[Status] {announcement}");
+                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in BattleConditionController.Add patch: {ex.Message}");
+            }
+        }
+    }
 }

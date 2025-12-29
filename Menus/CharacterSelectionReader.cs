@@ -7,6 +7,7 @@ using Il2CppSerial.FF5.UI.KeyInput;
 using MelonLoader;
 using UnityEngine;
 using static FFV_ScreenReader.Utils.TextUtils;
+using UnityEngine.SceneManagement;
 
 namespace FFV_ScreenReader.Menus
 {
@@ -26,6 +27,31 @@ namespace FFV_ScreenReader.Menus
             try
             {
                 MelonLogger.Msg($"=== CharacterSelectionReader: Checking cursor at index {cursorIndex} ===");
+
+                // Safety check: Only read character data if we're in a menu or battle
+                // This prevents character data from being read during game load when menu scenes are preloaded
+                var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                bool isBattleScene = sceneName != null && sceneName.Contains("Battle");
+                bool isMenuOpen = false;
+
+                try
+                {
+                    var menuManager = MenuManager.Instance;
+                    if (menuManager != null)
+                    {
+                        isMenuOpen = menuManager.IsOpen;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MelonLogger.Warning($"Could not check MenuManager.IsOpen: {ex.Message}");
+                }
+
+                if (!isBattleScene && !isMenuOpen)
+                {
+                    MelonLogger.Msg("CharacterSelectionReader: Menu not open and not in battle - skipping character data read to prevent false positives during scene load");
+                    return null;
+                }
 
                 // Walk up the hierarchy to find character selection structures
                 Transform current = cursorTransform;

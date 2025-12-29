@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "waypoints": {
+    "1": [
+      {
+        "id": "d5caad1f-7ff6-4bf2-b89b-a9f05e04ed59",
+        "name": "Waypoint 1",
+        "category": "Docks",
+        "x": 872,
+        "y": 1128,
+        "z": 149,
+        "created": "2025-12-25T20:42:32.8411847Z"
+      },
+      {
+        "id": "9d912450-d45d-4928-b47f-db7b811f1bb3",
+        "name": "Waypoint 2",
+        "category": "Landmarks",
+        "x": 536,
+        "y": 520,
+        "z": 149,
+        "created": "2025-12-25T20:43:54.2500763Z"
+      }
+    ]
+  }
+}

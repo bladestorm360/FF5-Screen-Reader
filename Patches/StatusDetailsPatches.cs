@@ -15,6 +15,61 @@ using UnityEngine;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
+    /// Tracks status menu state to distinguish user navigation from initialization
+    /// </summary>
+    public static class StatusMenuTracker
+    {
+        public static bool IsUserOpened { get; set; }
+        public static DateTime LastSelectTime { get; set; }
+    }
+
+    /// <summary>
+    /// Tracks navigation state within the status screen for arrow key navigation
+    /// </summary>
+    public class StatusNavigationTracker
+    {
+        private static StatusNavigationTracker instance = null;
+        public static StatusNavigationTracker Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = new StatusNavigationTracker();
+                }
+                return instance;
+            }
+        }
+
+        public bool IsNavigationActive { get; set; }
+        public int CurrentStatIndex { get; set; }
+        public OwnedCharacterData CurrentCharacterData { get; set; }
+        public StatusDetailsController ActiveController { get; set; }
+
+        private StatusNavigationTracker()
+        {
+            Reset();
+        }
+
+        public void Reset()
+        {
+            IsNavigationActive = false;
+            CurrentStatIndex = 0;
+            CurrentCharacterData = null;
+            ActiveController = null;
+        }
+
+        public bool ValidateState()
+        {
+            return IsNavigationActive &&
+                   CurrentCharacterData != null &&
+                   ActiveController != null &&
+                   ActiveController.gameObject != null &&
+                   ActiveController.gameObject.activeInHierarchy;
+        }
+    }
+
+    /// <summary>
     /// Controller-based patches for the character status menu.
     /// Announces character names when navigating the selection list and status details when viewing.
     /// Provides hotkeys for detailed stat announcements ([=physical, ]=magical).
@@ -56,6 +111,10 @@ namespace FFV_ScreenReader.Patches
                 {
                     return;
                 }
+
+                // Mark that user is actively navigating the status menu
+                StatusMenuTracker.IsUserOpened = true;
+                StatusMenuTracker.LastSelectTime = DateTime.UtcNow;
 
                 // Use coroutine for one-frame delay to ensure UI has updated
                 CoroutineManager.StartManaged(DelayedCharacterAnnouncement(contents, index));
@@ -139,6 +198,20 @@ namespace FFV_ScreenReader.Patches
                     yield break;
                 }
 
+                // IMPORTANT: Only announce if user actively opened the status menu
+                // InitDisplay fires during game load - we want to suppress that
+                if (!StatusMenuTracker.IsUserOpened)
+                {
+                    MelonLogger.Msg("[Status Init] Suppressed - menu not user-opened (likely game load)");
+                    yield break;
+                }
+
+                // Also suppress if status screen isn't actually visible
+                if (controller.gameObject == null || !controller.gameObject.activeInHierarchy)
+                {
+                    yield break;
+                }
+
                 // Read all status details
                 string statusText = StatusDetailsReader.ReadStatusDetails(controller);
 
@@ -147,9 +220,38 @@ namespace FFV_ScreenReader.Patches
                     yield break;
                 }
 
-                // No deduplication - announce every time InitDisplay is called
                 MelonLogger.Msg($"[Status Details] {statusText}");
                 FFV_ScreenReaderMod.SpeakText(statusText);
+
+                // Initialize navigation state
+                try
+                {
+                    var characterData = StatusDetailsHelpers.GetCharacterDataFromController(controller);
+                    if (characterData != null)
+                    {
+                        var tracker = StatusNavigationTracker.Instance;
+                        tracker.IsNavigationActive = true;
+                        tracker.CurrentStatIndex = 0;  // Start at top
+                        tracker.ActiveController = controller;
+                        tracker.CurrentCharacterData = characterData;
+
+                        // Also set for existing stat reading methods
+                        StatusDetailsReader.SetCurrentCharacterData(characterData);
+
+                        // Initialize the stat list
+                        StatusNavigationReader.InitializeStatList();
+
+                        MelonLogger.Msg("[Status] Navigation initialized - use Up/Down arrows to browse stats");
+                    }
+                    else
+                    {
+                        MelonLogger.Warning("[Status] Could not get character data for navigation");
+                    }
+                }
+                catch (Exception navEx)
+                {
+                    MelonLogger.Warning($"Error initializing navigation: {navEx.Message}");
+                }
             }
             catch (Exception ex)
             {
@@ -158,132 +260,9 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    [HarmonyPatch(typeof(StatusDetailsController), nameof(StatusDetailsController.SetNextPlayer))]
-    public static class StatusDetailsController_SetNextPlayer_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(StatusDetailsController __instance)
-        {
-            try
-            {
-                // Safety checks
-                if (__instance == null)
-                {
-                    return;
-                }
-
-                // Use coroutine for one-frame delay to ensure UI has updated
-                CoroutineManager.StartManaged(DelayedPlayerChangeAnnouncement(__instance));
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in StatusDetailsController.SetNextPlayer patch: {ex.Message}");
-            }
-        }
-
-        private static IEnumerator DelayedPlayerChangeAnnouncement(StatusDetailsController controller)
-        {
-            // Wait one frame for UI to update
-            yield return null;
-
-            try
-            {
-                if (controller == null)
-                {
-                    yield break;
-                }
-
-                // Read all status details
-                string statusText = StatusDetailsReader.ReadStatusDetails(controller);
-
-                if (string.IsNullOrWhiteSpace(statusText))
-                {
-                    yield break;
-                }
-
-                MelonLogger.Msg($"[Status Next] {statusText}");
-                FFV_ScreenReaderMod.SpeakText(statusText);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in delayed player change announcement: {ex.Message}");
-            }
-        }
-    }
-
-    [HarmonyPatch(typeof(StatusDetailsController), nameof(StatusDetailsController.SetPrevPlayer))]
-    public static class StatusDetailsController_SetPrevPlayer_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(StatusDetailsController __instance)
-        {
-            try
-            {
-                // Safety checks
-                if (__instance == null)
-                {
-                    return;
-                }
-
-                // Use coroutine for one-frame delay to ensure UI has updated
-                CoroutineManager.StartManaged(DelayedPlayerChangeAnnouncement(__instance));
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in StatusDetailsController.SetPrevPlayer patch: {ex.Message}");
-            }
-        }
-
-        private static IEnumerator DelayedPlayerChangeAnnouncement(StatusDetailsController controller)
-        {
-            // Wait one frame for UI to update
-            yield return null;
-
-            try
-            {
-                if (controller == null)
-                {
-                    yield break;
-                }
-
-                // Read all status details
-                string statusText = StatusDetailsReader.ReadStatusDetails(controller);
-
-                if (string.IsNullOrWhiteSpace(statusText))
-                {
-                    yield break;
-                }
-
-                MelonLogger.Msg($"[Status Prev] {statusText}");
-                FFV_ScreenReaderMod.SpeakText(statusText);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in delayed player change announcement: {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Patch SetParameter to store character data for hotkey access.
-    /// </summary>
-    [HarmonyPatch(typeof(StatusDetailsController), nameof(StatusDetailsController.SetParameter))]
-    public static class StatusDetailsController_SetParameter_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(OwnedCharacterData data)
-        {
-            try
-            {
-                // Store character data for hotkey access
-                StatusDetailsReader.SetCurrentCharacterData(data);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in StatusDetailsController.SetParameter patch: {ex.Message}");
-            }
-        }
-    }
+    // NOTE: SetNextPlayer, SetPrevPlayer, and SetParameter methods do not exist in FF5's StatusDetailsController
+    // Character navigation in FF5 uses different methods (likely RB/LB button handling)
+    // Character data tracking is handled through InitDisplay patch instead
 
     /// <summary>
     /// Patch ExitDisplay to clear character data when leaving status screen.
@@ -298,11 +277,72 @@ namespace FFV_ScreenReader.Patches
             {
                 // Clear character data when leaving status screen
                 StatusDetailsReader.ClearCurrentCharacterData();
+
+                // Reset navigation state
+                StatusNavigationTracker.Instance.Reset();
+
+                // Clear user-opened flag
+                StatusMenuTracker.IsUserOpened = false;
+                MelonLogger.Msg("[Status] Menu exited, state cleared");
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in StatusDetailsController.ExitDisplay patch: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Helper methods for status screen patches
+    /// </summary>
+    public static class StatusDetailsHelpers
+    {
+        /// <summary>
+        /// Extract character data from the StatusDetailsController
+        /// </summary>
+        public static OwnedCharacterData GetCharacterDataFromController(StatusDetailsController controller)
+        {
+            try
+            {
+                var statusController = controller?.statusController;
+                if (statusController != null)
+                {
+                    // Try direct access first
+                    try
+                    {
+                        var targetData = statusController.targetData;
+                        if (targetData != null)
+                        {
+                            MelonLogger.Msg("[Status] Successfully accessed targetData directly");
+                            return targetData;
+                        }
+                    }
+                    catch
+                    {
+                        // Direct access failed, try Traverse
+                    }
+
+                    // Try Traverse if field is private
+                    try
+                    {
+                        var traversed = Traverse.Create(statusController).Field("targetData").GetValue<OwnedCharacterData>();
+                        if (traversed != null)
+                        {
+                            MelonLogger.Msg("[Status] Successfully accessed targetData via Traverse");
+                            return traversed;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MelonLogger.Warning($"[Status] Traverse access failed: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error accessing character data: {ex.Message}");
+            }
+            return null;
         }
     }
 

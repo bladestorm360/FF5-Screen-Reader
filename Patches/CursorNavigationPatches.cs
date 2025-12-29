@@ -170,12 +170,14 @@ namespace FFV_ScreenReader.Patches
                     parent = parent.parent;
                 }
 
-                // Skip if this is job/ability menu navigation (handled by JobAbilityPatches)
+                // Skip if this is ability command slot selection (handled by AbilityCommandController patch)
+                // But allow spell list navigation (AbilityContentListController doesn't work, so need cursor nav)
                 parent = __instance.transform.parent;
                 while (parent != null)
                 {
                     string parentName = parent.name.ToLower();
-                    if (parentName.Contains("ability") || parentName.Contains("job"))
+                    // Skip for command slot selection (shows equipped commands like Black Magic, White Magic)
+                    if (parentName.Contains("ability_command") || parentName.Contains("command_window") || parentName.Contains("job") || parentName.Contains("ability_change"))
                     {
                         return;
                     }
@@ -355,12 +357,14 @@ namespace FFV_ScreenReader.Patches
                     parent = parent.parent;
                 }
 
-                // Skip if this is job/ability menu navigation (handled by JobAbilityPatches)
+                // Skip if this is ability command slot selection (handled by AbilityCommandController patch)
+                // But allow spell list navigation (AbilityContentListController doesn't work, so need cursor nav)
                 parent = __instance.transform.parent;
                 while (parent != null)
                 {
                     string parentName = parent.name.ToLower();
-                    if (parentName.Contains("ability") || parentName.Contains("job"))
+                    // Skip for command slot selection (shows equipped commands like Black Magic, White Magic)
+                    if (parentName.Contains("ability_command") || parentName.Contains("command_window") || parentName.Contains("job") || parentName.Contains("ability_change"))
                     {
                         return;
                     }
@@ -540,12 +544,14 @@ namespace FFV_ScreenReader.Patches
                     parent = parent.parent;
                 }
 
-                // Skip if this is job/ability menu navigation (handled by JobAbilityPatches)
+                // Skip if this is ability command slot selection (handled by AbilityCommandController patch)
+                // But allow spell list navigation (AbilityContentListController doesn't work, so need cursor nav)
                 parent = __instance.transform.parent;
                 while (parent != null)
                 {
                     string parentName = parent.name.ToLower();
-                    if (parentName.Contains("ability") || parentName.Contains("job"))
+                    // Skip for command slot selection (shows equipped commands like Black Magic, White Magic)
+                    if (parentName.Contains("ability_command") || parentName.Contains("command_window") || parentName.Contains("job") || parentName.Contains("ability_change"))
                     {
                         return;
                     }
@@ -725,12 +731,14 @@ namespace FFV_ScreenReader.Patches
                     parent = parent.parent;
                 }
 
-                // Skip if this is job/ability menu navigation (handled by JobAbilityPatches)
+                // Skip if this is ability command slot selection (handled by AbilityCommandController patch)
+                // But allow spell list navigation (AbilityContentListController doesn't work, so need cursor nav)
                 parent = __instance.transform.parent;
                 while (parent != null)
                 {
                     string parentName = parent.name.ToLower();
-                    if (parentName.Contains("ability") || parentName.Contains("job"))
+                    // Skip for command slot selection (shows equipped commands like Black Magic, White Magic)
+                    if (parentName.Contains("ability_command") || parentName.Contains("command_window") || parentName.Contains("job") || parentName.Contains("ability_change"))
                     {
                         return;
                     }

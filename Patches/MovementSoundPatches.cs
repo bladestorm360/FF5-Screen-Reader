@@ -1,9 +1,8 @@
 using System;
 using System.Collections;
 using HarmonyLib;
-using MelonLoader;
-using Il2CppLast.Map;
 using Il2CppLast.Entity.Field;
+using Il2CppLast.Map;
 using Il2CppLast.Management;
 using UnityEngine;
 using FFV_ScreenReader.Utils;
@@ -11,8 +10,8 @@ using FFV_ScreenReader.Utils;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Patches for playing sound effects during player movement (wall bumps, etc.)
-    /// When the player attempts to move but hits a wall, plays the "unable to complete action" sound.
+    /// Patches for playing sound effects during player movement (wall bumps).
+    /// Ported from FF6 mod.
     /// </summary>
     [HarmonyPatch]
     public static class MovementSoundPatches
@@ -21,13 +20,12 @@ namespace FFV_ScreenReader.Patches
         private static float lastBumpTime = 0f;
         private static readonly float BUMP_COOLDOWN = 0.2f; // 200ms between bump sounds
 
-        // Sound ID for wall bump - this is the "invalid action" buzzer sound
+        // Sound ID for wall bump - this may need adjustment based on testing
         // Common collision/error sound IDs to try: 1, 2, 3, 4, 5, 119, 120, 121
         private static readonly int BUMP_SOUND_ID = 4;
 
         /// <summary>
-        /// Prefix patch to capture player position and check after a frame.
-        /// Patches OnTouchPadCallback which is called when the player provides movement input.
+        /// Prefix patch to capture player position and check after a frame
         /// </summary>
         [HarmonyPatch(typeof(FieldPlayerKeyController), nameof(FieldPlayerKeyController.OnTouchPadCallback))]
         [HarmonyPrefix]
@@ -44,23 +42,21 @@ namespace FFV_ScreenReader.Patches
                 if (currentTime - lastBumpTime < BUMP_COOLDOWN)
                     return;
 
-                // Access fieldPlayer directly - IL2CPP exposes inherited protected fields
-                if (__instance?.fieldPlayer?.transform == null)
-                    return;
-
                 // Store current position and start coroutine to check after a frame
-                Vector3 positionBeforeMovement = __instance.fieldPlayer.transform.localPosition;
-                CoroutineManager.StartManaged(CheckForWallBumpAfterFrame(__instance.fieldPlayer, positionBeforeMovement));
+                if (__instance?.fieldPlayer?.transform != null)
+                {
+                    Vector3 positionBeforeMovement = __instance.fieldPlayer.transform.localPosition;
+                    CoroutineManager.StartManaged(CheckForWallBumpAfterFrame(__instance.fieldPlayer, positionBeforeMovement));
+                }
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"Error in OnTouchPadCallback_Prefix: {ex}");
+                MelonLoader.MelonLogger.Error($"Error in MovementSoundPatches OnTouchPadCallback_Prefix: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Coroutine that waits one frame then checks if position changed.
-        /// If the player didn't move, they hit a wall.
+        /// Coroutine that waits one frame then checks if position changed
         /// </summary>
         private static IEnumerator CheckForWallBumpAfterFrame(FieldPlayer player, Vector3 positionBefore)
         {
@@ -88,12 +84,12 @@ namespace FFV_ScreenReader.Patches
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"Error in CheckForWallBumpAfterFrame: {ex}");
+                MelonLoader.MelonLogger.Error($"Error in CheckForWallBumpAfterFrame: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Checks if the axis input represents actual movement input.
+        /// Checks if the axis input represents actual movement input
         /// </summary>
         private static bool HasMovementInput(Vector2 axis)
         {
@@ -103,7 +99,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Plays the wall bump sound effect.
+        /// Plays the wall bump sound effect
         /// </summary>
         private static void PlayBumpSound()
         {
@@ -113,16 +109,11 @@ namespace FFV_ScreenReader.Patches
                 if (audioManager != null)
                 {
                     audioManager.PlaySe(BUMP_SOUND_ID);
-                    MelonLogger.Msg($"[Wall Detection] Bump sound played (ID: {BUMP_SOUND_ID})");
-                }
-                else
-                {
-                    MelonLogger.Warning("[Wall Detection] AudioManager not available");
                 }
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"Error playing bump sound: {ex}");
+                MelonLoader.MelonLogger.Error($"Error playing bump sound: {ex.Message}");
             }
         }
     }

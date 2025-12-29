@@ -34,7 +34,8 @@ namespace FFV_ScreenReader.Core.Filters
 
             if (context.PlayerController?.fieldPlayer == null)
                 return false;
-            
+
+            // Use localPosition for pathfinding
             Vector3 playerPos = context.PlayerController.fieldPlayer.transform.localPosition;
             Vector3 targetPos = entity.GameEntity.transform.localPosition;
 

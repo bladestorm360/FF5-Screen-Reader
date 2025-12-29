@@ -1,0 +1,37 @@
+[
+  {
+    "MapId": "0",
+    "X": -150.0,
+    "Y": 820.0,
+    "Z": 0,
+    "Description": "Wind Shrine Dock (from Tule)"
+  },
+  {
+    "MapId": "0",
+    "X": 450.0,
+    "Y": -320.0,
+    "Z": 0,
+    "Description": "Karnak Castle Dock"
+  },
+  {
+    "MapId": "0",
+    "X": -680.0,
+    "Y": -450.0,
+    "Z": 0,
+    "Description": "Crescent Town Dock"
+  },
+  {
+    "MapId": "0",
+    "X": 280.0,
+    "Y": 620.0,
+    "Z": 0,
+    "Description": "Torna Canal Entrance"
+  },
+  {
+    "MapId": "0",
+    "X": 120.0,
+    "Y": 340.0,
+    "Z": 0,
+    "Description": "Walse Tower Dock"
+  }
+]

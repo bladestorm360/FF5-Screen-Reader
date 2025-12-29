@@ -1,387 +1,255 @@
-# FF5 Screen Reader Debug History
+# Debug History - FF5 Screen Reader Mod
 
-## 2025-12-22: Complete Feature Port from FF6 (Navigation, Status, Job Menu, Timers)
+## Main Menu Magic/Spell List Issue (2024-12-28)
 
-### Overview
-Implemented 6 major features by porting proven code from FF6 mod to FF5, enhancing navigation, character status, job menu usability, and timer detection.
+### Problem Summary
 
-### Problems Solved
+The main menu magic spell list (viewing spells after selecting a magic category like White Magic) does not announce spell names when navigating. Battle magic menu works correctly.
 
-1. **Map Navigation Missing**: M key did nothing, map transitions silent
-2. **Character Status Missing**: H key did nothing in battle
-3. **Job Menu Too Verbose**: Arrow keys announced name + level + stats + description all at once
-4. **Timer Detection Missing**: No way to announce or control countdown timers
+### What Works vs What Doesn't
 
-### Implementation Summary
+| Feature | Status | Controller/Method |
+|---------|--------|-------------------|
+| Battle magic selection | **WORKS** | `BattleQuantityAbilityInfomationController.SelectContent(Cursor, WithinRangeType)` |
+| Magic category selection (White Magic, Black Magic, etc.) | **WORKS** | `AbilityCommandController.SelectContent(int index)` |
+| Ability equip menu | **WORKS** | `AbilityChangeController.SelectContent` with `TargetData.IsFocus` |
+| Job selection menu | **WORKS** | `JobChangeWindowController.SelectContent` |
+| **Main menu spell list** | **BROKEN** | `AbilityContentListController` - patches don't fire |
 
-#### Task 1-3: Map Navigation (M Key)
+### Investigation Findings
 
-**Files Created:**
-- `Field/MapNameResolver.cs` - Ported from FF6 with namespace changes only
+#### AbilityContentListController Structure (Il2CppSerial.FF5.UI.KeyInput)
 
-**Files Modified:**
-- `Core/FFV_ScreenReaderMod.cs`
-  - `CheckMapTransition()`: Added map name announcement on transitions
-  - `AnnounceCurrentMap()`: Replaced stub with working implementation
+Located at dump.cs line 285082. Key members:
 
-**Key Methods:**
-```csharp
-// MapNameResolver.cs
-public static string GetCurrentMapName()
-{
-    var userDataManager = UserDataManager.Instance();
-    int currentMapId = userDataManager.CurrentMapId;
-    return TryResolveMapNameById(currentMapId);
-}
+```
+Fields:
+- private int <SelectedIndex>k__BackingField; // 0x18
+- private OwnedAbility <SelectedOwnedAbility>k__BackingField; // 0x20
+- private List<BattleAbilityInfomationContentController> contentList; // 0x50
+- public Action<int> OnSelect; // 0x58
+- public Action OnSelected; // 0x60
+- private List<OwnedAbility> abilityList; // 0x70
 
-private static string TryResolveMapNameById(int mapId)
-{
-    // Gets Map master data → Area master data → localized names
-    var map = masterManager.GetList<Map>()[mapId];
-    var area = masterManager.GetList<Area>()[map.AreaId];
-    string areaName = messageManager.GetMessage(area.AreaName);
-    string mapTitle = messageManager.GetMessage(map.MapTitle);
-    return $"{areaName} {mapTitle}"; // e.g., "Karnak 2F"
-}
+Methods:
+- public void SelectContent(int index) { } // Line 285170
+- private void SelectContent(Cursor targetCursor, WithinRangeType type, bool pageSkip) { } // Line 285236 - PRIVATE
+- public void set_SelectedIndex(int value) { } // Line 285142
+- private void set_SelectedOwnedAbility(OwnedAbility value) { } // Line 285150
 ```
 
-**Pattern Used:**
-- Uses game's localization system (`MessageManager.GetMessage()`)
-- No hardcoded English strings
-- Combines Area name + Map title for full context
+#### AbilityWindowController States
 
-**Result:**
-- **M key**: Announces current map name
-- **Map transitions**: Auto-announces "Entering [map name]"
+The main ability window has these states (line 286256):
+- None = 0
+- MagicList = 1 (selecting magic categories - this works)
+- UseList = 2 (browsing spells within category - this is broken)
+- UseTarget = 3
+- Command = 4
 
----
+### Attempted Fixes and Failures
 
-#### Task 4-5: Character Status (H Key)
+#### Attempt 1: Patch SelectContent(int index)
 
-**Files Modified:**
-- `Patches/BattleCommandPatches.cs`
-  - Added `ActiveBattleCharacterTracker` static class
-  - Updated `SetCommandData` patch to track active character
-
-- `Core/FFV_ScreenReaderMod.cs`
-  - `AnnounceAirshipOrCharacterStatus()`: Replaced stub with airship detection + character status fallback
-  - Added `AnnounceCurrentCharacterStatus()`: New method for reading HP/MP/conditions
-
-**Key Methods:**
 ```csharp
-// Track active character for H key access
-public static class ActiveBattleCharacterTracker
+[HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController), "SelectContent", new Type[] { typeof(int) })]
+```
+
+**Result:** Failed with "Ambiguous match" error because there are two SelectContent methods:
+- `public void SelectContent(int index)`
+- `private void SelectContent(Cursor, WithinRangeType, bool)`
+
+Even with explicit type array, Harmony couldn't disambiguate properly.
+
+#### Attempt 2: Patch SelectContent without type array
+
+```csharp
+[HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController), "SelectContent")]
+```
+
+**Result:** Same ambiguous match error.
+
+#### Attempt 3: Patch SelectContent with two parameters
+
+```csharp
+[HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController), "SelectContent",
+    new Type[] { typeof(int), typeof(CustomScrollView.WithinRangeType) })]
+```
+
+**Result:** Failed - method not found. The KeyInput version only has `SelectContent(int index)` as public, not the two-parameter version.
+
+Error: `AccessTools.DeclaredMethod: Could not find method for type Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController and name SelectContent and parameters (int, Il2CppLast.UI.CustomScrollView+WithinRangeType)`
+
+#### Attempt 4: Patch set_SelectedIndex
+
+```csharp
+[HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController), "set_SelectedIndex")]
+```
+
+**Result:** Game crashed on startup. This approach also failed previously for the job menu because SelectedIndex doesn't update properly when lists are modified.
+
+### Key Differences: Touch vs KeyInput Namespaces
+
+There are TWO versions of AbilityContentListController:
+
+1. **Touch version** (line 280592): `Serial.FF5.UI.Touch`
+   - `SelectContent(int index, WithinRangeType type = 0)` - TWO params
+   - `SelectContent(Cursor, int index, WithinRangeType type)` - protected
+
+2. **KeyInput version** (line 285082): `Serial.FF5.UI.KeyInput`
+   - `SelectContent(int index)` - ONE param only
+   - `SelectContent(Cursor, WithinRangeType, bool)` - PRIVATE
+
+The KeyInput version's public SelectContent only takes a single int parameter, and Harmony can't disambiguate it from the private version.
+
+### Why SelectContent Might Not Be Called
+
+Looking at the UseListInit lambda callbacks (line 286447):
+- `<UseListInit>b__0(int index)` - receives index
+- `<UseListInit>b__3(int index)` - another index callback
+
+The selection might happen through the `OnSelect` Action<int> callback (line 285097) rather than calling SelectContent directly. The flow appears to be:
+
+1. User navigates with arrow keys
+2. Cursor updates its index
+3. `OnSelect` callback is invoked with new index
+4. AbilityWindowController's UseListInit callback receives the index
+
+SelectContent may only be called during initial list setup, not during navigation.
+
+### Current Solution: Generic Cursor Navigation
+
+Removed the skip for ability/job menus from `CursorNavigationPatches.cs` so the generic `MenuTextDiscovery.WaitAndReadCursor()` will attempt to find spell names via UI hierarchy text discovery.
+
+Changes made in CursorNavigationPatches.cs (lines 173-183, 349-359, 525-535, 701-711):
+
+```csharp
+// REMOVED this skip:
+// Skip if this is job/ability menu navigation (handled by JobAbilityPatches)
+parent = __instance.transform.parent;
+while (parent != null)
 {
-    public static OwnedCharacterData CurrentActiveCharacter { get; set; }
+    string parentName = parent.name.ToLower();
+    if (parentName.Contains("ability") || parentName.Contains("job"))
+    {
+        return;
+    }
+    parent = parent.parent;
 }
 
-// BattleCommandSelectController_SetCommandData_Patch.Postfix
-ActiveBattleCharacterTracker.CurrentActiveCharacter = data; // Track on each turn
+// REPLACED with comment:
+// NOTE: Job/ability menu skip removed - letting generic cursor navigation handle spell list
+// since the controller-based patches aren't working for main menu magic spell list
+```
 
-// AnnounceCurrentCharacterStatus()
-private void AnnounceCurrentCharacterStatus()
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `Patches/JobAbilityPatches.cs` | Disabled AbilityContentListController patch, added comment explaining issue |
+| `Patches/CursorNavigationPatches.cs` | Removed ability/job menu skip from all 4 cursor patches |
+
+### Potential Future Approaches
+
+If generic cursor navigation doesn't work, consider:
+
+1. **Patch UpdateController method** - Called during navigation updates
+2. **Patch a cursor-related method** - Like `SetCursor` or `FocusSelectCursor`
+3. **Look at the view layer** - `BattleAbilityInfomationContentController` has `Data` property with OwnedAbility
+4. **Find where OnSelect is invoked** - Patch that invocation point
+
+### Reference: Working Battle Patch
+
+The battle magic patch in `BattleCommandPatches.cs` works because it patches a different controller with different signature:
+
+```csharp
+[HarmonyPatch(typeof(BattleQuantityAbilityInfomationController),
+    nameof(BattleQuantityAbilityInfomationController.SelectContent),
+    new Type[] { typeof(Il2CppLast.UI.Cursor), typeof(CustomScrollView.WithinRangeType) })]
+public static class BattleQuantityAbilityInfomationController_SelectContent_Patch
 {
-    var activeCharacter = ActiveBattleCharacterTracker.CurrentActiveCharacter;
-    var param = activeCharacter.Parameter;
-
-    // Build announcement
-    statusParts.Add(characterName);
-    statusParts.Add($"HP {param.CurrentHP} of {param.ConfirmedMaxHp()}");
-    statusParts.Add($"MP {param.CurrentMP} of {param.ConfirmedMaxMp()}");
-
-    // Add status conditions
-    var conditionList = param.ConfirmedConditionList();
-    foreach (var condition in conditionList)
+    public static void Postfix(BattleQuantityAbilityInfomationController __instance,
+        Il2CppLast.UI.Cursor targetCursor)
     {
-        string conditionName = messageManager.GetMessage(condition.MesIdName);
-        conditionNames.Add(conditionName);
+        int index = targetCursor.Index;
+        var contentList = __instance.contentList;
+        var content = contentList[index];
+        var abilityData = content.Data; // OwnedAbility
+        // ... announce ability name
     }
 }
 ```
 
-**Pattern Used:**
-- **Global state tracking** for H key access outside patches
-- **Confirmed methods** (`ConfirmedMaxHp()`, `ConfirmedConditionList()`) get calculated values
-- **Localized condition names** via MessageManager
+This works because:
+1. `BattleQuantityAbilityInfomationController.SelectContent` takes `(Cursor, WithinRangeType)` - clear signature
+2. The method IS called during battle navigation
+3. We get the index from `targetCursor.Index` and data from `contentList[index].Data`
 
-**Result:**
-- **H key**: Announces "Character name, HP X of Y, MP X of Y, [status conditions]"
-- Falls back to "Not in battle" when not in battle
-- Airship status deferred (TODO)
+### Solution Found: Patch SetCursor Instead (2024-12-28)
 
----
+The solution was to patch `SetCursor` instead of `SelectContent`. This private method has a unique 4-parameter signature that Harmony can match without ambiguity.
 
-#### Task 6-9: Job Menu Enhancement (I Key for Details)
+#### Working Patch
 
-**Files Modified:**
-- `Patches/JobAbilityPatches.cs`
-  - Added `JobMenuTracker` static class (tracks menu state)
-  - Modified `JobChangeWindowController_SelectContent_Patch` to announce only name+level
-  - Added `JobDetailsAnnouncer` static class (announces stats+description)
-  - Added `JobChangeWindowController_OnHide_Patch` (cleanup on menu close)
-
-- `Core/InputManager.cs`
-  - Updated I key handler to check `JobMenuTracker.IsJobMenuActive` first
-
-**Key Methods:**
 ```csharp
-// Track job menu state
-public static class JobMenuTracker
+[HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController), "SetCursor",
+    new Type[] { typeof(GameCursor), typeof(bool), typeof(CustomScrollView.WithinRangeType), typeof(bool) })]
+public static class AbilityContentListController_SetCursor_Patch
 {
-    public static bool IsJobMenuActive { get; set; }
-    public static JobChangeWindowController ActiveController { get; set; }
-    public static int CurrentJobIndex { get; set; }
-}
-
-// JobChangeWindowController_SelectContent_Patch.Postfix (SIMPLIFIED)
-JobMenuTracker.IsJobMenuActive = true;
-JobMenuTracker.ActiveController = __instance;
-JobMenuTracker.CurrentJobIndex = index;
-
-// Announce ONLY name + level
-string announcement = $"{jobName}, level {jobLevel}";
-
-// JobDetailsAnnouncer.AnnounceCurrentJobDetails() (NEW)
-string announcement = $"Strength {job.Strength}, Vitality {job.Vitality}, " +
-                     $"Agility {job.Agility}, Magic {job.Magic}. {description}";
-
-// Cleanup on menu close
-[HarmonyPatch(typeof(JobChangeWindowController), "OnHide")]
-JobMenuTracker.IsJobMenuActive = false;
-```
-
-**Pattern Used:**
-- **State tracking** allows I key to access job data outside patch context
-- **OnHide patch** prevents stale state when menu closes
-- **Separation of concerns**: Arrow keys = quick browsing, I key = detailed info
-
-**Result:**
-- **Arrow keys**: "Job name, level X" (fast, concise)
-- **I key in job menu**: "Strength X, Vitality X, Agility X, Magic X. [Description]"
-- **I key outside job menu**: Still announces config tooltips (dual purpose)
-
----
-
-#### Task 10-11: Timer Detection (T / Shift+T)
-
-**Files Created:**
-- `Patches/TimerPatches.cs` - Ported from FF6 with namespace changes only
-
-**Files Modified:**
-- `Core/InputManager.cs`
-  - Updated T key handler to call `TimerHelper` methods
-
-**Key Methods:**
-```csharp
-// Harmony prefix patch to freeze timers
-[HarmonyPatch(typeof(Il2CppLast.Timer.Timer), nameof(Timer.Update))]
-public static bool Prefix()
-{
-    return !TimerHelper.TimersFrozen; // Skip Update() when frozen
-}
-
-// Toggle freeze state
-public static void ToggleTimerFreeze()
-{
-    timersFrozen = !timersFrozen;
-    string message = timersFrozen ? "Timers frozen" : "Timers resumed";
-    FFV_ScreenReaderMod.SpeakText(message, interrupt: true);
-}
-
-// Find and announce active timers
-public static bool AnnounceActiveTimers()
-{
-    // Search for ScreenTimerController (on-screen UI timers)
-    var screenTimers = Object.FindObjectsOfType<ScreenTimerController>();
-    foreach (var timer in screenTimers)
+    [HarmonyPostfix]
+    public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController __instance,
+        GameCursor targetCursor, bool isScroll, CustomScrollView.WithinRangeType type, bool pageSkip)
     {
-        if (timer.view.canvasGroup.alpha > 0) // Visible check
-        {
-            string minutes = timer.view.playTimeMinuteText.text;
-            string seconds = timer.view.playTimeSecondText.text;
-            announcement.Append(FormatTimeString(minutes, seconds));
-        }
+        int index = targetCursor.Index;
+        var abilityList = __instance.AbilityList;
+        var ability = abilityList[index];
+        // ... announce ability name
     }
-
-    // Search for FieldGrobalTimer (field map timers)
-    var fieldTimers = Object.FindObjectsOfType<FieldGrobalTimer>();
-    // ... similar logic ...
-
-    return timerCount > 0;
-}
-
-// Format time naturally
-private static string FormatTimeString(string minutes, string seconds)
-{
-    // "5", "30" → "5 minutes 30 seconds"
-    // "0", "45" → "45 seconds"
 }
 ```
 
-**Pattern Used:**
-- **Harmony prefix patch** prevents native Update() from running (freezes timers)
-- **FindObjectsOfType** searches entire scene for timer UI components
-- **Visibility check** (canvasGroup.alpha > 0) only announces visible timers
-- **Natural language formatting** ("X minutes Y seconds")
+#### Why SetCursor Works
 
-**Result:**
-- **T key**: Announces "5 minutes 30 seconds" or "No active timers"
-- **Shift+T**: Toggles freeze state, announces "Timers frozen" / "Timers resumed"
-- Works for both on-screen timers and field map timers
+1. `SetCursor(Cursor, bool, WithinRangeType, bool)` has a unique signature - no overload ambiguity
+2. Called during cursor movement in the spell list
+3. Provides access to `AbilityList` containing all spells
+4. `targetCursor.Index` gives the selected position
 
----
+#### Additional Fixes Required
 
-### Architecture Patterns
+1. **Duplicate announcement prevention**: Added skip for `ability_command` parent in `CursorNavigationPatches.cs` to prevent both controller patch AND generic cursor navigation from announcing.
 
-#### 1. Global State Tracking for Hotkey Access
+2. **Icon tag stripping**: Spell names contain icon tags like `<IC_WMGC>` (White Magic icon). Strip with regex:
+   ```csharp
+   abilityName = Regex.Replace(abilityName, @"<[^>]+>", "").Trim();
+   ```
 
-**Problem:** Hotkeys (H, I) need data that only exists in patch context.
+3. **Learned status check**: Use `OwnedAbility.SkillLevel` - if 0, ability is not learned:
+   ```csharp
+   if (ability.SkillLevel <= 0)
+   {
+       announcement += ", Not learned";
+   }
+   ```
 
-**Solution:** Static tracker classes that patches update:
+4. **Empty slot handling**: Check for null ability and announce "Empty"
 
-```csharp
-// In patch file (BattleCommandPatches.cs)
-public static class ActiveBattleCharacterTracker
-{
-    public static OwnedCharacterData CurrentActiveCharacter { get; set; }
-}
+#### Final Announcement Format
 
-// In patch postfix
-ActiveBattleCharacterTracker.CurrentActiveCharacter = data;
+- Learned spell: `"Cure, MP 4"`
+- Unlearned spell: `"Cura, MP 9, Not learned"`
+- Empty slot: `"Empty"`
 
-// In FFV_ScreenReaderMod.cs (H key handler)
-var character = ActiveBattleCharacterTracker.CurrentActiveCharacter;
-```
+### Files Modified (Final Solution)
 
-**Used by:**
-- `ActiveBattleCharacterTracker` (H key)
-- `JobMenuTracker` (I key)
+| File | Changes |
+|------|---------|
+| `Patches/JobAbilityPatches.cs` | Added `AbilityContentListController_SetCursor_Patch` with learned status and empty slot handling |
+| `Patches/CursorNavigationPatches.cs` | Added skip for `ability_command` and `command_window` parents to prevent duplicate announcements |
 
----
+### Key Learnings
 
-#### 2. Menu State Lifecycle Management
-
-**Problem:** Menu state persists after menu closes, causing stale data.
-
-**Solution:** OnHide patch clears state:
-
-```csharp
-[HarmonyPatch(typeof(JobChangeWindowController), "OnHide")]
-public static void Postfix()
-{
-    JobMenuTracker.IsJobMenuActive = false;
-    JobMenuTracker.ActiveController = null;
-    JobMenuTracker.CurrentJobIndex = -1;
-}
-```
-
-**Prevents:** "Job menu not active" errors, stale index reads.
-
----
-
-#### 3. Porting Strategy (FF6 → FF5)
-
-**Steps for engine-level code (timers, maps):**
-1. Copy entire file from FF6
-2. Change namespace: `FFVI_ScreenReader` → `FFV_ScreenReader`
-3. Change mod calls: `FFVI_ScreenReaderMod.SpeakText()` → `FFV_ScreenReaderMod.SpeakText()`
-4. Verify Il2CppLast.* classes exist (they do - shared engine)
-5. Done (no game-specific changes needed)
-
-**Works because:** Both games use identical Pixel Remaster engine.
-
----
-
-### Files Summary
-
-#### Created (2 files):
-1. `Field/MapNameResolver.cs` - Map ID → localized name resolver
-2. `Patches/TimerPatches.cs` - Timer detection and freeze patches
-
-#### Modified (4 files):
-1. `Core/FFV_ScreenReaderMod.cs`
-   - CheckMapTransition() - announces map transitions
-   - AnnounceCurrentMap() - M key implementation
-   - AnnounceAirshipOrCharacterStatus() - H key implementation
-   - AnnounceCurrentCharacterStatus() - HP/MP/status reader
-
-2. `Patches/BattleCommandPatches.cs`
-   - Added ActiveBattleCharacterTracker
-   - Updated SetCommandData patch to track character
-
-3. `Patches/JobAbilityPatches.cs`
-   - Added JobMenuTracker
-   - Simplified SelectContent patch (name+level only)
-   - Added JobDetailsAnnouncer
-   - Added OnHide patch
-
-4. `Core/InputManager.cs`
-   - Updated I key handler (job details vs config tooltip)
-   - Updated T key handler (timer detection)
-
----
-
-### Testing Checklist
-
-**Map Navigation:**
-- [ ] M key announces current map name (localized)
-- [ ] Map transitions auto-announce "Entering [map name]"
-- [ ] Works in towns, dungeons, world map
-
-**Character Status:**
-- [ ] H key announces HP/MP/conditions during battle
-- [ ] H key says "Not in battle" when not in battle
-- [ ] Status conditions are localized (not English hardcoded)
-
-**Job Menu:**
-- [ ] Arrow keys announce only "Job name, level X" (quick)
-- [ ] I key announces stats + description (detailed)
-- [ ] I key still works for config tooltips outside job menu
-- [ ] Job menu state clears when closing menu
-
-**Timer Detection:**
-- [ ] T key announces active timers during timed events
-- [ ] T key announces "No active timers" when none active
-- [ ] Shift+T freezes timers and announces "Timers frozen"
-- [ ] Shift+T again unfreezes and announces "Timers resumed"
-- [ ] Timer countdown visually stops when frozen
-
----
-
-### Build Result
-✅ Successful compilation and deployment
-- Output: `FFV_ScreenReader.dll`
-- Deployed to: `D:\Games\SteamLibrary\steamapps\common\FINAL FANTASY V PR\Mods\`
-- All 6 tasks completed
-- Ready for testing
-
----
-
-### Key Discoveries
-
-1. **Il2CppLast.* classes are identical** between FF5 and FF6 (shared engine)
-   - Timer.Timer, Map, Area, MessageManager all work identically
-   - Only Il2CppSerial.FF5.* vs Il2CppSerial.FF6.* differ
-
-2. **ConfirmedMaxHp() vs BaseMaxHp**
-   - `BaseMaxHp` = raw stat without equipment
-   - `ConfirmedMaxHp()` = calculated stat with equipment/buffs
-   - Always use Confirmed methods for accurate values
-
-3. **ConfirmedConditionList() vs CurrentConditionList**
-   - `ConfirmedConditionList()` returns battle-active conditions
-   - Filters out expired/irrelevant conditions
-
-4. **OnHide vs OnDestroy**
-   - OnHide fires when menu closes but object stays in memory
-   - OnDestroy only fires when object is destroyed (unreliable)
-   - Always use OnHide for cleanup
-
----
-
-### Notes
-
-- All features use game's localization system (no English hardcoded)
-- Pattern follows FF6 proven implementations
-- Code is maintainable: clear separation between quick vs detailed announcements
-- Timer freeze is non-destructive (uses Harmony prefix, not native code modification)
+1. When `SelectContent` has ambiguous overloads, look for other methods in the navigation chain (`SetCursor`, `UpdateController`, etc.)
+2. Private methods can still be patched if they have unique signatures
+3. The `AbilityList` property provides direct access to spell data without needing to traverse view hierarchies
+4. `OwnedAbility.SkillLevel` indicates learned status (0 = not learned)

@@ -12,7 +12,7 @@ namespace FFV_ScreenReader.Utils
     {
         private static readonly List<System.Collections.IEnumerator> activeCoroutines = new List<System.Collections.IEnumerator>();
         private static readonly object coroutineLock = new object();
-        private static int maxConcurrentCoroutines = 3;
+        private static int maxConcurrentCoroutines = 20;
 
         /// <summary>
         /// Cleanup all active coroutines.

@@ -86,14 +86,7 @@ namespace FFV_ScreenReader.Field
                 return "Empty Group";
             
             string baseName = rep.Name;
-            
-            if (rep is MapExitEntity exit)
-            {
-                //baseName = !string.IsNullOrEmpty(exit.DestinationName)
-                //    ? $"{exit.Name} → {exit.DestinationName}"
-                //    : exit.Name;
-            }
-            
+
             if (members.Count > 1)
             {
                 return $"{baseName} ({members.Count} exits)";

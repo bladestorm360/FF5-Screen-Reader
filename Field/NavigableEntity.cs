@@ -136,7 +136,11 @@ namespace FFV_ScreenReader.Field
     public class MapExitEntity : NavigableEntity
     {
         public int DestinationMapId => GameEntity?.Property?.TryCast<PropertyGotoMap>()?.MapId ?? -1;
-        
+
+        public string DestinationName => MapNameResolver.GetMapExitName(
+            GameEntity?.Property?.TryCast<PropertyGotoMap>()
+        );
+
         public override EntityCategory Category => EntityCategory.MapExits;
 
         public override int Priority => 1;
@@ -145,6 +149,10 @@ namespace FFV_ScreenReader.Field
 
         protected override string GetDisplayName()
         {
+            if (!string.IsNullOrEmpty(DestinationName))
+            {
+                return $"{Name} → {DestinationName}";
+            }
             return Name;
         }
 

@@ -5,8 +5,8 @@ using System.Text;
 using Il2CppLast.Entity.Field;
 using Il2CppLast.Map;
 using UnityEngine;
-using FFV_ScreenReader.Utils;
 using Il2Cpp;
+using FFV_ScreenReader.Utils;
 
 namespace FFV_ScreenReader.Field
 {
@@ -141,6 +141,7 @@ namespace FFV_ScreenReader.Field
                 {
                     bool playerCollisionState = player._IsOnCollision_k__BackingField;
                     
+                    // Try pathfinding with different destination layers until one succeeds
                     for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
                     {
                         destCell.z = tryDestZ;
@@ -151,30 +152,35 @@ namespace FFV_ScreenReader.Field
                             break;
                         }
                     }
-                    
+
+                    // If direct path failed, try adjacent tiles
                     if (pathPoints == null || pathPoints.Count == 0)
                     {
+                        // Try adjacent tiles (one cell = 16 units in world space)
+                        // Try all 8 directions: cardinals first, then diagonals
                         Vector3[] adjacentOffsets = new Vector3[] {
-                            new Vector3(0, 16, 0),
-                            new Vector3(16, 0, 0),
-                            new Vector3(0, -16, 0),
-                            new Vector3(-16, 0, 0),
-                            new Vector3(16, 16, 0),
-                            new Vector3(16, -16, 0),
-                            new Vector3(-16, -16, 0),
-                            new Vector3(-16, 16, 0)
+                            new Vector3(0, 16, 0),    // north
+                            new Vector3(16, 0, 0),    // east
+                            new Vector3(0, -16, 0),   // south
+                            new Vector3(-16, 0, 0),   // west
+                            new Vector3(16, 16, 0),   // northeast
+                            new Vector3(16, -16, 0),  // southeast
+                            new Vector3(-16, -16, 0), // southwest
+                            new Vector3(-16, 16, 0)   // northwest
                         };
 
                         foreach (var offset in adjacentOffsets)
                         {
                             Vector3 adjacentTargetWorld = targetWorldPos + offset;
-                            
+
+                            // Convert to cell coordinates
                             Vector3 adjacentDestCell = new Vector3(
                                 Mathf.FloorToInt(mapWidth * 0.5f + adjacentTargetWorld.x * 0.0625f),
                                 Mathf.FloorToInt(mapHeight * 0.5f - adjacentTargetWorld.y * 0.0625f),
                                 0
                             );
-                            
+
+                            // Try pathfinding with different layers
                             for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
                             {
                                 adjacentDestCell.z = tryDestZ;
@@ -185,11 +191,15 @@ namespace FFV_ScreenReader.Field
                                     break;
                                 }
                             }
-                            
+
+                            // If we found a path, stop trying other adjacent tiles
                             if (pathPoints != null && pathPoints.Count > 0)
                                 break;
                         }
                     }
+
+                    // Don't fall back to collision=false - if we can't find a valid path, report failure
+                    // (collision=false would route through walls, which is misleading)
                 }
                 else
                 {
@@ -282,28 +292,6 @@ namespace FFV_ScreenReader.Field
 
             return "Unknown";
         }
-        
-        private static string GetDirection(Vector3 from, Vector3 to)
-        {
-            Vector3 diff = to - from;
-            float angle = Mathf.Atan2(diff.x, diff.y) * Mathf.Rad2Deg;
-            
-            if (angle < 0) angle += 360;
-            
-            string result;
-            if (angle >= 337.5 || angle < 22.5) result = "North";
-            else if (angle >= 22.5 && angle < 67.5) result = "Northeast";
-            else if (angle >= 67.5 && angle < 112.5) result = "East";
-            else if (angle >= 112.5 && angle < 157.5) result = "Southeast";
-            else if (angle >= 157.5 && angle < 202.5) result = "South";
-            else if (angle >= 202.5 && angle < 247.5) result = "Southwest";
-            else if (angle >= 247.5 && angle < 292.5) result = "West";
-            else if (angle >= 292.5 && angle < 337.5) result = "Northwest";
-            else result = "Unknown";
-
-            return result;
-        }
-
     }
     
     public class PathInfo
