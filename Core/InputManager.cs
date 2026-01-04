@@ -252,14 +252,14 @@ namespace FFV_ScreenReader.Core
                 }
             }
             
-            if (Input.GetKeyDown(KeyCode.H))
-            {
-                mod.AnnounceAirshipOrCharacterStatus();
-            }
-            
             if (Input.GetKeyDown(KeyCode.G))
             {
                 mod.AnnounceGilAmount();
+            }
+
+            if (Input.GetKeyDown(KeyCode.H))
+            {
+                mod.AnnounceActiveCharacterStatus();
             }
             
             if (Input.GetKeyDown(KeyCode.M))
@@ -314,7 +314,17 @@ namespace FFV_ScreenReader.Core
                 {
                     FFV_ScreenReader.Patches.JobDetailsAnnouncer.AnnounceCurrentJobDetails();
                 }
-                // Check if ability/magic menu is active
+                // Check ability slot menu BEFORE general ability menu (more specific)
+                else if (FFV_ScreenReader.Patches.AbilitySlotMenuTracker.ValidateState())
+                {
+                    FFV_ScreenReader.Patches.AbilitySlotDetailsAnnouncer.AnnounceCurrentDetails();
+                }
+                // Check ability equip menu BEFORE general ability menu (more specific)
+                else if (FFV_ScreenReader.Patches.AbilityEquipMenuTracker.ValidateState())
+                {
+                    FFV_ScreenReader.Patches.AbilityEquipDetailsAnnouncer.AnnounceCurrentDetails();
+                }
+                // Check if ability/magic menu is active (general spell list - check last)
                 else if (FFV_ScreenReader.Patches.AbilityMenuTracker.ValidateState())
                 {
                     FFV_ScreenReader.Patches.AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails();
@@ -451,14 +461,7 @@ namespace FFV_ScreenReader.Core
             // K: Announce current entity (same as \ backslash)
             if (Input.GetKeyDown(KeyCode.K))
             {
-                if (IsShiftHeld())
-                {
-                    mod.TogglePathfindingFilter();
-                }
-                else
-                {
-                    mod.AnnounceCurrentEntity();
-                }
+                mod.AnnounceCurrentEntity();
             }
 
             // L: Cycle to next entity (same as ] bracket)
@@ -474,10 +477,17 @@ namespace FFV_ScreenReader.Core
                 }
             }
 
-            // P: Pathfind to current entity (show directions)
+            // P: Pathfind to current entity (show directions), Shift+P: Toggle pathfinding filter
             if (Input.GetKeyDown(KeyCode.P))
             {
-                mod.PathfindToCurrentEntity();
+                if (IsShiftHeld())
+                {
+                    mod.TogglePathfindingFilter();
+                }
+                else
+                {
+                    mod.PathfindToCurrentEntity();
+                }
             }
         }
     }

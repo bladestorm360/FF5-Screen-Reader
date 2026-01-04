@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./build_and_deploy.bat)"
+    ]
+  }
+}

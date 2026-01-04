@@ -531,38 +531,7 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        internal void AnnounceAirshipOrCharacterStatus()
-        {
-            // Check if we're on the airship by finding an active airship controller with input enabled
-            var allControllers = UnityEngine.Object.FindObjectsOfType<Il2CppLast.Map.FieldPlayerController>();
-            Il2CppLast.Map.FieldPlayerKeyAirshipController activeAirshipController = null;
-
-            foreach (var controller in allControllers)
-            {
-                if (controller != null && controller.gameObject != null && controller.gameObject.activeInHierarchy)
-                {
-                    var airshipController = controller.TryCast<Il2CppLast.Map.FieldPlayerKeyAirshipController>();
-                    if (airshipController != null && airshipController.InputEnable)
-                    {
-                        activeAirshipController = airshipController;
-                        break;
-                    }
-                }
-            }
-
-            if (activeAirshipController != null)
-            {
-                // TODO: Implement airship status announcement (can be done later)
-                SpeakText("Airship status not yet implemented");
-            }
-            else
-            {
-                // Fall back to battle character status
-                AnnounceCurrentCharacterStatus();
-            }
-        }
-
-        private void AnnounceCurrentCharacterStatus()
+        internal void AnnounceActiveCharacterStatus()
         {
             try
             {
@@ -571,7 +540,7 @@ namespace FFV_ScreenReader.Core
 
                 if (activeCharacter == null)
                 {
-                    SpeakText("Not in battle or no active character");
+                    SpeakText("Not in battle");
                     return;
                 }
 
@@ -591,12 +560,12 @@ namespace FFV_ScreenReader.Core
                 // Add HP
                 int currentHP = param.CurrentHP;
                 int maxHP = param.ConfirmedMaxHp();
-                statusParts.Add($"HP {currentHP} of {maxHP}");
+                statusParts.Add($"HP: {currentHP}/{maxHP}");
 
                 // Add MP
                 int currentMP = param.CurrentMP;
                 int maxMP = param.ConfirmedMaxMp();
-                statusParts.Add($"MP {currentMP} of {maxMP}");
+                statusParts.Add($"MP: {currentMP}/{maxMP}");
 
                 // Add status conditions
                 var conditionList = param.ConfirmedConditionList();

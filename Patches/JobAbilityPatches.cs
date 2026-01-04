@@ -94,6 +94,68 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
+    /// Track ability slot menu state for I key handling (AbilityChangeController.SelectCommand)
+    /// </summary>
+    public static class AbilitySlotMenuTracker
+    {
+        public static bool IsActive { get; set; }
+        public static string CurrentDescription { get; set; }
+
+        public static bool ValidateState()
+        {
+            // Simple check - state is managed by mutual exclusion with other trackers
+            return IsActive;
+        }
+
+        public static void ClearState()
+        {
+            IsActive = false;
+            CurrentDescription = null;
+        }
+    }
+
+    /// <summary>
+    /// Track ability equip menu state for I key handling (AbilityChangeController)
+    /// </summary>
+    public static class AbilityEquipMenuTracker
+    {
+        public static bool IsActive { get; set; }
+        public static Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController ActiveController { get; set; }
+        public static AbilityEquipData CurrentAbilityData { get; set; }
+        public static string CurrentDescription { get; set; }
+
+        public static bool ValidateState()
+        {
+            if (IsActive && ActiveController != null)
+            {
+                try
+                {
+                    if (ActiveController.gameObject == null ||
+                        !ActiveController.gameObject.activeInHierarchy)
+                    {
+                        ClearState();
+                        return false;
+                    }
+                }
+                catch
+                {
+                    ClearState();
+                    return false;
+                }
+            }
+            return IsActive;
+        }
+
+        public static void ClearState()
+        {
+            IsActive = false;
+            ActiveController = null;
+            CurrentAbilityData = null;
+            CurrentDescription = null;
+        }
+    }
+
+    /// <summary>
     /// Patch for job selection - announces job name and level when browsing job list.
     /// Uses GetTargetCharacterData() method and job master data.
     /// Uses KeyInput namespace for keyboard/gamepad support.
@@ -224,7 +286,6 @@ namespace FFV_ScreenReader.Patches
                 var command = contentView.Command;
                 if (command == null)
                 {
-                    // Empty slot
                     string emptyAnnouncement = "Empty slot";
                     if (emptyAnnouncement == lastAnnouncement) return;
                     lastAnnouncement = emptyAnnouncement;
@@ -336,6 +397,24 @@ namespace FFV_ScreenReader.Patches
                 var messageManager = MessageManager.Instance;
                 if (messageManager == null) return;
 
+                // Clear other ability menu trackers for mutual exclusion
+                AbilitySlotMenuTracker.ClearState();
+
+                // Track for I key
+                AbilityEquipMenuTracker.IsActive = true;
+                AbilityEquipMenuTracker.ActiveController = __instance;
+                AbilityEquipMenuTracker.CurrentAbilityData = abilityEquipData;
+
+                // Store description for I key
+                try
+                {
+                    AbilityEquipMenuTracker.CurrentDescription = messageManager.GetMessage(abilityEquipData.DescriptionMessageId);
+                }
+                catch
+                {
+                    AbilityEquipMenuTracker.CurrentDescription = null;
+                }
+
                 // Get ability name
                 string abilityName = messageManager.GetMessage(abilityEquipData.NameMessageId);
                 if (string.IsNullOrWhiteSpace(abilityName))
@@ -403,8 +482,12 @@ namespace FFV_ScreenReader.Patches
                 var view = __instance.view;
                 if (view == null) return;
 
+                // Clear equip menu tracker for mutual exclusion
+                AbilityEquipMenuTracker.ClearState();
+
                 // Get the equipped command from the slot's view controller
                 string slotContent = "empty";
+                string slotDescription = null;
 
                 try
                 {
@@ -427,6 +510,15 @@ namespace FFV_ScreenReader.Patches
                                     {
                                         slotContent = commandName;
                                     }
+                                    // Store description for I key
+                                    try
+                                    {
+                                        slotDescription = messageManager.GetMessage(abilityEquipData.DescriptionMessageId);
+                                    }
+                                    catch
+                                    {
+                                        slotDescription = null;
+                                    }
                                 }
                             }
                         }
@@ -436,6 +528,10 @@ namespace FFV_ScreenReader.Patches
                 {
                     MelonLogger.Warning($"Error reading command slot {index + 1}: {ex.Message}");
                 }
+
+                // Track for I key
+                AbilitySlotMenuTracker.IsActive = true;
+                AbilitySlotMenuTracker.CurrentDescription = slotDescription;
 
                 // Format: "Slot 1: White Magic" or "Slot 1: empty"
                 string announcement = $"Slot {index + 1}: {slotContent}";
@@ -775,6 +871,74 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error announcing ability details: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Helper class to announce ability slot (command) description when I key is pressed
+    /// </summary>
+    public static class AbilitySlotDetailsAnnouncer
+    {
+        public static void AnnounceCurrentDetails()
+        {
+            try
+            {
+                // Verify ability slot menu is actually active
+                if (!AbilitySlotMenuTracker.ValidateState())
+                {
+                    return; // Silently fail if not active
+                }
+
+                // Get stored description
+                string description = AbilitySlotMenuTracker.CurrentDescription;
+
+                if (string.IsNullOrWhiteSpace(description))
+                {
+                    FFV_ScreenReaderMod.SpeakText("No description available");
+                    return;
+                }
+
+                MelonLogger.Msg($"[Ability Slot Details] {description}");
+                FFV_ScreenReaderMod.SpeakText(description);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error announcing ability slot details: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Helper class to announce ability equip description when I key is pressed
+    /// </summary>
+    public static class AbilityEquipDetailsAnnouncer
+    {
+        public static void AnnounceCurrentDetails()
+        {
+            try
+            {
+                // Verify ability equip menu is actually active
+                if (!AbilityEquipMenuTracker.ValidateState())
+                {
+                    return; // Silently fail if not active
+                }
+
+                // Get stored description
+                string description = AbilityEquipMenuTracker.CurrentDescription;
+
+                if (string.IsNullOrWhiteSpace(description))
+                {
+                    FFV_ScreenReaderMod.SpeakText("No description available");
+                    return;
+                }
+
+                MelonLogger.Msg($"[Ability Equip Details] {description}");
+                FFV_ScreenReaderMod.SpeakText(description);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error announcing ability equip details: {ex.Message}");
             }
         }
     }
