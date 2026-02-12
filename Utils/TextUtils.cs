@@ -9,9 +9,12 @@ namespace FFV_ScreenReader.Utils
     /// </summary>
     public static class TextUtils
     {
-        // Compiled regex for stripping icon markup (e.g., <ic_Drag>, <IC_DRAG>)
         private static readonly Regex IconMarkupRegex = new Regex(
             @"<[iI][cC]_[^>]+>",
+            RegexOptions.Compiled);
+
+        private static readonly Regex RichTextTagRegex = new Regex(
+            @"<[^>]+>",
             RegexOptions.Compiled);
 
         /// <summary>
@@ -23,6 +26,29 @@ namespace FFV_ScreenReader.Utils
                 return string.Empty;
 
             return IconMarkupRegex.Replace(text, "").Trim();
+        }
+
+        /// <summary>
+        /// Normalizes whitespace in text: replaces newlines with spaces,
+        /// collapses multiple spaces into one, and trims.
+        /// </summary>
+        public static string NormalizeWhitespace(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return string.Empty;
+            text = text.Replace("\n", " ").Replace("\r", " ").Trim();
+            while (text.Contains("  ")) text = text.Replace("  ", " ");
+            return text;
+        }
+
+        /// <summary>
+        /// Strips all Unity rich text / XML-style tags from a string.
+        /// </summary>
+        public static string StripRichTextTags(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            return RichTextTagRegex.Replace(text, string.Empty);
         }
 
         /// <summary>
@@ -75,7 +101,6 @@ namespace FFV_ScreenReader.Utils
 
         /// <summary>
         /// Checks if any Text component exists whose GameObject name contains the specified substring.
-        /// More efficient than GetComponentsInChildren as it stops on first match.
         /// </summary>
         public static bool HasTextWithNameContaining(Transform parent, string nameContains)
         {
@@ -92,7 +117,6 @@ namespace FFV_ScreenReader.Utils
                         return true;
                 }
 
-                // Recurse into children
                 if (HasTextWithNameContaining(child, nameContains))
                     return true;
             }
@@ -158,6 +182,42 @@ namespace FFV_ScreenReader.Utils
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Finds the "Content" transform under a ScrollView/Viewport hierarchy.
+        /// </summary>
+        public static Transform FindContentList(Transform root)
+        {
+            var content = FindTransformInChildren(root, "Content");
+            if (content != null && content.parent != null &&
+                (content.parent.name == "Viewport" || content.parent.parent?.name == "Scroll View"))
+            {
+                return content;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Safely gets text from a Text component, returning null if null/empty/whitespace.
+        /// </summary>
+        public static string GetTextSafe(UnityEngine.UI.Text textComponent)
+        {
+            if (textComponent == null)
+                return null;
+
+            try
+            {
+                string text = textComponent.text;
+                if (string.IsNullOrWhiteSpace(text))
+                    return null;
+
+                return text.Trim();
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

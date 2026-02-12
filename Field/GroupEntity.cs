@@ -55,12 +55,7 @@ namespace FFV_ScreenReader.Field
         
         private Vector3 GetPlayerPosition()
         {
-            var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-
-            if (playerController?.fieldPlayer == null)
-                return Vector3.zero;
-
-            return playerController.fieldPlayer.transform.position;
+            return PlayerPositionHelper.GetWorldPosition();
         }
         
         public override FieldEntity GameEntity

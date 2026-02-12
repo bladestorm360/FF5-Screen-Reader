@@ -29,8 +29,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(BattleCommandSelectController), nameof(BattleCommandSelectController.SetCommandData))]
     public static class BattleCommandSelectController_SetCommandData_Patch
     {
-        private static int lastCharacterId = -1;
-
         [HarmonyPostfix]
         public static void Postfix(BattleCommandSelectController __instance, OwnedCharacterData data)
         {
@@ -41,16 +39,20 @@ namespace FFV_ScreenReader.Patches
                 // Track the active character for H key status announcement
                 ActiveBattleCharacterTracker.CurrentActiveCharacter = data;
 
+                // Activate battle state if not already in battle
+                if (!BattleState.IsInBattle)
+                {
+                    BattleState.SetActive();
+                }
+
                 // Only announce if it's a different character than last time
                 int characterId = data.Id;
-                if (characterId == lastCharacterId) return;
-                lastCharacterId = characterId;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_CHARACTER_ID, characterId)) return;
 
                 string characterName = data.Name;
                 if (string.IsNullOrEmpty(characterName)) return;
 
                 string announcement = $"{characterName}'s turn";
-                MelonLogger.Msg($"[Battle Turn] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -67,8 +69,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(BattleCommandSelectController), nameof(BattleCommandSelectController.SetCursor))]
     public static class BattleCommandSelectController_SetCursor_Patch
     {
-        private static int lastAnnouncedIndex = -1;
-
         [HarmonyPostfix]
         public static void Postfix(BattleCommandSelectController __instance, int index)
         {
@@ -76,26 +76,15 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null) return;
 
-
                 // SUPPRESSION: If targeting is active, do not announce commands
-                // Use the IsTargetSelectionActive flag set by BattleTargetPatches.ShowWindow
-                // This is more reliable than FindObjectOfType which can miss active controllers
-                if (BattleTargetPatches.IsTargetSelectionActive) return;
-
-                var itemTargetController = UnityEngine.Object.FindObjectOfType<ItemUseController>();
-                if (itemTargetController != null) return;
-
+                // Use flags set by BattleTargetPatches and ItemUseTracker patches
+                // This avoids expensive FindObjectOfType calls on every cursor movement
+                if (BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive) return;
 
                 // Skip duplicate announcements
-                if (index == lastAnnouncedIndex) return;
-                lastAnnouncedIndex = index;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_INDEX, index)) return;
 
-                var contentList = __instance.contentList;
-                if (contentList == null || contentList.Count == 0) return;
-
-                if (index < 0 || index >= contentList.Count) return;
-
-                var contentController = contentList[index];
+                var contentController = SelectContentHelper.TryGetItem(__instance.contentList, index);
                 if (contentController == null || contentController.TargetCommand == null) return;
 
                 string mesIdName = contentController.TargetCommand.MesIdName;
@@ -107,13 +96,26 @@ namespace FFV_ScreenReader.Patches
                 string commandName = messageManager.GetMessage(mesIdName);
                 if (string.IsNullOrWhiteSpace(commandName)) return;
 
-                MelonLogger.Msg($"[Battle Command] {commandName}");
-                CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(commandName));
+                CoroutineManager.StartManaged(DelayedBattleCommandSpeech(commandName));
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in BattleCommandSelectController.SetCursor patch: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Battle-specific delayed speech that re-checks suppression after the frame delay.
+        /// This prevents "Attack" from being announced when ShowWindow activates target selection
+        /// during the one-frame delay.
+        /// </summary>
+        private static IEnumerator DelayedBattleCommandSpeech(string text)
+        {
+            yield return null;
+            // Re-check suppression after delay — ShowWindow may have activated target selection
+            if (BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive)
+                yield break;
+            FFV_ScreenReaderMod.SpeakText(text);
         }
     }
 
@@ -124,8 +126,6 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppLast.UI.Cursor), typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class BattleItemInfomationController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(BattleItemInfomationController __instance, Il2CppLast.UI.Cursor targetCursor)
         {
@@ -133,11 +133,8 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null || targetCursor == null) return;
 
-                // SUPPRESSION: Stateless check
-                if (UnityEngine.Object.FindObjectOfType<ItemUseController>() != null) return;
-                // Note: Items usually don't mix with EnemyTargetController in the same way, but safe to check?
-                // Actually, if we are in Item menu, and EnemyTarget is active? Unlikely.
-                // But ItemUseController is the main one for Items.
+                // SUPPRESSION: Use cached state instead of FindObjectOfType
+                if (ItemUseTracker.IsItemUseActive) return;
 
                 int index = targetCursor.Index;
 
@@ -151,10 +148,7 @@ namespace FFV_ScreenReader.Patches
                 else
                     activeList = contentList;
 
-                if (activeList == null || activeList.Count == 0) return;
-                if (index < 0 || index >= activeList.Count) return;
-
-                var selectedContent = activeList[index];
+                var selectedContent = SelectContentHelper.TryGetItem(activeList, index);
                 if (selectedContent == null) return;
 
                 string itemName = null;
@@ -203,10 +197,8 @@ namespace FFV_ScreenReader.Patches
                     catch {}
                 }
 
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_ITEM_SELECT, announcement)) return;
 
-                MelonLogger.Msg($"[Battle Item/Tool] {announcement}");
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)
@@ -223,8 +215,6 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppLast.UI.Cursor), typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class BattleQuantityAbilityInfomationController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(BattleQuantityAbilityInfomationController __instance, Il2CppLast.UI.Cursor targetCursor)
         {
@@ -232,17 +222,11 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null || targetCursor == null) return;
 
-                // SUPPRESSION: Stateless check
-                if (UnityEngine.Object.FindObjectOfType<BattleTargetSelectController>() != null) return;
-                if (UnityEngine.Object.FindObjectOfType<ItemUseController>() != null) return;
-
-                var contentList = __instance.contentList;
-                if (contentList == null || contentList.Count == 0) return;
+                // SUPPRESSION: Use cached state instead of FindObjectOfType calls
+                if (BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive) return;
 
                 int index = targetCursor.Index;
-                if (index < 0 || index >= contentList.Count) return;
-
-                var selectedContent = contentList[index];
+                var selectedContent = SelectContentHelper.TryGetItem(__instance.contentList, index);
                 if (selectedContent == null) return;
 
                 var abilityData = selectedContent.Data;
@@ -270,10 +254,8 @@ namespace FFV_ScreenReader.Patches
                     if (!string.IsNullOrWhiteSpace(description)) announcement += $", {description}";
                 }
 
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_ABILITY_SELECT, announcement)) return;
 
-                MelonLogger.Msg($"[Battle Ability] {announcement}");
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }
             catch (Exception ex)

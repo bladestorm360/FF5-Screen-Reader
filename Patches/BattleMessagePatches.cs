@@ -12,11 +12,13 @@ using Il2CppLast.Battle.Function;
 using Il2CppLast.Data.Master;
 using Il2CppLast.Systems;
 using FFV_ScreenReader.Core;
+using FFV_ScreenReader.Utils;
 using UnityEngine;
 using BattleCommandMessageController_KeyInput = Il2CppLast.UI.KeyInput.BattleCommandMessageController;
 using BattleCommandMessageController_Touch = Il2CppLast.UI.Touch.BattleCommandMessageController;
 using BattlePlayerData = Il2Cpp.BattlePlayerData;
 using Il2CppLast.Data.User;
+using System.Reflection;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -25,14 +27,10 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class GlobalBattleMessageTracker
     {
-        private static string lastMessage = "";
-        private static float lastMessageTime = 0f;
-        private const float MESSAGE_THROTTLE_SECONDS = 1.5f;
-
         /// <summary>
         /// Try to announce a message, returning false if it was recently announced
         /// </summary>
-        public static bool TryAnnounce(string message, string source)
+        public static bool TryAnnounce(string message)
         {
             if (string.IsNullOrWhiteSpace(message))
             {
@@ -40,19 +38,12 @@ namespace FFV_ScreenReader.Patches
             }
 
             string cleanMessage = message.Trim();
-            float currentTime = UnityEngine.Time.time;
 
-            // Skip if same message within throttle window
-            if (cleanMessage == lastMessage && (currentTime - lastMessageTime) < MESSAGE_THROTTLE_SECONDS)
+            if (!FFV_ScreenReader.Utils.AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_MESSAGE, cleanMessage))
             {
-                MelonLogger.Msg($"[{source}] Skipped duplicate: {cleanMessage}");
                 return false;
             }
 
-            lastMessage = cleanMessage;
-            lastMessageTime = currentTime;
-
-            MelonLogger.Msg($"[{source}] {cleanMessage}");
             FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false);
             return true;
         }
@@ -62,8 +53,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void Reset()
         {
-            lastMessage = "";
-            lastMessageTime = 0f;
+            FFV_ScreenReader.Utils.AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_MESSAGE);
         }
     }
 
@@ -79,7 +69,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                GlobalBattleMessageTracker.TryAnnounce(message, "ScrollMessage");
+                GlobalBattleMessageTracker.TryAnnounce(message);
             }
             catch (Exception ex)
             {
@@ -100,13 +90,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (battleActData == null)
-                {
-                    MelonLogger.Msg("[CreateActFunction] battleActData is null");
-                    return;
-                }
-
-                MelonLogger.Msg($"[CreateActFunction] Processing battle action");
+                if (battleActData == null) return;
 
                 // Get the attacker's name
                 string actorName = GetActorName(battleActData);
@@ -114,15 +98,18 @@ namespace FFV_ScreenReader.Patches
                 // Get the action/ability name
                 string actionName = GetActionName(battleActData);
 
-                MelonLogger.Msg($"[CreateActFunction] Actor: {actorName ?? "null"}, Action: {actionName ?? "null"}");
-
                 if (!string.IsNullOrEmpty(actorName))
                 {
+                    // Object-based dedup: each BattleActData is a unique instance,
+                    // so two goblins both attacking produce distinct objects and are
+                    // both announced (string dedup would suppress the second).
+                    if (!AnnouncementDeduplicator.ShouldAnnounce(
+                            AnnouncementContexts.BATTLE_ACTION, battleActData))
+                        return;
+
                     string announcement;
                     if (!string.IsNullOrEmpty(actionName))
                     {
-                        // Format action name to be more natural
-                        // "Attack" -> "attacks", "Fire" -> "casts Fire", etc.
                         string actionLower = actionName.ToLower();
                         if (actionLower == "attack" || actionLower == "fight")
                         {
@@ -138,7 +125,6 @@ namespace FFV_ScreenReader.Patches
                         }
                         else
                         {
-                            // For spells/abilities: "Bartz casts Fire" or "Stray Cat uses Scratch"
                             announcement = $"{actorName}, {actionName}";
                         }
                     }
@@ -146,7 +132,7 @@ namespace FFV_ScreenReader.Patches
                     {
                         announcement = $"{actorName} attacks";
                     }
-                    GlobalBattleMessageTracker.TryAnnounce(announcement, "BattleAction");
+                    FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
                 }
             }
             catch (Exception ex)
@@ -160,38 +146,9 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 var attackUnit = battleActData.AttackUnitData;
-                if (attackUnit == null)
-                {
-                    MelonLogger.Msg("[CreateActFunction] AttackUnitData is null");
-                    return null;
-                }
+                if (attackUnit == null) return null;
 
-                // Check if attacker is a player character
-                var playerData = attackUnit.TryCast<BattlePlayerData>();
-                if (playerData != null && playerData.ownedCharacterData != null)
-                {
-                    string name = playerData.ownedCharacterData.Name;
-                    MelonLogger.Msg($"[CreateActFunction] Found player name: {name}");
-                    return name;
-                }
-
-                // Check if attacker is an enemy
-                var enemyData = attackUnit.TryCast<BattleEnemyData>();
-                if (enemyData != null)
-                {
-                    string mesIdName = enemyData.GetMesIdName();
-                    MelonLogger.Msg($"[CreateActFunction] Enemy mesIdName: {mesIdName}");
-                    var messageManager = MessageManager.Instance;
-                    if (messageManager != null && !string.IsNullOrEmpty(mesIdName))
-                    {
-                        string localizedName = messageManager.GetMessage(mesIdName);
-                        if (!string.IsNullOrEmpty(localizedName))
-                        {
-                            MelonLogger.Msg($"[CreateActFunction] Found enemy name: {localizedName}");
-                            return localizedName;
-                        }
-                    }
-                }
+                return BattleUnitHelper.GetUnitName(attackUnit);
             }
             catch (Exception ex)
             {
@@ -216,7 +173,6 @@ namespace FFV_ScreenReader.Patches
                         string abilityName = ContentUtitlity.GetAbilityName(ability);
                         if (!string.IsNullOrEmpty(abilityName))
                         {
-                            MelonLogger.Msg($"[CreateActFunction] Found ability name: {abilityName}");
                             return abilityName;
                         }
                     }
@@ -235,7 +191,6 @@ namespace FFV_ScreenReader.Patches
                             string localizedName = messageManager.GetMessage(commandMesId);
                             if (!string.IsNullOrEmpty(localizedName))
                             {
-                                MelonLogger.Msg($"[CreateActFunction] Found command name: {localizedName}");
                                 return localizedName;
                             }
                         }
@@ -255,58 +210,19 @@ namespace FFV_ScreenReader.Patches
     public static class BattleBasicFunction_CreateDamageView_Patch
     {
         [HarmonyPostfix]
-        public static void Postfix(Il2CppLast.Battle.BattleUnitData data, int value, Il2CppLast.Systems.HitType hitType, bool isRecovery)
+        public static void Postfix(Il2CppLast.Battle.BattleUnitData data, int value, Il2CppLast.Systems.HitType hitType, bool isRecovery, Il2CppLast.Systems.CalcResult.MissType missType)
         {
             try
             {
-                string targetName = "Unknown";
-                bool isEnemy = false;
-
-                // Check if this is a BattlePlayerData (player character)
-                var playerData = data.TryCast<Il2Cpp.BattlePlayerData>();
-                if (playerData != null)
-                {
-                    try
-                    {
-                        var ownedCharData = playerData.ownedCharacterData;
-                        if (ownedCharData != null)
-                        {
-                            targetName = ownedCharData.Name;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        MelonLogger.Warning($"Error getting player name: {ex.Message}");
-                    }
-                }
-
-                // Check if this is a BattleEnemyData (enemy)
-                var enemyData = data.TryCast<Il2CppLast.Battle.BattleEnemyData>();
-                if (enemyData != null)
-                {
-                    isEnemy = true;
-                    try
-                    {
-                        string mesIdName = enemyData.GetMesIdName();
-                        var messageManager = Il2CppLast.Management.MessageManager.Instance;
-                        if (messageManager != null && !string.IsNullOrEmpty(mesIdName))
-                        {
-                            string localizedName = messageManager.GetMessage(mesIdName);
-                            if (!string.IsNullOrEmpty(localizedName))
-                            {
-                                targetName = localizedName;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        MelonLogger.Warning($"Error getting enemy name/HP: {ex.Message}");
-                    }
-                }
+                string targetName = BattleUnitHelper.GetUnitName(data) ?? "Unknown";
 
                 string message;
-                if (hitType == Il2CppLast.Systems.HitType.Miss || value == 0)
+                if (hitType == Il2CppLast.Systems.HitType.Miss)
                 {
+                    // NonView = non-damage ability (Steal, Focus, etc.) — game doesn't show "Miss" visually
+                    if (missType == Il2CppLast.Systems.CalcResult.MissType.NonView)
+                        return;
+
                     message = $"{targetName}: Miss";
                 }
                 else if (hitType == Il2CppLast.Systems.HitType.Recovery)
@@ -323,7 +239,6 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Announce damage/recovery
-                MelonLogger.Msg($"[Damage] {message}");
                 FFV_ScreenReaderMod.SpeakText(message, interrupt: false);
             }
             catch (Exception ex)
@@ -348,6 +263,8 @@ namespace FFV_ScreenReader.Patches
                 BattleTargetPatches.ResetState();
                 // Also reset global message tracker so turn announcements can repeat
                 GlobalBattleMessageTracker.Reset();
+                // Reset object-based action dedup so repeat actions are announced fresh
+                AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_ACTION);
             }
             catch (Exception ex)
             {
@@ -372,12 +289,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (contentId <= 0)
-                {
-                    // No item stolen (contentId 0 or negative means nothing to steal)
-                    MelonLogger.Msg("[Steal] Nothing to steal");
-                    return;
-                }
+                if (contentId <= 0) return;
 
                 // Get item name from contentId using MessageManager directly
                 var messageManager = MessageManager.Instance;
@@ -407,14 +319,12 @@ namespace FFV_ScreenReader.Patches
                             announcement = $"Stole {itemName}";
                         }
 
-                        MelonLogger.Msg($"[Steal] {announcement}");
                         FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
                         return;
                     }
                 }
 
                 // Fallback if we couldn't get the item name
-                MelonLogger.Msg($"[Steal] Stole item (contentId: {contentId}, count: {cnt})");
                 FFV_ScreenReaderMod.SpeakText($"Stole item", interrupt: false);
             }
             catch (Exception ex)
@@ -431,8 +341,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.Battle.BattleConditionController), nameof(Il2CppLast.Battle.BattleConditionController.Add))]
     public static class BattleConditionController_Add_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id)
         {
@@ -443,30 +351,8 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                // Get target name
-                string targetName = "Unknown";
-                var playerData = battleUnitData.TryCast<BattlePlayerData>();
-                if (playerData?.ownedCharacterData != null)
-                {
-                    targetName = playerData.ownedCharacterData.Name;
-                }
-                else
-                {
-                    var enemyData = battleUnitData.TryCast<BattleEnemyData>();
-                    if (enemyData != null)
-                    {
-                        string mesIdName = enemyData.GetMesIdName();
-                        var messageManager = MessageManager.Instance;
-                        if (messageManager != null && !string.IsNullOrEmpty(mesIdName))
-                        {
-                            string localizedName = messageManager.GetMessage(mesIdName);
-                            if (!string.IsNullOrEmpty(localizedName))
-                            {
-                                targetName = localizedName;
-                            }
-                        }
-                    }
-                }
+                // Get target name using BattleUnitHelper
+                string targetName = FFV_ScreenReader.Utils.BattleUnitHelper.GetUnitName(battleUnitData) ?? "Unknown";
 
                 // Get condition name from ID - look up from ConfirmedConditionList
                 string conditionName = null;
@@ -522,19 +408,167 @@ namespace FFV_ScreenReader.Patches
                 string announcement = $"{targetName}: {conditionName}";
 
                 // Skip duplicates
-                if (announcement == lastAnnouncement)
+                if (!FFV_ScreenReader.Utils.AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_MESSAGE_CONDITION, announcement))
                 {
                     return;
                 }
-                lastAnnouncement = announcement;
 
-                MelonLogger.Msg($"[Status] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in BattleConditionController.Add patch: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Manual patches for BattleCommandMessageController to announce defeat messages.
+    /// Uses runtime type lookup for IL2CPP compatibility.
+    /// </summary>
+    public static class BattleCommandMessagePatches
+    {
+        private static string lastBattleCommandMessage = "";
+
+        /// <summary>
+        /// Apply manual patches for battle command messages (defeat message, etc.)
+        /// </summary>
+        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                PatchBattleCommandMessage(harmony);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Battle Command Message] Error applying patches: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Finds a type by name across all loaded assemblies.
+        /// </summary>
+        private static Type FindType(string fullName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
+                {
+                    foreach (var type in assembly.GetTypes())
+                    {
+                        if (type.FullName == fullName)
+                        {
+                            return type;
+                        }
+                    }
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Patch BattleCommandMessageController.SetMessage for system messages like "The party was defeated".
+        /// </summary>
+        private static void PatchBattleCommandMessage(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                // KeyInput version - uses SetMessage
+                var keyInputType = FindType("Il2CppLast.UI.KeyInput.BattleCommandMessageController");
+                if (keyInputType != null)
+                {
+                    var setMessageMethod = AccessTools.Method(keyInputType, "SetMessage");
+                    if (setMessageMethod != null)
+                    {
+                        var postfix = typeof(BattleCommandMessagePatches).GetMethod(
+                            nameof(SetMessage_Postfix), BindingFlags.Public | BindingFlags.Static);
+                        harmony.Patch(setMessageMethod, postfix: new HarmonyMethod(postfix));
+                    }
+                    else
+                    {
+                        MelonLogger.Warning("[Battle Command Message] KeyInput.BattleCommandMessageController.SetMessage method not found");
+                    }
+                }
+                else
+                {
+                    MelonLogger.Warning("[Battle Command Message] KeyInput.BattleCommandMessageController type not found");
+                }
+
+                // Touch version - uses SetCommandMessage and SetSystemMessage
+                var touchType = FindType("Il2CppLast.UI.Touch.BattleCommandMessageController");
+                if (touchType != null)
+                {
+                    // Patch SetCommandMessage
+                    var setCommandMsgMethod = AccessTools.Method(touchType, "SetCommandMessage");
+                    if (setCommandMsgMethod != null)
+                    {
+                        var postfix = typeof(BattleCommandMessagePatches).GetMethod(
+                            nameof(SetMessage_Postfix), BindingFlags.Public | BindingFlags.Static);
+                        harmony.Patch(setCommandMsgMethod, postfix: new HarmonyMethod(postfix));
+                    }
+
+                    // Patch SetSystemMessage
+                    var setSystemMsgMethod = AccessTools.Method(touchType, "SetSystemMessage");
+                    if (setSystemMsgMethod != null)
+                    {
+                        var postfix = typeof(BattleCommandMessagePatches).GetMethod(
+                            nameof(SetMessage_Postfix), BindingFlags.Public | BindingFlags.Static);
+                        harmony.Patch(setSystemMsgMethod, postfix: new HarmonyMethod(postfix));
+                    }
+                }
+                else
+                {
+                    MelonLogger.Warning("[Battle Command Message] Touch.BattleCommandMessageController type not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Battle Command Message] Error patching BattleCommandMessageController: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Postfix for BattleCommandMessageController.SetMessage/SetCommandMessage/SetSystemMessage.
+        /// Announces battle messages including "The party was defeated".
+        /// </summary>
+        public static void SetMessage_Postfix(object __0)
+        {
+            try
+            {
+                // __0 is the message string (using __0 to avoid IL2CPP string param issues)
+                string message = __0?.ToString();
+                if (string.IsNullOrEmpty(message)) return;
+
+                // Deduplicate
+                if (message == lastBattleCommandMessage) return;
+                lastBattleCommandMessage = message;
+
+                // Clean up the message
+                string cleanMessage = TextUtils.StripIconMarkup(message);
+                cleanMessage = cleanMessage.Replace("\n", " ").Replace("\r", " ").Trim();
+                while (cleanMessage.Contains("  "))
+                    cleanMessage = cleanMessage.Replace("  ", " ");
+
+                if (string.IsNullOrEmpty(cleanMessage)) return;
+
+                // Use interrupt for defeat message so it's heard immediately
+                bool isDefeatMessage = cleanMessage.Contains("defeated", StringComparison.OrdinalIgnoreCase);
+
+                FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: isDefeatMessage);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Battle Command Message] Error in SetMessage_Postfix: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Reset state tracking (call at battle end).
+        /// </summary>
+        public static void ResetState()
+        {
+            lastBattleCommandMessage = "";
         }
     }
 }

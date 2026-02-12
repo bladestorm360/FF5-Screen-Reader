@@ -10,6 +10,7 @@ using Il2CppLast.Management;
 using MelonLoader;
 using UnityEngine.UI;
 using FFV_ScreenReader.Patches;
+using static FFV_ScreenReader.Utils.TextUtils;
 
 namespace FFV_ScreenReader.Menus
 {
@@ -114,33 +115,6 @@ namespace FFV_ScreenReader.Menus
             }
 
             return parts.Count > 0 ? string.Join(". ", parts) : null;
-        }
-
-        /// <summary>
-        /// Safely get text from a Text component, returning null if invalid.
-        /// </summary>
-        private static string GetTextSafe(Text textComponent)
-        {
-            if (textComponent == null)
-            {
-                return null;
-            }
-
-            try
-            {
-                string text = textComponent.text;
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    return null;
-                }
-
-                // Trim and return
-                return text.Trim();
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         /// <summary>
@@ -469,7 +443,7 @@ namespace FFV_ScreenReader.Menus
             try
             {
                 if (data?.Parameter == null) return "N/A";
-                return $"Level: {data.Parameter.BaseLevel}";
+                return $"Level: {data.Parameter.ConfirmedLevel()}";
             }
             catch (Exception ex)
             {

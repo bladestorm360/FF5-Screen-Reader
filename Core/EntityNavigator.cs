@@ -19,6 +19,7 @@ namespace FFV_ScreenReader.Core
 
         private CategoryFilter categoryFilter;
         private PathfindingFilter pathfindingFilter;
+        private ToLayerFilter toLayerFilter;
         private MapExitGroupingStrategy mapExitGroupingStrategy;
         private bool filterMapExits = false;
         
@@ -49,6 +50,19 @@ namespace FFV_ScreenReader.Core
             }
         }
         
+        public bool FilterToLayer
+        {
+            get => toLayerFilter.IsEnabled;
+            set
+            {
+                if (toLayerFilter.IsEnabled != value)
+                {
+                    toLayerFilter.IsEnabled = value;
+                    RebuildNavigationList();
+                }
+            }
+        }
+
         public EntityCategory Category => categoryFilter.TargetCategory;
         
         public NavigableEntity CurrentEntity => selectedEntity;
@@ -57,7 +71,6 @@ namespace FFV_ScreenReader.Core
         
         public int EntityCount => navigationList.Count;
         
-        public EntityCategory CurrentCategory => Category;
         
         public EntityNavigator(EntityCache cache)
         {
@@ -65,10 +78,12 @@ namespace FFV_ScreenReader.Core
             
             categoryFilter = new CategoryFilter();
             pathfindingFilter = new PathfindingFilter();
+            toLayerFilter = new ToLayerFilter();
             mapExitGroupingStrategy = new MapExitGroupingStrategy();
-            
+
             entityFilters.Add(categoryFilter);
             entityFilters.Add(pathfindingFilter);
+            entityFilters.Add(toLayerFilter);
             
             cache.OnEntityAdded += HandleEntityAdded;
             cache.OnEntityRemoved += HandleEntityRemoved;
@@ -182,50 +197,15 @@ namespace FFV_ScreenReader.Core
         
         private List<NavigableEntity> SortByDistance(List<NavigableEntity> entities)
         {
-            Vector3 playerPos = GetPlayerPosition();
-            
-            var withDistances = new List<(NavigableEntity entity, float distance)>(entities.Count);
-            foreach (var entity in entities)
-            {
-                withDistances.Add((entity, Vector3.Distance(entity.Position, playerPos)));
-            }
-            
-            withDistances.Sort((a, b) => a.distance.CompareTo(b.distance));
-            
-            var result = new List<NavigableEntity>(withDistances.Count);
-            foreach (var item in withDistances)
-            {
-                result.Add(item.entity);
-            }
-            return result;
+            return Utils.CollectionHelper.SortByDistance(entities, GetPlayerPosition(), e => e.Position);
         }
-        
+
         private int ReSortNavigationList()
         {
             if (navigationList.Count == 0)
                 return -1;
 
-            Vector3 playerPos = GetPlayerPosition();
-            
-            var withDistances = new List<(NavigableEntity entity, float distance)>(navigationList.Count);
-            foreach (var entity in navigationList)
-            {
-                withDistances.Add((entity, Vector3.Distance(entity.Position, playerPos)));
-            }
-            
-            withDistances.Sort((a, b) => a.distance.CompareTo(b.distance));
-            
-            int selectedIdx = -1;
-            for (int i = 0; i < withDistances.Count; i++)
-            {
-                navigationList[i] = withDistances[i].entity;
-                if (selectedEntity != null && withDistances[i].entity == selectedEntity)
-                {
-                    selectedIdx = i;
-                }
-            }
-
-            return selectedIdx;
+            return Utils.CollectionHelper.SortByDistanceInPlace(navigationList, GetPlayerPosition(), e => e.Position, selectedEntity);
         }
         
         public bool CycleNext()
@@ -300,11 +280,7 @@ namespace FFV_ScreenReader.Core
         
         private Vector3 GetPlayerPosition()
         {
-            var playerController = Utils.GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-            if (playerController?.fieldPlayer == null)
-                return Vector3.zero;
-
-            return playerController.fieldPlayer.transform.position;
+            return Utils.PlayerPositionHelper.GetWorldPosition();
         }
         
         public static string GetCategoryName(EntityCategory category)

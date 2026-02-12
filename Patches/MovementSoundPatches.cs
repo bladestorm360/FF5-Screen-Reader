@@ -1,120 +1,106 @@
 using System;
-using System.Collections;
 using HarmonyLib;
 using Il2CppLast.Entity.Field;
 using Il2CppLast.Map;
-using Il2CppLast.Management;
 using UnityEngine;
+using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
 
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Patches for playing sound effects during player movement (wall bumps).
-    /// Ported from FF6 mod.
+    /// Patches for playing sound effects when player hits a wall/obstacle.
+    /// Uses FieldController.OnPlayerHitCollider which fires on collision events.
+    /// Ported from FF4 mod pattern.
     /// </summary>
     [HarmonyPatch]
     public static class MovementSoundPatches
     {
-        // Cooldown to prevent sound spam when holding a direction key against a wall
+        // Cooldown to prevent sound spam when holding direction against a wall
         private static float lastBumpTime = 0f;
-        private static readonly float BUMP_COOLDOWN = 0.2f; // 200ms between bump sounds
+        private const float BUMP_COOLDOWN = 0.3f; // 300ms
 
-        // Sound ID for wall bump - this may need adjustment based on testing
-        // Common collision/error sound IDs to try: 1, 2, 3, 4, 5, 119, 120, 121
-        private static readonly int BUMP_SOUND_ID = 4;
+        // Footstep tracking
+        private static Vector2Int lastTilePosition = Vector2Int.zero;
+        private static bool tileTrackingInitialized = false;
+        private static float lastFootstepTime = 0f;
+        private const float FOOTSTEP_COOLDOWN = 0.15f;
 
         /// <summary>
-        /// Prefix patch to capture player position and check after a frame
+        /// Fires when the player collides with an obstacle.
         /// </summary>
-        [HarmonyPatch(typeof(FieldPlayerKeyController), nameof(FieldPlayerKeyController.OnTouchPadCallback))]
-        [HarmonyPrefix]
-        private static void OnTouchPadCallback_Prefix(FieldPlayerKeyController __instance, Vector2 axis)
+        [HarmonyPatch(typeof(FieldController), nameof(FieldController.OnPlayerHitCollider))]
+        [HarmonyPostfix]
+        private static void OnPlayerHitCollider_Postfix(FieldPlayer playerEntity)
         {
             try
             {
-                // Only check if there's actual movement input
-                if (!HasMovementInput(axis))
+                // Suppress wall bumps during battle or dialogue
+                if (BattleState.IsInBattle || DialogueTracker.IsInDialogue)
                     return;
 
-                // Check if we're on cooldown
                 float currentTime = Time.time;
                 if (currentTime - lastBumpTime < BUMP_COOLDOWN)
                     return;
 
-                // Store current position and start coroutine to check after a frame
-                if (__instance?.fieldPlayer?.transform != null)
-                {
-                    Vector3 positionBeforeMovement = __instance.fieldPlayer.transform.localPosition;
-                    CoroutineManager.StartManaged(CheckForWallBumpAfterFrame(__instance.fieldPlayer, positionBeforeMovement));
-                }
+                lastBumpTime = currentTime;
+                SoundPlayer.PlayWallBump();
             }
             catch (Exception ex)
             {
-                MelonLoader.MelonLogger.Error($"Error in MovementSoundPatches OnTouchPadCallback_Prefix: {ex.Message}");
+                MelonLoader.MelonLogger.Error($"Error in OnPlayerHitCollider_Postfix: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Coroutine that waits one frame then checks if position changed
+        /// Check and play footstep when player position changes.
+        /// Called from InputManager or other movement tracking.
         /// </summary>
-        private static IEnumerator CheckForWallBumpAfterFrame(FieldPlayer player, Vector3 positionBefore)
-        {
-            // Wait one frame for movement to be processed
-            yield return null;
-
-            try
-            {
-                // Check if player still exists
-                if (player == null || player.transform == null)
-                    yield break;
-
-                // Get position after movement was processed
-                Vector3 positionAfter = player.transform.localPosition;
-
-                // Calculate distance moved
-                float distanceMoved = Vector3.Distance(positionBefore, positionAfter);
-
-                // If position didn't change (within small threshold), player hit a wall
-                if (distanceMoved < 0.1f)
-                {
-                    PlayBumpSound();
-                    lastBumpTime = Time.time;
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLoader.MelonLogger.Error($"Error in CheckForWallBumpAfterFrame: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Checks if the axis input represents actual movement input
-        /// </summary>
-        private static bool HasMovementInput(Vector2 axis)
-        {
-            // Check if there's any significant input on either axis
-            const float inputThreshold = 0.1f;
-            return Mathf.Abs(axis.x) > inputThreshold || Mathf.Abs(axis.y) > inputThreshold;
-        }
-
-        /// <summary>
-        /// Plays the wall bump sound effect
-        /// </summary>
-        private static void PlayBumpSound()
+        public static void CheckFootstep(Vector3 worldPos)
         {
             try
             {
-                var audioManager = AudioManager.Instance;
-                if (audioManager != null)
+                if (!FFV_ScreenReaderMod.FootstepsEnabled)
+                    return;
+
+                Vector2Int currentTile = new Vector2Int(
+                    Mathf.FloorToInt(worldPos.x / GameConstants.TILE_SIZE),
+                    Mathf.FloorToInt(worldPos.y / GameConstants.TILE_SIZE)
+                );
+
+                if (!tileTrackingInitialized)
                 {
-                    audioManager.PlaySe(BUMP_SOUND_ID);
+                    lastTilePosition = currentTile;
+                    tileTrackingInitialized = true;
+                    return;
+                }
+
+                if (currentTile != lastTilePosition)
+                {
+                    lastTilePosition = currentTile;
+                    float currentTime = Time.time;
+                    if (currentTime - lastFootstepTime >= FOOTSTEP_COOLDOWN)
+                    {
+                        SoundPlayer.PlayFootstep();
+                        lastFootstepTime = currentTime;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MelonLoader.MelonLogger.Error($"Error playing bump sound: {ex.Message}");
+                MelonLoader.MelonLogger.Error($"Error in CheckFootstep: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Resets all static state. Called on map transitions.
+        /// </summary>
+        public static void ResetState()
+        {
+            lastBumpTime = 0f;
+            lastTilePosition = Vector2Int.zero;
+            tileTrackingInitialized = false;
+            lastFootstepTime = 0f;
         }
     }
 }

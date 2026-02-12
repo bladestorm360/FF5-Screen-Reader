@@ -11,21 +11,18 @@ namespace FFV_ScreenReader.Core
 {
     public class EntityCache
     {
-        private readonly float scanInterval;
-        private float lastScanTime = 0f;
         private Dictionary<FieldEntity, NavigableEntity> entityMap = new Dictionary<FieldEntity, NavigableEntity>();
         private List<IGroupingStrategy> enabledStrategies = new List<IGroupingStrategy>();
         private Dictionary<string, GroupEntity> groupsByKey = new Dictionary<string, GroupEntity>();
 
         public event Action<NavigableEntity> OnEntityAdded;
-        
+
         public event Action<NavigableEntity> OnEntityRemoved;
-        
+
         public IReadOnlyDictionary<FieldEntity, NavigableEntity> Entities => entityMap;
-        
-        public EntityCache(float scanInterval = 0.1f)
+
+        public EntityCache()
         {
-            this.scanInterval = scanInterval;
         }
         
         public void EnableGroupingStrategy(IGroupingStrategy strategy)
@@ -120,15 +117,6 @@ namespace FFV_ScreenReader.Core
             string groupKey = strategy.GetGroupKey(firstMember);
 
             return groupKey != null && groupKey == group.GroupKey;
-        }
-        
-        public void Update()
-        {
-            if (Time.time - lastScanTime >= scanInterval)
-            {
-                lastScanTime = Time.time;
-                Scan();
-            }
         }
         
         public void Scan()
@@ -233,17 +221,23 @@ namespace FFV_ScreenReader.Core
         
         public void ForceScan()
         {
-            lastScanTime = Time.time;
             Scan();
+        }
+
+        public List<Vector3> GetMapExitPositions()
+        {
+            var positions = new List<Vector3>();
+            foreach (var entity in entityMap.Values)
+            {
+                if (entity.Category == EntityCategory.MapExits)
+                    positions.Add(entity.Position);
+            }
+            return positions;
         }
         
         private Vector3 GetPlayerPosition()
         {
-            var playerController = Utils.GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-            if (playerController?.fieldPlayer == null)
-                return Vector3.zero;
-
-            return playerController.fieldPlayer.transform.position;
+            return Utils.PlayerPositionHelper.GetWorldPosition();
         }
     }
 }

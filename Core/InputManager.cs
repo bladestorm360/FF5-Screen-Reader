@@ -14,50 +14,319 @@ namespace FFV_ScreenReader.Core
     {
         private readonly FFV_ScreenReaderMod mod;
         private StatusDetailsController cachedStatusController;
+        private readonly KeyBindingRegistry registry = new KeyBindingRegistry();
 
         public InputManager(FFV_ScreenReaderMod mod)
         {
             this.mod = mod;
+            InitializeBindings();
         }
-        
+
+        /// <summary>
+        /// Registers a field-only binding with a "Not available in battle" fallback for the Battle context.
+        /// </summary>
+        private void RegisterFieldWithBattleFeedback(KeyCode key, KeyModifier modifier, System.Action action, string description)
+        {
+            registry.Register(key, modifier, KeyContext.Field, action, description);
+            registry.Register(key, modifier, KeyContext.Battle, NotAvailableInBattle, description + " (battle blocked)");
+            registry.Register(key, modifier, KeyContext.Global, NotOnMap, description + " (no map)");
+        }
+
+        private static void NotAvailableInBattle()
+        {
+            FFV_ScreenReaderMod.SpeakText("Not available in battle", interrupt: true);
+        }
+
+        private static void NotOnMap()
+        {
+            FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+        }
+
+        private void InitializeBindings()
+        {
+            // --- Status screen: arrow key navigation ---
+            registry.Register(KeyCode.DownArrow, KeyModifier.Ctrl, KeyContext.Status, StatusNavigationReader.JumpToBottom, "Jump to bottom stat");
+            registry.Register(KeyCode.DownArrow, KeyModifier.Shift, KeyContext.Status, StatusNavigationReader.JumpToNextGroup, "Jump to next stat group");
+            registry.Register(KeyCode.DownArrow, KeyModifier.None, KeyContext.Status, StatusNavigationReader.NavigateNext, "Next stat");
+            registry.Register(KeyCode.UpArrow, KeyModifier.Ctrl, KeyContext.Status, StatusNavigationReader.JumpToTop, "Jump to top stat");
+            registry.Register(KeyCode.UpArrow, KeyModifier.Shift, KeyContext.Status, StatusNavigationReader.JumpToPreviousGroup, "Jump to previous stat group");
+            registry.Register(KeyCode.UpArrow, KeyModifier.None, KeyContext.Status, StatusNavigationReader.NavigatePrevious, "Previous stat");
+
+            // Status screen: bulk stat reading
+            registry.Register(KeyCode.LeftBracket, KeyContext.Status, () => FFV_ScreenReaderMod.SpeakText(StatusDetailsReader.ReadPhysicalStats()), "Read physical stats");
+            registry.Register(KeyCode.RightBracket, KeyContext.Status, () => FFV_ScreenReaderMod.SpeakText(StatusDetailsReader.ReadMagicalStats()), "Read magical stats");
+
+            // --- Field: entity navigation (brackets + backslash) — with battle feedback ---
+            RegisterFieldWithBattleFeedback(KeyCode.LeftBracket, KeyModifier.Shift, mod.CyclePreviousCategory, "Previous entity category");
+            RegisterFieldWithBattleFeedback(KeyCode.LeftBracket, KeyModifier.None, mod.CyclePrevious, "Previous entity");
+            RegisterFieldWithBattleFeedback(KeyCode.RightBracket, KeyModifier.Shift, mod.CycleNextCategory, "Next entity category");
+            RegisterFieldWithBattleFeedback(KeyCode.RightBracket, KeyModifier.None, mod.CycleNext, "Next entity");
+            RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.Ctrl, mod.ToggleToLayerFilter, "Toggle layer filter");
+            RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.Shift, mod.TogglePathfindingFilter, "Toggle pathfinding filter");
+            RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity");
+
+            // --- Field: pathfinding alternate keys (J/K/L/P) — with battle feedback ---
+            RegisterFieldWithBattleFeedback(KeyCode.J, KeyModifier.Shift, mod.CyclePreviousCategory, "Previous entity category (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.J, KeyModifier.None, mod.CyclePrevious, "Previous entity (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.K, KeyModifier.Shift, mod.AnnounceCurrentEntity, "Announce current entity (alt shift)");
+            RegisterFieldWithBattleFeedback(KeyCode.K, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.L, KeyModifier.Shift, mod.CycleNextCategory, "Next entity category (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.L, KeyModifier.None, mod.CycleNext, "Next entity (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.Shift, mod.TogglePathfindingFilter, "Toggle pathfinding filter (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity (alt)");
+
+            // --- Field: waypoint keys (with Global fallback) ---
+            registry.Register(KeyCode.Comma, KeyModifier.Shift, KeyContext.Field, mod.CyclePreviousWaypointCategory, "Previous waypoint category");
+            registry.Register(KeyCode.Comma, KeyModifier.Shift, KeyContext.Global, NotOnMap, "Previous waypoint category (no map)");
+            registry.Register(KeyCode.Comma, KeyModifier.None, KeyContext.Field, mod.CyclePreviousWaypoint, "Previous waypoint");
+            registry.Register(KeyCode.Comma, KeyModifier.None, KeyContext.Global, NotOnMap, "Previous waypoint (no map)");
+            registry.Register(KeyCode.Period, KeyModifier.Ctrl, KeyContext.Field, mod.RenameCurrentWaypoint, "Rename waypoint");
+            registry.Register(KeyCode.Period, KeyModifier.Ctrl, KeyContext.Global, NotOnMap, "Rename waypoint (no map)");
+            registry.Register(KeyCode.Period, KeyModifier.Shift, KeyContext.Field, mod.CycleNextWaypointCategory, "Next waypoint category");
+            registry.Register(KeyCode.Period, KeyModifier.Shift, KeyContext.Global, NotOnMap, "Next waypoint category (no map)");
+            registry.Register(KeyCode.Period, KeyModifier.None, KeyContext.Field, mod.CycleNextWaypoint, "Next waypoint");
+            registry.Register(KeyCode.Period, KeyModifier.None, KeyContext.Global, NotOnMap, "Next waypoint (no map)");
+            registry.Register(KeyCode.Slash, KeyModifier.CtrlShift, KeyContext.Field, mod.ClearAllWaypointsForMap, "Clear all waypoints for map");
+            registry.Register(KeyCode.Slash, KeyModifier.CtrlShift, KeyContext.Global, NotOnMap, "Clear all waypoints (no map)");
+            registry.Register(KeyCode.Slash, KeyModifier.Ctrl, KeyContext.Field, mod.RemoveCurrentWaypoint, "Remove current waypoint");
+            registry.Register(KeyCode.Slash, KeyModifier.Ctrl, KeyContext.Global, NotOnMap, "Remove waypoint (no map)");
+            registry.Register(KeyCode.Slash, KeyModifier.Shift, KeyContext.Field, mod.AddNewWaypointWithNaming, "Add waypoint with name");
+            registry.Register(KeyCode.Slash, KeyModifier.Shift, KeyContext.Global, NotOnMap, "Add waypoint (no map)");
+            registry.Register(KeyCode.Slash, KeyModifier.None, KeyContext.Field, mod.PathfindToCurrentWaypoint, "Pathfind to waypoint");
+            registry.Register(KeyCode.Slash, KeyModifier.None, KeyContext.Global, NotOnMap, "Pathfind to waypoint (no map)");
+
+            // --- Field: teleport (Ctrl+Arrow, not on status screen — handled by context) ---
+            float t = GameConstants.TILE_SIZE;
+            registry.Register(KeyCode.UpArrow, KeyModifier.Ctrl, KeyContext.Field, () => mod.TeleportInDirection(new Vector2(0, t)), "Teleport north");
+            registry.Register(KeyCode.DownArrow, KeyModifier.Ctrl, KeyContext.Field, () => mod.TeleportInDirection(new Vector2(0, -t)), "Teleport south");
+            registry.Register(KeyCode.LeftArrow, KeyModifier.Ctrl, KeyContext.Field, () => mod.TeleportInDirection(new Vector2(-t, 0)), "Teleport west");
+            registry.Register(KeyCode.RightArrow, KeyModifier.Ctrl, KeyContext.Field, () => mod.TeleportInDirection(new Vector2(t, 0)), "Teleport east");
+
+            // --- Global: info/announcements ---
+            registry.Register(KeyCode.G, KeyContext.Global, mod.AnnounceGilAmount, "Announce Gil");
+            registry.Register(KeyCode.H, KeyContext.Global, mod.AnnounceActiveCharacterStatus, "Announce character status");
+            registry.Register(KeyCode.M, KeyModifier.Shift, KeyContext.Global, mod.ToggleMapExitFilter, "Toggle map exit filter");
+            registry.Register(KeyCode.M, KeyModifier.None, KeyContext.Global, mod.AnnounceCurrentMap, "Announce current map");
+            registry.Register(KeyCode.T, KeyModifier.Shift, KeyContext.Global, Patches.TimerHelper.ToggleTimerFreeze, "Toggle timer freeze");
+            registry.Register(KeyCode.T, KeyModifier.None, KeyContext.Global, () => Patches.TimerHelper.AnnounceActiveTimers(), "Announce active timers");
+
+            registry.Register(KeyCode.V, KeyContext.Global, HandleMovementStateKey, "Announce vehicle state");
+            registry.Register(KeyCode.I, KeyContext.Global, HandleItemInfoKey, "Item details");
+
+            // --- Field-only toggles (blocked in battle with feedback) ---
+            RegisterFieldWithBattleFeedback(KeyCode.Quote, KeyModifier.None, mod.ToggleFootsteps, "Toggle footsteps");
+            RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.Shift, mod.ToggleLandingPings, "Toggle landing pings");
+            RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.None, mod.ToggleWallTones, "Toggle wall tones");
+            RegisterFieldWithBattleFeedback(KeyCode.Alpha9, KeyModifier.None, mod.ToggleAudioBeacons, "Toggle audio beacons");
+            RegisterFieldWithBattleFeedback(KeyCode.Alpha0, KeyModifier.None, mod.ResetToAllCategory, "Reset to All category");
+            RegisterFieldWithBattleFeedback(KeyCode.Equals, KeyModifier.None, mod.CycleNextCategory, "Next entity category (global)");
+            RegisterFieldWithBattleFeedback(KeyCode.Minus, KeyModifier.None, mod.CyclePreviousCategory, "Previous entity category (global)");
+
+            // Sort for correct modifier precedence
+            registry.FinalizeRegistration();
+        }
+
         public void Update()
         {
-            if (!Input.anyKeyDown)
-            {
+            // Handle confirmation dialog first (consumes all input when open)
+            if (ConfirmationDialog.HandleInput())
                 return;
-            }
-            
-            if (IsInputFieldFocused())
-            {
-                return;
-            }
-            
-            bool statusScreenActive = IsStatusScreenActive();
 
-            if (statusScreenActive)
+            // Handle text input window next (consumes all input when open)
+            if (TextInputWindow.HandleInput())
+                return;
+
+            // Handle mod menu next (consumes all input when open)
+            if (ModMenu.HandleInput())
+                return;
+
+            if (!Input.anyKeyDown)
+                return;
+
+            if (IsInputFieldFocused())
+                return;
+
+            // F8 to open mod menu (unavailable in battle, not on map guard)
+            if (Input.GetKeyDown(KeyCode.F8))
             {
-                HandleStatusScreenInput();
+                if (IsInBattle())
+                    FFV_ScreenReaderMod.SpeakText("Unavailable in battle", interrupt: true);
+                else if (!IsOnValidMap())
+                    FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                else
+                {
+                    ModMenu.Open();
+                    FFV_ScreenReaderMod.SpeakText("Mod menu", interrupt: true);
+                }
+                return;
+            }
+
+            // Determine active context
+            KeyContext activeContext = DetermineContext();
+            KeyModifier currentModifiers = GetCurrentModifiers();
+
+            // Handle function keys (F1/F3/F5 — special coroutine/battle logic)
+            HandleFunctionKeyInput();
+
+            // Dispatch all registered bindings (includes V, I, and all other keys)
+            DispatchRegisteredBindings(activeContext, currentModifiers);
+        }
+
+        /// <summary>
+        /// Determine the current input context based on game state.
+        /// </summary>
+        private KeyContext DetermineContext()
+        {
+            if (IsStatusScreenActive())
+                return KeyContext.Status;
+
+            if (IsInBattle() || Patches.BattleState.IsInBattle)
+                return KeyContext.Battle;
+
+            if (Patches.DialogueTracker.ValidateState() || Patches.ShopMenuTracker.IsInShopSession)
+                return KeyContext.Global;
+
+            if (IsOnValidMap())
+                return KeyContext.Field;
+
+            // Fallback: neither field nor battle (e.g., menus, fading)
+            return KeyContext.Global;
+        }
+
+        /// <summary>
+        /// Get the currently held modifier keys.
+        /// </summary>
+        private KeyModifier GetCurrentModifiers()
+        {
+            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+
+            if (ctrl && shift) return KeyModifier.CtrlShift;
+            if (ctrl) return KeyModifier.Ctrl;
+            if (shift) return KeyModifier.Shift;
+            return KeyModifier.None;
+        }
+
+        private void DispatchRegisteredBindings(KeyContext activeContext, KeyModifier currentModifiers)
+        {
+            foreach (var key in registry.RegisteredKeys)
+            {
+                if (Input.GetKeyDown(key))
+                    registry.TryExecute(key, currentModifiers, activeContext);
+            }
+        }
+
+        private void HandleMovementStateKey()
+        {
+            if (!IsOnValidMap())
+            {
+                FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                return;
+            }
+
+            MoveStateHelper.SyncWithActualGameState();
+            if (MoveStateHelper.IsOnFoot())
+            {
+                bool isRunning = MoveStateHelper.GetDashFlag();
+                FFV_ScreenReaderMod.SpeakText(isRunning ? "Running" : "Walking", interrupt: true);
             }
             else
             {
-                HandleFieldInput();
+                int moveState = MoveStateHelper.GetCurrentMoveState();
+                FFV_ScreenReaderMod.SpeakText(MoveStateHelper.GetMoveStateName(moveState), interrupt: true);
             }
-            
-            HandleGlobalInput();
         }
-        
+
+        private void HandleItemInfoKey()
+        {
+            if (Patches.ShopMenuTracker.ValidateState())
+            {
+                Patches.ShopDetailsAnnouncer.AnnounceCurrentItemDetails();
+            }
+            else if (Patches.ItemMenuTracker.ValidateState())
+            {
+                Patches.ItemDetailsAnnouncer.AnnounceEquipRequirements();
+            }
+            else if (Patches.JobMenuTracker.ValidateState())
+            {
+                Patches.JobDetailsAnnouncer.AnnounceCurrentJobDetails();
+            }
+            else if (Patches.AbilitySlotMenuTracker.ValidateState())
+            {
+                Patches.AbilitySlotDetailsAnnouncer.AnnounceCurrentDetails();
+            }
+            else if (Patches.AbilityEquipMenuTracker.ValidateState())
+            {
+                Patches.AbilityEquipDetailsAnnouncer.AnnounceCurrentDetails();
+            }
+            else if (Patches.AbilityMenuTracker.ValidateState())
+            {
+                Patches.AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails();
+            }
+            else
+            {
+                Patches.JobAbilityTrackerHelper.ClearAllTrackers();
+                Patches.ItemMenuTracker.ClearState();
+                AnnounceConfigTooltip();
+            }
+        }
+
+        /// <summary>
+        /// Handle function key input for game state announcements.
+        /// </summary>
+        private void HandleFunctionKeyInput()
+        {
+            if (Input.GetKeyDown(KeyCode.F1))
+            {
+                if (!IsOnValidMap())
+                {
+                    FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                    return;
+                }
+                CoroutineManager.StartUntracked(AnnounceWalkRunState());
+                return;
+            }
+
+            if (Input.GetKeyDown(KeyCode.F3))
+            {
+                if (!IsOnValidMap())
+                {
+                    FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                    return;
+                }
+                CoroutineManager.StartUntracked(AnnounceEncounterState());
+                return;
+            }
+
+            if (Input.GetKeyDown(KeyCode.F5))
+            {
+                if (IsInBattle())
+                {
+                    int current = FFV_ScreenReaderMod.EnemyHPDisplay;
+                    int next = (current + 1) % 3;
+                    FFV_ScreenReaderMod.SetEnemyHPDisplay(next);
+                    string[] options = { "Numbers", "Percentage", "Hidden" };
+                    FFV_ScreenReaderMod.SpeakText($"Enemy HP: {options[next]}", interrupt: true);
+                }
+                else
+                {
+                    FFV_ScreenReaderMod.SpeakText("Only available in battle", interrupt: true);
+                }
+            }
+        }
+
+        private bool IsInBattle()
+        {
+            return Patches.ActiveBattleCharacterTracker.CurrentActiveCharacter != null;
+        }
+
         private bool IsInputFieldFocused()
         {
             try
             {
-                if (EventSystem.current == null)
-                    return false;
-
+                if (EventSystem.current == null) return false;
                 var currentObj = EventSystem.current.currentSelectedGameObject;
-                
-                if (currentObj == null)
-                    return false;
-                
+                if (currentObj == null) return false;
                 return currentObj.TryGetComponent(out UnityEngine.UI.InputField inputField);
             }
             catch (System.Exception ex)
@@ -66,7 +335,14 @@ namespace FFV_ScreenReader.Core
                 return false;
             }
         }
-        
+
+        private bool IsOnValidMap()
+        {
+            if (Patches.GameStatePatches.IsScreenFading) return false;
+            var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+            return playerController?.fieldPlayer != null;
+        }
+
         private bool IsStatusScreenActive()
         {
             if (cachedStatusController == null || cachedStatusController.gameObject == null)
@@ -78,303 +354,38 @@ namespace FFV_ScreenReader.Core
                    cachedStatusController.gameObject != null &&
                    cachedStatusController.gameObject.activeInHierarchy;
         }
-        
-        private void HandleStatusScreenInput()
-        {
-            // Arrow key navigation for individual stats
-            if (Input.GetKeyDown(KeyCode.DownArrow))
-            {
-                if (IsCtrlHeld())
-                {
-                    // Ctrl + Down = Jump to bottom
-                    StatusNavigationReader.JumpToBottom();
-                }
-                else if (IsShiftHeld())
-                {
-                    // Shift + Down = Jump to next group
-                    StatusNavigationReader.JumpToNextGroup();
-                }
-                else
-                {
-                    // Down = Next stat
-                    StatusNavigationReader.NavigateNext();
-                }
-            }
 
-            if (Input.GetKeyDown(KeyCode.UpArrow))
-            {
-                if (IsCtrlHeld())
-                {
-                    // Ctrl + Up = Jump to top
-                    StatusNavigationReader.JumpToTop();
-                }
-                else if (IsShiftHeld())
-                {
-                    // Shift + Up = Jump to previous group
-                    StatusNavigationReader.JumpToPreviousGroup();
-                }
-                else
-                {
-                    // Up = Previous stat
-                    StatusNavigationReader.NavigatePrevious();
-                }
-            }
-
-            // Existing hotkeys for bulk stat reading
-            if (Input.GetKeyDown(KeyCode.LeftBracket))
-            {
-                string physicalStats = StatusDetailsReader.ReadPhysicalStats();
-                FFV_ScreenReaderMod.SpeakText(physicalStats);
-            }
-
-            if (Input.GetKeyDown(KeyCode.RightBracket))
-            {
-                string magicalStats = StatusDetailsReader.ReadMagicalStats();
-                FFV_ScreenReaderMod.SpeakText(magicalStats);
-            }
-        }
-        
-        private void HandleFieldInput()
-        {
-            if (Input.GetKeyDown(KeyCode.LeftBracket))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.CyclePreviousCategory();
-                }
-                else
-                {
-                    mod.CyclePrevious();
-                }
-            }
-
-            if (Input.GetKeyDown(KeyCode.RightBracket))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.CycleNextCategory();
-                }
-                else
-                {
-                    mod.CycleNext();
-                }
-            }
-
-            if (Input.GetKeyDown(KeyCode.Backslash))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.TogglePathfindingFilter();
-                }
-                else
-                {
-                    mod.AnnounceCurrentEntity();
-                }
-            }
-        }
-        
-        private void HandleWaypointInput()
-        {
-            // Comma: Cycle waypoints
-            if (Input.GetKeyDown(KeyCode.Comma))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.CyclePreviousWaypointCategory();
-                }
-                else
-                {
-                    mod.CyclePreviousWaypoint();
-                }
-            }
-
-            // Period: Cycle waypoints
-            if (Input.GetKeyDown(KeyCode.Period))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.CycleNextWaypointCategory();
-                }
-                else
-                {
-                    mod.CycleNextWaypoint();
-                }
-            }
-
-            // Slash: Waypoint actions
-            if (Input.GetKeyDown(KeyCode.Slash))
-            {
-                if (IsCtrlHeld() && IsShiftHeld())
-                {
-                    mod.ClearAllWaypointsForMap(); // Double-press confirmation
-                }
-                else if (IsCtrlHeld())
-                {
-                    mod.RemoveCurrentWaypoint();
-                }
-                else if (IsShiftHeld())
-                {
-                    mod.AddNewWaypoint();
-                }
-                else
-                {
-                    mod.PathfindToCurrentWaypoint();
-                }
-            }
-        }
-
-        private void HandleGlobalInput()
-        {
-            // Handle waypoint hotkeys (works anywhere on field)
-            HandleWaypointInput();
-
-            // Don't handle Ctrl+Arrow for teleportation if status screen is active
-            // (status screen uses Ctrl+Arrow for stat navigation)
-            bool statusScreenActive = IsStatusScreenActive();
-
-            if (IsCtrlHeld() && !statusScreenActive)
-            {
-                if (Input.GetKeyDown(KeyCode.UpArrow))
-                {
-                    mod.TeleportInDirection(new Vector2(0, 16)); // North
-                }
-                else if (Input.GetKeyDown(KeyCode.DownArrow))
-                {
-                    mod.TeleportInDirection(new Vector2(0, -16)); // South
-                }
-                else if (Input.GetKeyDown(KeyCode.LeftArrow))
-                {
-                    mod.TeleportInDirection(new Vector2(-16, 0)); // West
-                }
-                else if (Input.GetKeyDown(KeyCode.RightArrow))
-                {
-                    mod.TeleportInDirection(new Vector2(16, 0)); // East
-                }
-            }
-            
-            if (Input.GetKeyDown(KeyCode.G))
-            {
-                mod.AnnounceGilAmount();
-            }
-
-            if (Input.GetKeyDown(KeyCode.H))
-            {
-                mod.AnnounceActiveCharacterStatus();
-            }
-            
-            if (Input.GetKeyDown(KeyCode.M))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.ToggleMapExitFilter();
-                }
-                else
-                {
-                    mod.AnnounceCurrentMap();
-                }
-            }
-            
-            if (Input.GetKeyDown(KeyCode.Alpha0))
-            {
-                mod.ResetToAllCategory();
-            }
-
-            if (Input.GetKeyDown(KeyCode.Equals))
-            {
-                mod.CycleNextCategory();
-            }
-            
-            if (Input.GetKeyDown(KeyCode.Minus))
-            {
-                mod.CyclePreviousCategory();
-            }
-            
-            if (Input.GetKeyDown(KeyCode.T))
-            {
-                if (IsShiftHeld())
-                {
-                    Patches.TimerHelper.ToggleTimerFreeze();
-                }
-                else
-                {
-                    Patches.TimerHelper.AnnounceActiveTimers();
-                }
-            }
-
-            // 'I' key - announce item/job/ability/spell details or config option description
-            if (Input.GetKeyDown(KeyCode.I))
-            {
-                // Check shop menu first (highest priority)
-                if (FFV_ScreenReader.Patches.ShopMenuTracker.ValidateState())
-                {
-                    FFV_ScreenReader.Patches.ShopDetailsAnnouncer.AnnounceCurrentItemDetails();
-                }
-                // Check if job menu is active
-                else if (FFV_ScreenReader.Patches.JobMenuTracker.ValidateState())
-                {
-                    FFV_ScreenReader.Patches.JobDetailsAnnouncer.AnnounceCurrentJobDetails();
-                }
-                // Check ability slot menu BEFORE general ability menu (more specific)
-                else if (FFV_ScreenReader.Patches.AbilitySlotMenuTracker.ValidateState())
-                {
-                    FFV_ScreenReader.Patches.AbilitySlotDetailsAnnouncer.AnnounceCurrentDetails();
-                }
-                // Check ability equip menu BEFORE general ability menu (more specific)
-                else if (FFV_ScreenReader.Patches.AbilityEquipMenuTracker.ValidateState())
-                {
-                    FFV_ScreenReader.Patches.AbilityEquipDetailsAnnouncer.AnnounceCurrentDetails();
-                }
-                // Check if ability/magic menu is active (general spell list - check last)
-                else if (FFV_ScreenReader.Patches.AbilityMenuTracker.ValidateState())
-                {
-                    FFV_ScreenReader.Patches.AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails();
-                }
-                else
-                {
-                    AnnounceConfigTooltip();
-                }
-            }
-
-            // Pathfinding keys
-            HandlePathfindingInput();
-        }
-
-        /// <summary>
-        /// Announces the description/tooltip text for the currently highlighted config option.
-        /// Only works when in the in-game config menu.
-        /// </summary>
         private void AnnounceConfigTooltip()
         {
             try
             {
-                // Try KeyInput controller (in-game config menu)
-                var keyInputController = Object.FindObjectOfType<ConfigActualDetailsControllerBase_KeyInput>();
+                var keyInputController = GameObjectCache.Get<ConfigActualDetailsControllerBase_KeyInput>();
+                if (keyInputController == null)
+                    keyInputController = GameObjectCache.Refresh<ConfigActualDetailsControllerBase_KeyInput>();
+
                 if (keyInputController != null && keyInputController.gameObject.activeInHierarchy)
                 {
-                    string description = GetDescriptionText(keyInputController);
+                    string description = TryReadDescriptionText(() => keyInputController.descriptionText);
                     if (!string.IsNullOrEmpty(description))
                     {
-                        MelonLogger.Msg($"[Config Tooltip] {description}");
                         FFV_ScreenReaderMod.SpeakText(description);
                         return;
                     }
                 }
 
-                // Try Touch controller
-                var touchController = Object.FindObjectOfType<ConfigActualDetailsControllerBase_Touch>();
+                var touchController = GameObjectCache.Get<ConfigActualDetailsControllerBase_Touch>();
+                if (touchController == null)
+                    touchController = GameObjectCache.Refresh<ConfigActualDetailsControllerBase_Touch>();
+
                 if (touchController != null && touchController.gameObject.activeInHierarchy)
                 {
-                    string description = GetDescriptionTextTouch(touchController);
+                    string description = TryReadDescriptionText(() => touchController.descriptionText);
                     if (!string.IsNullOrEmpty(description))
                     {
-                        MelonLogger.Msg($"[Config Tooltip] {description}");
                         FFV_ScreenReaderMod.SpeakText(description);
                         return;
                     }
                 }
-
-                // Not in a config menu or no description available
-                MelonLogger.Msg("[Config Tooltip] No config menu active or no description available");
             }
             catch (System.Exception ex)
             {
@@ -382,112 +393,45 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        /// <summary>
-        /// Gets the description text from a KeyInput ConfigActualDetailsControllerBase.
-        /// </summary>
-        private string GetDescriptionText(ConfigActualDetailsControllerBase_KeyInput controller)
+        private string TryReadDescriptionText(System.Func<UnityEngine.UI.Text> getTextField)
         {
-            if (controller == null) return null;
-
             try
             {
-                // Access the descriptionText field
-                var descText = controller.descriptionText;
+                var descText = getTextField();
                 if (descText != null && !string.IsNullOrWhiteSpace(descText.text))
-                {
                     return descText.text.Trim();
-                }
             }
             catch (System.Exception ex)
             {
                 MelonLogger.Warning($"Error accessing description text: {ex.Message}");
             }
-
             return null;
         }
 
-        /// <summary>
-        /// Gets the description text from a Touch ConfigActualDetailsControllerBase.
-        /// </summary>
-        private string GetDescriptionTextTouch(ConfigActualDetailsControllerBase_Touch controller)
+        private static System.Collections.IEnumerator AnnounceWalkRunState()
         {
-            if (controller == null) return null;
+            yield return null;
+            yield return null;
+            yield return null;
+            bool isDashing = MoveStateHelper.GetDashFlag();
+            FFV_ScreenReaderMod.SpeakText(isDashing ? "Run" : "Walk", interrupt: true);
+        }
 
+        private static System.Collections.IEnumerator AnnounceEncounterState()
+        {
+            yield return null;
             try
             {
-                // Access the descriptionText field
-                var descText = controller.descriptionText;
-                if (descText != null && !string.IsNullOrWhiteSpace(descText.text))
+                var userData = Il2CppLast.Management.UserDataManager.Instance();
+                if (userData?.CheatSettingsData != null)
                 {
-                    return descText.text.Trim();
+                    bool enabled = userData.CheatSettingsData.IsEnableEncount;
+                    FFV_ScreenReaderMod.SpeakText(enabled ? "Encounters on" : "Encounters off", interrupt: true);
                 }
             }
             catch (System.Exception ex)
             {
-                MelonLogger.Warning($"Error accessing touch description text: {ex.Message}");
-            }
-
-            return null;
-        }
-
-        private bool IsShiftHeld()
-        {
-            return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-        }
-        
-        private bool IsCtrlHeld()
-        {
-            return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-        }
-
-        /// <summary>
-        /// Handle pathfinding keyboard input (J/K/L/P)
-        /// </summary>
-        private void HandlePathfindingInput()
-        {
-            // J: Cycle to previous entity (same as [ bracket)
-            if (Input.GetKeyDown(KeyCode.J))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.CyclePreviousCategory();
-                }
-                else
-                {
-                    mod.CyclePrevious();
-                }
-            }
-
-            // K: Announce current entity (same as \ backslash)
-            if (Input.GetKeyDown(KeyCode.K))
-            {
-                mod.AnnounceCurrentEntity();
-            }
-
-            // L: Cycle to next entity (same as ] bracket)
-            if (Input.GetKeyDown(KeyCode.L))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.CycleNextCategory();
-                }
-                else
-                {
-                    mod.CycleNext();
-                }
-            }
-
-            // P: Pathfind to current entity (show directions), Shift+P: Toggle pathfinding filter
-            if (Input.GetKeyDown(KeyCode.P))
-            {
-                if (IsShiftHeld())
-                {
-                    mod.TogglePathfindingFilter();
-                }
-                else
-                {
-                    mod.PathfindToCurrentEntity();
-                }
+                MelonLogger.Warning($"Error reading encounter state: {ex.Message}");
             }
         }
     }

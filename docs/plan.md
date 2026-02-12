@@ -1,133 +1,40 @@
-# FF5 Screen Reader Mod - Feature Plans
+# FF5 Screen Reader Mod — Project Plan
 
-## Vehicle Landing Zone Announcements (Complete)
+## Overview
+Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2CPP game code, output via Tolk to NVDA.
 
-### Overview
+## Features
 
-Add announcements when a player in a vehicle enters a zone where they can land/dismount. This helps blind players know when they can safely exit their vehicle without guessing or trial-and-error.
+**Menus**: Cursor navigation, item/equipment/job/ability/config/shop/save slot/title menus. I key for details (job descriptions, item equip compatibility). Mutual exclusion between menu trackers.
 
-This feature has been successfully implemented in FF4 and is being ported to FF5.
+**Battle**: Turn order, command/target selection, damage/heal/status/defeat messages, per-phase results (EXP/Gil/ABP, level-up stats, abilities, items), steal results, MissType.NonView suppression, battle action object dedup.
 
-### Behavior
+**Navigation**: Entity cycling (N/M), category filter (F), pathfinding filter (R), exit grouping (Q), wall collision sound, waypoint system (add/rename/remove/cycle/pathfind).
 
-| Event | Announcement |
-|-------|--------------|
-| Enter landable zone | "Can land" |
-| Leave landable zone | (silent) |
-| Successfully land | Already handled by "On foot" announcement |
+**Audio**: ModMenu (F8) with toggles/volume sliders/enum selectors. Wall tones, footsteps, audio beacons, landing pings. 16-bit audio, LRU tone cache, volume caching.
 
-- **Non-interrupting**: Won't cut off other important announcements
-- **No vehicle type declared**: Simple "Can land" for all vehicles
-- **Only when in vehicle**: Silent when walking/on foot
+**Vehicles**: Movement state announcements (on foot/ship/airship/chocobo/submarine), landing zone detection via terrain attributes + CheckLandingList/OkList, vehicle entity tracking on world map.
 
-### Technical Approach
+**Other**: Dialogue/message auto-read, timer (T key), F1 walk/run, F3 encounters, F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
 
-The game already handles terrain checking internally. When the player moves over terrain where landing is possible, the game calls `MapUIManager.SwitchLandable(bool landable)` to show/hide the landing UI guide. We patch this method to announce state changes.
+## Completion Status
 
-**Key Classes (verified in FF5 dump.cs):**
-- `MapUIManager.SwitchLandable(bool landable)` - Line 338698 - Called when landing state changes
-- `MapUIManager` class at line 338068 in namespace `Last.Map`
+| Feature | Status |
+|---------|--------|
+| All menus (cursor, item, equip, job, ability, config, shop, save, title) | Done |
+| Battle (commands, targets, messages, results, abilities) | Done |
+| Field navigation (entities, filters, grouping, waypoints) | Done |
+| Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done |
+| Vehicles (state announcements, landing detection, entity tracking) | Done |
+| Popups (common, game over, save/load, naming, info, job change) | Done |
+| Speech/dialogue (auto-read, redundancy fixes, delayed announcements) | Done |
+| Deep refactoring (PreferencesManager, AudioLoopManager, ToneGenerator, KeyBindingRegistry, etc.) | Done |
+| Entity filter refactor (IEntityFilter, FilterTiming, IGroupingStrategy) | Done |
+| Performance optimization (GameObjectCache, state flags, GameConstants) | Done |
+| LocalizationHelper (12-language mod string dictionary) | Done |
+| Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
 
-### Implementation
-
-#### File: `Patches/VehicleLandingPatches.cs` (New)
-
-```csharp
-using System;
-using HarmonyLib;
-using MelonLoader;
-using Il2CppLast.Map;
-using FFV_ScreenReader.Utils;
-
-namespace FFV_ScreenReader.Patches
-{
-    /// <summary>
-    /// Announces when player enters a zone where vehicle can land.
-    /// Patches MapUIManager.SwitchLandable which is called by the game
-    /// when the landing state changes based on terrain under the vehicle.
-    /// </summary>
-    [HarmonyPatch(typeof(MapUIManager), nameof(MapUIManager.SwitchLandable))]
-    public static class MapUIManager_SwitchLandable_Patch
-    {
-        private static bool lastLandableState = false;
-
-        [HarmonyPostfix]
-        public static void Postfix(bool landable)
-        {
-            try
-            {
-                // Only announce when in a vehicle (not on foot)
-                if (MoveStateHelper.IsOnFoot())
-                    return;
-
-                // Only announce when entering landable zone (false -> true)
-                if (landable && !lastLandableState)
-                {
-                    Core.FFV_ScreenReaderMod.SpeakText("Can land", interrupt: false);
-                }
-
-                lastLandableState = landable;
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error($"[Landing] Error in SwitchLandable patch: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Reset state when leaving vehicle or changing maps
-        /// </summary>
-        public static void ResetState()
-        {
-            lastLandableState = false;
-        }
-    }
-}
-```
-
-### Key Differences from FF4 Implementation
-
-| Aspect | FF4 | FF5 |
-|--------|-----|-----|
-| Namespace | `FFIV_ScreenReader` | `FFV_ScreenReader` |
-| Main class | `FFIV_ScreenReaderMod` | `FFV_ScreenReaderMod` |
-| MoveStateHelper location | Same | Same |
-| MapUIManager | Same API | Same API |
-
-### Files to Create
-
-| File | Action |
-|------|--------|
-| `Patches/VehicleLandingPatches.cs` | Create new file |
-
-### Testing Checklist
-
-- [ ] Board ship, sail over water - no announcement
-- [ ] Sail to shore - "Can land" announced once
-- [ ] Continue along shore - no repeated announcements
-- [ ] Sail back to deep water - silent
-- [ ] Return to shore - "Can land" announced again
-- [ ] Disembark successfully - "On foot" announced (existing)
-- [ ] Repeat for chocobo and airship
-
-### FF5 Vehicles
-
-FF5 has the following vehicles that should trigger landing announcements:
-- **Ship** (pirate ship) - Can land at docks/shores
-- **Chocobo** (yellow, black) - Can dismount in appropriate terrain
-- **Airship** - Can land on flat terrain
-- **Submarine** - Can surface at certain locations
-
-### Why This Approach
-
-1. **Minimal code**: Single patch point, ~35 lines
-2. **No polling**: Game tells us when state changes
-3. **Reliable**: Uses same logic as visual landing guide
-4. **Works for all vehicles**: No vehicle-specific handling needed
-5. **Proven**: Already working in FF4
-
----
-
-## Implementation Status
-
-Feature implemented and deployed successfully.
+## Documentation
+- **CLAUDE.md** — Rules, syntax, directory structure
+- **docs/debug.md** — Architecture, class references, debug history
+- **docs/PerformanceIssues.md** — Performance notes

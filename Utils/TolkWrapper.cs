@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using MelonLoader;
 
 namespace FFV_ScreenReader.Utils
@@ -18,11 +17,7 @@ namespace FFV_ScreenReader.Utils
             try
             {
                 tolk.Load();
-                if (tolk.IsLoaded())
-                {
-                    MelonLogger.Msg("Screen reader support initialized successfully");
-                }
-                else
+                if (!tolk.IsLoaded())
                 {
                     MelonLogger.Warning("No screen reader detected");
                 }
@@ -38,7 +33,6 @@ namespace FFV_ScreenReader.Utils
             try
             {
                 tolk.Unload();
-                MelonLogger.Msg("Screen reader support unloaded");
             }
             catch (Exception ex)
             {
@@ -52,6 +46,8 @@ namespace FFV_ScreenReader.Utils
             {
                 if (tolk.IsLoaded() && !string.IsNullOrEmpty(text))
                 {
+                    MelonLogger.Msg($"[Speech] \"{text}\" (interrupt={interrupt})");
+                    MelonLogger.Msg($"[Speech] Stack: {Environment.StackTrace}");
                     // Thread-safe: ensure only one Tolk call at a time to prevent native crashes
                     lock (tolkLock)
                     {

@@ -1,14 +1,21 @@
 using MelonLoader;
+using HarmonyLib;
 using FFV_ScreenReader.Utils;
 using FFV_ScreenReader.Field;
+using FFV_ScreenReader.Patches;
 using FFV_ScreenReader.Menus;
 using UnityEngine;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using Il2Cpp;
 using Il2CppLast.Map;
 using Il2CppLast.Management;
-using Il2CppSystem.Collections.Generic;
 using Il2CppLast.Entity.Field;
+using Il2CppLast.Message;
 using GameCursor = Il2CppLast.UI.Cursor;
+using FieldTresureBox = Il2CppLast.Entity.Field.FieldTresureBox;
 
 [assembly: MelonInfo(typeof(FFV_ScreenReader.Core.FFV_ScreenReaderMod), "FFV Screen Reader", "1.0.0", "Your Name")]
 [assembly: MelonGame("SQUARE ENIX, Inc.", "FINAL FANTASY V")]
@@ -34,56 +41,97 @@ namespace FFV_ScreenReader.Core
         private EntityNavigator entityNavigator;
         private WaypointManager waypointManager;
         private WaypointNavigator waypointNavigator;
+        private WaypointController waypointController;
 
-        private const float ENTITY_SCAN_INTERVAL = 5f;
-        
+        // Static instance for access from patches
+        internal static FFV_ScreenReaderMod Instance { get; private set; }
+
         private static readonly int CategoryCount = System.Enum.GetValues(typeof(EntityCategory)).Length;
-        
+
         private bool filterByPathfinding = false;
-        
+
         private bool filterMapExits = false;
 
-        private int lastAnnouncedMapId = -1;
+        // ToLayer (layer transition) filter toggle
+        private bool filterToLayer = false;
 
-        private bool isOnWorldMap = false;
-        
-        private static MelonPreferences_Category prefsCategory;
-        private static MelonPreferences_Entry<bool> prefPathfindingFilter;
-        private static MelonPreferences_Entry<bool> prefMapExitFilter;
+        // Audio loop management delegated to AudioLoopManager
+        private AudioLoopManager audioLoopManager;
 
         public override void OnInitializeMelon()
         {
+            Instance = this;
             LoggerInstance.Msg("FFV Screen Reader Mod loaded!");
 
             // Subscribe to scene load events for automatic component caching
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene, UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
 
             // Initialize preferences
-            prefsCategory = MelonPreferences.CreateCategory("FFV_ScreenReader");
-            prefPathfindingFilter = prefsCategory.CreateEntry<bool>("PathfindingFilter", false, "Pathfinding Filter", "Only show entities with valid paths when cycling");
-            prefMapExitFilter = prefsCategory.CreateEntry<bool>("MapExitFilter", false, "Map Exit Filter", "Filter multiple map exits to the same destination, showing only the closest one");
+            PreferencesManager.Initialize();
 
-            // Load saved preferences
-            filterByPathfinding = prefPathfindingFilter.Value;
-            filterMapExits = prefMapExitFilter.Value;
+            // Load saved filter preferences
+            filterByPathfinding = PreferencesManager.PathfindingFilterDefault;
+            filterMapExits = PreferencesManager.MapExitFilterDefault;
+            filterToLayer = PreferencesManager.ToLayerFilterDefault;
 
             // Initialize Tolk for screen reader support
             tolk = new TolkWrapper();
             tolk.Load();
 
-            // Initialize entity cache and navigator
-            entityCache = new EntityCache(ENTITY_SCAN_INTERVAL);
+            // Initialize external sound player for distinct audio feedback
+            SoundPlayer.Initialize();
+
+            // Initialize mod menu (F8 settings menu)
+            ModMenu.Initialize();
+
+            // Initialize entity cache and navigator (event-driven, no timer)
+            entityCache = new EntityCache();
 
             entityNavigator = new EntityNavigator(entityCache);
             entityNavigator.FilterByPathfinding = filterByPathfinding;
             entityNavigator.FilterMapExits = filterMapExits;
+            entityNavigator.FilterToLayer = filterToLayer;
+
+            // Initialize audio loop manager
+            audioLoopManager = new AudioLoopManager(entityCache, entityNavigator);
+            audioLoopManager.InitializeFromPreferences();
 
             // Initialize waypoint system
             waypointManager = new WaypointManager();
             waypointNavigator = new WaypointNavigator(waypointManager);
+            waypointController = new WaypointController(waypointManager, waypointNavigator);
 
             // Initialize input manager
             inputManager = new InputManager(this);
+
+            // Apply manual Harmony patches for vehicle state, field ready, map transitions, and entity interactions
+            var harmony = new HarmonyLib.Harmony("FFV_ScreenReader.ManualPatches");
+
+            // Set up callback for field ready event before applying patches
+            MovementSpeechPatches.OnFieldReady = OnFieldReadyCallback;
+            MovementSpeechPatches.ApplyPatches(harmony);
+
+            // Patch game state transitions (map changes) - event-driven, no polling
+            GameStatePatches.ApplyPatches(harmony);
+
+            // Patch popup dialogs (confirmation, game over, info, job change)
+            PopupPatches.ApplyPatches(harmony);
+
+            // Patch save/load menu navigation
+            SaveLoadPatches.ApplyPatches(harmony);
+
+            // Patch battle command messages (defeat message, etc.)
+            BattleCommandMessagePatches.ApplyPatches(harmony);
+
+            // Patch battle result per-character level-up detail
+            BattleResultManualPatches.ApplyPatches(harmony);
+
+            // Patch character naming screen
+            NamingPatches.ApplyPatches(harmony);
+
+            // Patch entity interactions for immediate entity refresh (treasure chest, dialogue end)
+            TryPatchEntityInteractions(harmony);
+
         }
 
         public override void OnDeinitializeMelon()
@@ -91,8 +139,126 @@ namespace FFV_ScreenReader.Core
             // Unsubscribe from scene load events
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene, UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
 
+            // Stop audio loops
+            audioLoopManager?.StopAllLoops();
+
+            // Shutdown sound player (closes waveOut handles, frees unmanaged memory)
+            SoundPlayer.Shutdown();
+
             CoroutineManager.CleanupAll();
             tolk?.Unload();
+        }
+
+        /// <summary>
+        /// Called when the field is ready (via MainGame.set_FieldReady hook).
+        /// Triggers entity scan so entities are available immediately when user presses navigation keys.
+        /// </summary>
+        private void OnFieldReadyCallback()
+        {
+            try
+            {
+                GameObjectCache.Refresh<Il2CppLast.Map.FieldPlayerController>();
+                LoggerInstance.Msg("[FieldReady] Refreshed FieldPlayerController");
+                LoggerInstance.Msg("[FieldReady] Triggering initial entity scan");
+                entityCache.ForceScan();
+                LoggerInstance.Msg($"[FieldReady] Entity scan complete, found {entityCache.Entities.Count} entities");
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Warning($"[FieldReady] Error during entity scan: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Patches entity interaction methods for immediate entity refresh.
+        /// Triggers rescan when treasure chests are opened or dialogue ends.
+        /// </summary>
+        private void TryPatchEntityInteractions(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                // Patch FieldTresureBox.Open() - triggers entity refresh when chest is opened
+                Type treasureBoxType = typeof(FieldTresureBox);
+                var openMethod = treasureBoxType.GetMethod("Open", BindingFlags.Public | BindingFlags.Instance);
+                var openPostfix = typeof(EntityInteractionPatches).GetMethod("TreasureBox_Open_Postfix", BindingFlags.Public | BindingFlags.Static);
+
+                if (openMethod != null && openPostfix != null)
+                {
+                    harmony.Patch(openMethod, postfix: new HarmonyMethod(openPostfix));
+                    LoggerInstance.Msg("Patched FieldTresureBox.Open for entity refresh");
+                }
+                else
+                {
+                    LoggerInstance.Warning($"FieldTresureBox.Open patch failed. Method: {openMethod != null}, Postfix: {openPostfix != null}");
+                }
+
+                // Patch MessageWindowManager.Close() - triggers entity refresh when dialogue ends
+                Type messageManagerType = typeof(MessageWindowManager);
+                var closeMethod = messageManagerType.GetMethod("Close", BindingFlags.Public | BindingFlags.Instance);
+                var closePostfix = typeof(EntityInteractionPatches).GetMethod("MessageWindow_Close_Postfix", BindingFlags.Public | BindingFlags.Static);
+
+                if (closeMethod != null && closePostfix != null)
+                {
+                    harmony.Patch(closeMethod, postfix: new HarmonyMethod(closePostfix));
+                    LoggerInstance.Msg("Patched MessageWindowManager.Close for entity refresh");
+                }
+                else
+                {
+                    LoggerInstance.Warning($"MessageWindowManager.Close patch failed. Method: {closeMethod != null}, Postfix: {closePostfix != null}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Error patching entity interactions: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Schedules an entity refresh after a 1-frame delay.
+        /// Called by interaction hooks (treasure chest, dialogue end) to update entity states.
+        /// </summary>
+        internal void ScheduleEntityRefresh()
+        {
+            CoroutineManager.StartManaged(EntityRefreshCoroutine());
+        }
+
+        private IEnumerator EntityRefreshCoroutine()
+        {
+            // Wait one frame for game state to fully update
+            yield return null;
+
+            // Rescan entities to pick up state changes (e.g., chest opened)
+            entityCache.ForceScan();
+            LoggerInstance.Msg("[EntityRefresh] Rescanned entities after interaction");
+        }
+
+        /// <summary>
+        /// Forces an entity rescan. Called from GameStatePatches on map transitions.
+        /// </summary>
+        public void ForceEntityRescan()
+        {
+            entityCache?.ForceScan();
+        }
+
+        /// <summary>
+        /// Check if the current map is a world map.
+        /// World map IDs in FF5: 0, 1, 2 for different world states.
+        /// </summary>
+        public bool IsCurrentMapWorldMap()
+        {
+            try
+            {
+                var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
+                if (userDataManager != null)
+                {
+                    return GameConstants.IsWorldMap(userDataManager.CurrentMapId);
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Warning($"Error checking world map: {ex.Message}");
+            }
+            return false;
         }
 
         /// <summary>
@@ -104,6 +270,12 @@ namespace FFV_ScreenReader.Core
             try
             {
                 LoggerInstance.Msg($"[ComponentCache] Scene loaded: {scene.name}");
+
+                // Stop audio loops during scene transition and suppress briefly
+                audioLoopManager?.OnSceneTransition();
+
+                // Reset movement state for new map
+                MovementSoundPatches.ResetState();
 
                 // Try to find and cache FieldPlayerController
                 var playerController = UnityEngine.Object.FindObjectOfType<Il2CppLast.Map.FieldPlayerController>();
@@ -123,9 +295,6 @@ namespace FFV_ScreenReader.Core
                 {
                     GameObjectCache.Register(fieldMap);
                     LoggerInstance.Msg($"[ComponentCache] Cached FieldMap: {fieldMap.gameObject?.name}");
-
-                    // Delay entity scan to allow scene to fully initialize
-                    CoroutineManager.StartManaged(DelayedInitialScan());
                 }
                 else
                 {
@@ -138,165 +307,68 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        /// <summary>
-        /// Coroutine that delays entity scanning to allow scene to fully initialize.
-        /// </summary>
-        private System.Collections.IEnumerator DelayedInitialScan()
-        {
-            // Wait 0.5 seconds for scene to fully initialize and entities to spawn
-            yield return new UnityEngine.WaitForSeconds(0.5f);
-
-            // Scan for entities - EntityNavigator will be updated via OnEntityAdded events
-            entityCache.ForceScan();
-
-            LoggerInstance.Msg("[ComponentCache] Delayed initial entity scan completed");
-        }
-
-        /// <summary>
-        /// Coroutine that delays entity scanning after map transition to allow entities to spawn.
-        /// </summary>
-        private System.Collections.IEnumerator DelayedMapTransitionScan()
-        {
-            // Wait 0.5 seconds for new map entities to spawn
-            yield return new UnityEngine.WaitForSeconds(0.5f);
-
-            // Scan for entities - EntityNavigator will be updated via OnEntityAdded/OnEntityRemoved events
-            entityCache.ForceScan();
-
-            LoggerInstance.Msg("[ComponentCache] Delayed map transition entity scan completed");
-        }
-
         public override void OnUpdate()
         {
-            // Update entity cache (handles periodic rescanning)
-            entityCache.Update();
-
-            // Check for map transitions
-            CheckMapTransition();
-
-            // Handle all input
+            // Handle all input (must run every frame)
             inputManager.Update();
-        }
 
-        /// <summary>
-        /// Checks for map transitions and announces the new map name.
-        /// Also manages state monitoring coroutine for world map contexts.
-        /// </summary>
-        private void CheckMapTransition()
-        {
-            try
+            // Poll footsteps each frame (CheckFootstep has its own enable/tile-change/cooldown guards)
+            if (audioLoopManager != null && audioLoopManager.IsFootstepsEnabled && !BattleState.IsInBattle && !DialogueTracker.IsInDialogue)
             {
-                var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
-                if (userDataManager != null)
-                {
-                    int currentMapId = userDataManager.CurrentMapId;
-
-                    // Check if we've entered or left the world map
-                    bool nowOnWorldMap = IsWorldMap(currentMapId);
-                    if (nowOnWorldMap != isOnWorldMap)
-                    {
-                        isOnWorldMap = nowOnWorldMap;
-
-                        if (isOnWorldMap)
-                        {
-                            // Entered world map - start state monitoring
-                            Patches.MoveStateMonitor.StartStateMonitoring();
-                        }
-                        else
-                        {
-                            // Left world map - stop state monitoring
-                            Patches.MoveStateMonitor.StopStateMonitoring();
-                        }
-                    }
-
-                    if (currentMapId != lastAnnouncedMapId && lastAnnouncedMapId != -1)
-                    {
-                        // Map has changed - ANNOUNCE IT
-                        lastAnnouncedMapId = currentMapId;
-
-                        // Get map name and announce
-                        string mapName = FFV_ScreenReader.Field.MapNameResolver.GetCurrentMapName();
-                        SpeakText($"Entering {mapName}", interrupt: false);
-
-                        // Delay entity scan to allow new map to fully initialize
-                        CoroutineManager.StartManaged(DelayedMapTransitionScan());
-                    }
-                    else if (lastAnnouncedMapId == -1)
-                    {
-                        // First run, just store the current map without announcing
-                        lastAnnouncedMapId = currentMapId;
-
-                        // Start monitoring if we're already on world map
-                        if (isOnWorldMap)
-                        {
-                            Patches.MoveStateMonitor.StartStateMonitoring();
-                        }
-                    }
-                }
-            }
-            catch (System.Exception ex)
-            {
-                LoggerInstance.Warning($"Error detecting map transition: {ex.Message}");
+                var player = GetFieldPlayer();
+                if (player?.transform != null)
+                    MovementSoundPatches.CheckFootstep(player.transform.localPosition);
             }
         }
 
         /// <summary>
-        /// Check if map ID represents a world map (where ships/vehicles are available)
-        /// Can be expanded to include other maps with ship access as game progresses
+        /// Shared preamble for entity announcements. Returns false if announcement should be aborted
+        /// (already speaks error message to user in that case).
         /// </summary>
-        private bool IsWorldMap(int mapId)
+        private bool TryGetEntityContext(out Field.NavigableEntity entity, out Field.PathInfo pathInfo, out Il2CppLast.Map.FieldPlayerController playerController)
         {
-            // World map IDs - these are examples and may need adjustment based on actual game data
-            // Common world map IDs in FF5: 0, 1, 2 for different world states
-            // TODO: Verify actual world map IDs through testing and update as needed
-            return mapId == 0 || mapId == 1 || mapId == 2;
+            entity = null;
+            pathInfo = null;
+            playerController = null;
+
+            entity = entityNavigator.CurrentEntity;
+            if (entity == null)
+            {
+                SpeakText("No entities nearby");
+                return false;
+            }
+
+            if (entity.GameEntity == null || entity.GameEntity.transform == null)
+                return false;
+
+            playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+            if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
+            {
+                SpeakText("Not in field");
+                return false;
+            }
+
+            Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
+            Vector3 targetPos = entity.GameEntity.transform.localPosition;
+
+            pathInfo = FieldNavigationHelper.FindPathTo(
+                playerPos,
+                targetPos,
+                playerController.mapHandle,
+                playerController.fieldPlayer
+            );
+
+            return true;
         }
 
         internal void AnnounceCurrentEntity()
         {
             try
             {
-                var entity = entityNavigator.CurrentEntity;
-                if (entity == null)
-                {
-                    SpeakText("No entities nearby");
+                if (!TryGetEntityContext(out var entity, out var pathInfo, out var playerController))
                     return;
-                }
 
-                if (entity.GameEntity == null || entity.GameEntity.transform == null)
-                {
-                    // Entity destroyed (likely scene change)
-                    return;
-                }
-
-                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-                if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
-                {
-                    SpeakText("Not in field");
-                    return;
-                }
-                
-                Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
-                Vector3 targetPos = entity.GameEntity.transform.localPosition;
-
-                var pathInfo = FieldNavigationHelper.FindPathTo(
-                    playerPos,
-                    targetPos,
-                    playerController.mapHandle,
-                    playerController.fieldPlayer
-                );
-
-                string announcement;
-                if (pathInfo.Success)
-                {
-                    announcement = $"{pathInfo.Description}";
-                }
-                else
-                {
-                    announcement = "no path";
-                }
-
-                SpeakText(announcement);
+                SpeakText(pathInfo.Success ? pathInfo.Description : "no path");
             }
             catch (System.Exception ex)
             {
@@ -312,14 +384,7 @@ namespace FFV_ScreenReader.Core
             }
             else
             {
-                if (entityNavigator.EntityCount == 0)
-                {
-                    SpeakText("No entities nearby");
-                }
-                else
-                {
-                    SpeakText("No pathable entities found");
-                }
+                SpeakText(entityNavigator.EntityCount == 0 ? "No entities nearby" : "No pathable entities found");
             }
         }
 
@@ -331,14 +396,7 @@ namespace FFV_ScreenReader.Core
             }
             else
             {
-                if (entityNavigator.EntityCount == 0)
-                {
-                    SpeakText("No entities nearby");
-                }
-                else
-                {
-                    SpeakText("No pathable entities found");
-                }
+                SpeakText(entityNavigator.EntityCount == 0 ? "No entities nearby" : "No pathable entities found");
             }
         }
 
@@ -346,34 +404,24 @@ namespace FFV_ScreenReader.Core
         {
             try
             {
-                var entity = entityNavigator.CurrentEntity;
-                if (entity == null)
-                {
-                    SpeakText("No entities nearby");
+                if (!TryGetEntityContext(out var entity, out var pathInfo, out var playerController))
                     return;
+
+                Vector3 playerPos = playerController.fieldPlayer.transform.position;
+                string formatted = entity.FormatDescription(playerPos);
+
+                // If player is on the entity's tile, replace distance/direction with "here"
+                float distance = Vector3.Distance(playerPos, entity.Position);
+                if (distance / 16f < 0.1f)
+                {
+                    int parenEnd = formatted.LastIndexOf(')');
+                    int parenStart = parenEnd >= 0 ? formatted.LastIndexOf('(', parenEnd) : -1;
+                    if (parenStart >= 0 && parenEnd > parenStart)
+                    {
+                        formatted = formatted.Substring(0, parenStart + 1) + "here" + formatted.Substring(parenEnd);
+                    }
                 }
 
-                if (entity.GameEntity == null || entity.GameEntity.transform == null) return;
-
-                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-                if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
-                {
-                    SpeakText("Not in field");
-                    return;
-                }
-                
-                Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
-                Vector3 targetPos = entity.GameEntity.transform.localPosition;
-
-                string formatted = entity.FormatDescription(playerController.fieldPlayer.transform.position);
-                
-                var pathInfo = FieldNavigationHelper.FindPathTo(
-                    playerPos,
-                    targetPos,
-                    playerController.mapHandle,
-                    playerController.fieldPlayer
-                );
-                
                 string countSuffix = $", {entityNavigator.CurrentIndex + 1} of {entityNavigator.EntityCount}";
                 string announcement = pathInfo.Success ? $"{formatted}{countSuffix}" : $"{formatted}, no path{countSuffix}";
                 SpeakText(announcement);
@@ -386,48 +434,60 @@ namespace FFV_ScreenReader.Core
 
         internal void CycleNextCategory()
         {
-            int nextCategory = ((int)entityNavigator.CurrentCategory + 1) % CategoryCount;
+            int nextCategory = ((int)entityNavigator.Category + 1) % CategoryCount;
+
+            // Skip Waypoints category - it has dedicated hotkeys (comma, period, slash)
+            if ((EntityCategory)nextCategory == EntityCategory.Waypoints)
+                nextCategory = (nextCategory + 1) % CategoryCount;
+
             EntityCategory newCategory = (EntityCategory)nextCategory;
-            
+
             entityNavigator.SetCategory(newCategory);
-            
+
             AnnounceCategoryChange();
         }
 
         internal void CyclePreviousCategory()
         {
-            int prevCategory = (int)entityNavigator.CurrentCategory - 1;
+            int prevCategory = (int)entityNavigator.Category - 1;
             if (prevCategory < 0)
                 prevCategory = CategoryCount - 1;
 
+            // Skip Waypoints category - it has dedicated hotkeys (comma, period, slash)
+            if ((EntityCategory)prevCategory == EntityCategory.Waypoints)
+            {
+                prevCategory--;
+                if (prevCategory < 0)
+                    prevCategory = CategoryCount - 1;
+            }
+
             EntityCategory newCategory = (EntityCategory)prevCategory;
-            
+
             entityNavigator.SetCategory(newCategory);
-            
+
             AnnounceCategoryChange();
         }
 
         internal void ResetToAllCategory()
         {
-            if (entityNavigator.CurrentCategory == EntityCategory.All)
+            if (entityNavigator.Category == EntityCategory.All)
             {
                 SpeakText("Already in All category");
                 return;
             }
-            
+
             entityNavigator.SetCategory(EntityCategory.All);
-            
+
             AnnounceCategoryChange();
         }
 
         internal void TogglePathfindingFilter()
         {
             filterByPathfinding = !filterByPathfinding;
-            
+
             entityNavigator.FilterByPathfinding = filterByPathfinding;
-            
-            prefPathfindingFilter.Value = filterByPathfinding;
-            prefsCategory.SaveToFile(false);
+
+            PreferencesManager.SavePathfindingFilter(filterByPathfinding);
 
             string status = filterByPathfinding ? "on" : "off";
             SpeakText($"Pathfinding filter {status}");
@@ -440,16 +500,27 @@ namespace FFV_ScreenReader.Core
             entityNavigator.FilterMapExits = filterMapExits;
             entityNavigator.RebuildNavigationList();
 
-            prefMapExitFilter.Value = filterMapExits;
-            prefsCategory.SaveToFile(false);
+            PreferencesManager.SaveMapExitFilter(filterMapExits);
 
             string status = filterMapExits ? "on" : "off";
             SpeakText($"Map exit filter {status}");
         }
 
+        internal void ToggleToLayerFilter()
+        {
+            filterToLayer = !filterToLayer;
+
+            entityNavigator.FilterToLayer = filterToLayer;
+
+            PreferencesManager.SaveToLayerFilter(filterToLayer);
+
+            string status = filterToLayer ? "on" : "off";
+            SpeakText($"Layer transition filter {status}");
+        }
+
         private void AnnounceCategoryChange()
         {
-            string categoryName = EntityNavigator.GetCategoryName(entityNavigator.CurrentCategory);
+            string categoryName = EntityNavigator.GetCategoryName(entityNavigator.Category);
             int entityCount = entityNavigator.EntityCount;
 
             string announcement = $"Category: {categoryName}, {entityCount} {(entityCount == 1 ? "entity" : "entities")}";
@@ -473,12 +544,12 @@ namespace FFV_ScreenReader.Core
             }
 
             var player = playerController.fieldPlayer;
-            
+
             Vector3 targetPos = entity.Position;
             Vector3 newPos = new Vector3(targetPos.x + offset.x, targetPos.y + offset.y, targetPos.z);
-            
+
             player.transform.localPosition = newPos;
-            
+
             string direction = GetDirectionName(offset);
             SpeakText($"Teleported {direction} of {entity.Name}");
             LoggerInstance.Msg($"Teleported {direction} of {entity.Name} to position {newPos}");
@@ -498,17 +569,14 @@ namespace FFV_ScreenReader.Core
             try
             {
                 var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
-
                 if (userDataManager == null)
                 {
-                    SpeakText("User data not available");
+                    SpeakText("Not on map");
                     return;
                 }
 
                 int gil = userDataManager.OwendGil;
-                string gilMessage = $"{gil:N0} gil";
-
-                SpeakText(gilMessage);
+                SpeakText($"{gil:N0} gil");
             }
             catch (System.Exception ex)
             {
@@ -521,6 +589,12 @@ namespace FFV_ScreenReader.Core
         {
             try
             {
+                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+                if (playerController?.fieldPlayer == null)
+                {
+                    SpeakText("Not on map");
+                    return;
+                }
                 string mapName = FFV_ScreenReader.Field.MapNameResolver.GetCurrentMapName();
                 SpeakText(mapName);
             }
@@ -540,7 +614,7 @@ namespace FFV_ScreenReader.Core
 
                 if (activeCharacter == null)
                 {
-                    SpeakText("Not in battle");
+                    SpeakText("Unavailable outside of battle");
                     return;
                 }
 
@@ -553,53 +627,7 @@ namespace FFV_ScreenReader.Core
                     return;
                 }
 
-                var param = activeCharacter.Parameter;
-                var statusParts = new System.Collections.Generic.List<string>();
-                statusParts.Add(characterName);
-
-                // Add HP
-                int currentHP = param.CurrentHP;
-                int maxHP = param.ConfirmedMaxHp();
-                statusParts.Add($"HP: {currentHP}/{maxHP}");
-
-                // Add MP
-                int currentMP = param.CurrentMP;
-                int maxMP = param.ConfirmedMaxMp();
-                statusParts.Add($"MP: {currentMP}/{maxMP}");
-
-                // Add status conditions
-                var conditionList = param.ConfirmedConditionList();
-                if (conditionList != null && conditionList.Count > 0)
-                {
-                    var conditionNames = new System.Collections.Generic.List<string>();
-                    foreach (var condition in conditionList)
-                    {
-                        if (condition != null)
-                        {
-                            // Get the condition name from the message ID
-                            string conditionMesId = condition.MesIdName;
-                            if (!string.IsNullOrEmpty(conditionMesId) && conditionMesId != "None")
-                            {
-                                var messageManager = Il2CppLast.Management.MessageManager.Instance;
-                                if (messageManager != null)
-                                {
-                                    string conditionName = messageManager.GetMessage(conditionMesId);
-                                    if (!string.IsNullOrEmpty(conditionName))
-                                    {
-                                        conditionNames.Add(conditionName);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (conditionNames.Count > 0)
-                    {
-                        statusParts.Add(string.Join(", ", conditionNames));
-                    }
-                }
-
-                string statusMessage = string.Join(", ", statusParts);
+                string statusMessage = characterName + CharacterStatusHelper.GetFullStatus(activeCharacter.Parameter);
                 SpeakText(statusMessage);
             }
             catch (System.Exception ex)
@@ -621,219 +649,116 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
-        /// Pathfind to the currently selected entity and announce directions
+        /// Speaks text after a delay to avoid window focus announcements interrupting.
+        /// Use this for announcements that occur after dialog closes.
         /// </summary>
-        public void PathfindToCurrentEntity()
+        /// <param name="text">Text to speak</param>
+        /// <param name="delay">Delay in seconds before speaking (default 0.3s)</param>
+        public static void SpeakTextDelayed(string text, float delay = 0.3f)
         {
-            var currentEntity = entityNavigator.CurrentEntity;
-            if (currentEntity == null)
-            {
-                SpeakText("No entity selected");
-                return;
-            }
-
-            AnnounceCurrentEntity();
+            CoroutineManager.StartManaged(DelayedSpeech(text, delay));
         }
 
-        #region Waypoint Methods
+        private static IEnumerator DelayedSpeech(string text, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (Instance != null)
+                SpeakText(text, interrupt: true);
+        }
+
+        // Audio toggle and suppression operations delegated to AudioLoopManager
+        internal void ToggleWallTones() => audioLoopManager?.ToggleWallTones();
+        internal void ToggleFootsteps() => audioLoopManager?.ToggleFootsteps();
+        internal void ToggleAudioBeacons() => audioLoopManager?.ToggleAudioBeacons();
+        internal void ToggleLandingPings() => audioLoopManager?.ToggleLandingPings();
+
+        internal void SuppressNavigationForBattle() => audioLoopManager?.SuppressNavigationForBattle();
+        internal void RestoreNavigationAfterBattle(bool wallTones, bool footsteps, bool audioBeacons, bool pathfindingFilter, bool landingPings = false)
+        {
+            audioLoopManager?.RestoreNavigationAfterBattle(wallTones, footsteps, audioBeacons, pathfindingFilter, landingPings);
+            filterByPathfinding = pathfindingFilter;
+            if (entityNavigator != null) entityNavigator.FilterByPathfinding = pathfindingFilter;
+        }
+        internal void SuppressNavigationForDialogue() => audioLoopManager?.SuppressNavigationForDialogue();
+        internal void RestoreNavigationAfterDialogue() => audioLoopManager?.RestoreNavigationAfterDialogue();
+
+        public static void SuppressWallTonesForTransition() => AudioLoopManager.SuppressWallTonesForTransition();
+
+        // Public static accessors delegated to PreferencesManager
+        public static int WallBumpVolume => PreferencesManager.WallBumpVolume;
+        public static int FootstepVolume => PreferencesManager.FootstepVolume;
+        public static int WallToneVolume => PreferencesManager.WallToneVolume;
+        public static int BeaconVolume => PreferencesManager.BeaconVolume;
+        public static int LandingPingVolume => PreferencesManager.LandingPingVolume;
+        public static int EnemyHPDisplay => PreferencesManager.EnemyHPDisplay;
+
+        // Public static accessors for filter and audio toggle settings (used by ModMenu, BattleState)
+        public static bool PathfindingFilterEnabled => Instance?.filterByPathfinding ?? false;
+        public static bool MapExitFilterEnabled => Instance?.filterMapExits ?? false;
+        public static bool ToLayerFilterEnabled => Instance?.filterToLayer ?? false;
+        public static bool WallTonesEnabled => AudioLoopManager.Instance?.IsWallTonesEnabled ?? false;
+        public static bool FootstepsEnabled => AudioLoopManager.Instance?.IsFootstepsEnabled ?? false;
+        public static bool AudioBeaconsEnabled => AudioLoopManager.Instance?.IsAudioBeaconsEnabled ?? false;
+        public static bool LandingPingsEnabled => AudioLoopManager.Instance?.IsLandingPingsEnabled ?? false;
+
+        // Public static setters delegated to PreferencesManager
+        public static void SetWallBumpVolume(int value) => PreferencesManager.SetWallBumpVolume(value);
+        public static void SetFootstepVolume(int value) => PreferencesManager.SetFootstepVolume(value);
+        public static void SetWallToneVolume(int value) => PreferencesManager.SetWallToneVolume(value);
+        public static void SetBeaconVolume(int value) => PreferencesManager.SetBeaconVolume(value);
+        public static void SetLandingPingVolume(int value) => PreferencesManager.SetLandingPingVolume(value);
+        public static void SetEnemyHPDisplay(int value) => PreferencesManager.SetEnemyHPDisplay(value);
 
         /// <summary>
-        /// Gets the current map ID as a string for waypoint storage
+        /// Gets the FieldPlayer from the FieldPlayerController.
         /// </summary>
-        private string GetCurrentMapIdString()
+        private FieldPlayer GetFieldPlayer()
         {
             try
             {
-                var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
-                if (userDataManager != null)
-                {
-                    return userDataManager.CurrentMapId.ToString();
-                }
+                var playerController = GameObjectCache.Get<FieldPlayerController>();
+                if (playerController?.fieldPlayer != null)
+                    return playerController.fieldPlayer;
+
+                playerController = GameObjectCache.Refresh<FieldPlayerController>();
+                return playerController?.fieldPlayer;
             }
-            catch (System.Exception ex)
+            catch
             {
-                LoggerInstance.Warning($"Error getting map ID: {ex.Message}");
+                return null;
             }
-            return "unknown";
         }
 
-        /// <summary>
-        /// Cycles to the next waypoint and announces it
-        /// </summary>
-        internal void CycleNextWaypoint()
+        // Waypoint operations delegated to WaypointController
+        internal void CycleNextWaypoint() => waypointController.CycleNextWaypoint();
+        internal void CyclePreviousWaypoint() => waypointController.CyclePreviousWaypoint();
+        internal void CycleNextWaypointCategory() => waypointController.CycleNextWaypointCategory();
+        internal void CyclePreviousWaypointCategory() => waypointController.CyclePreviousWaypointCategory();
+        internal void PathfindToCurrentWaypoint() => waypointController.PathfindToCurrentWaypoint();
+        internal void AddNewWaypointWithNaming() => waypointController.AddNewWaypointWithNaming();
+        internal void AddNewWaypoint() => waypointController.AddNewWaypoint();
+        internal void RenameCurrentWaypoint() => waypointController.RenameCurrentWaypoint();
+        internal void RemoveCurrentWaypoint() => waypointController.RemoveCurrentWaypoint();
+        internal void ClearAllWaypointsForMap() => waypointController.ClearAllWaypointsForMap();
+    }
+
+    /// <summary>
+    /// Postfix patches for entity interaction hooks.
+    /// Triggers entity refresh when treasure chests are opened or dialogue ends.
+    /// </summary>
+    public static class EntityInteractionPatches
+    {
+        public static void TreasureBox_Open_Postfix()
         {
-            string mapId = GetCurrentMapIdString();
-            waypointNavigator.RefreshList(mapId);
-
-            var waypoint = waypointNavigator.CycleNext();
-            if (waypoint == null)
-            {
-                SpeakText("No waypoints");
-                return;
-            }
-
-            SpeakText(waypointNavigator.FormatCurrentWaypoint());
+            FFV_ScreenReaderMod.Instance?.ScheduleEntityRefresh();
         }
 
-        /// <summary>
-        /// Cycles to the previous waypoint and announces it
-        /// </summary>
-        internal void CyclePreviousWaypoint()
+        public static void MessageWindow_Close_Postfix()
         {
-            string mapId = GetCurrentMapIdString();
-            waypointNavigator.RefreshList(mapId);
+            FFV_ScreenReaderMod.Instance?.ScheduleEntityRefresh();
 
-            var waypoint = waypointNavigator.CyclePrevious();
-            if (waypoint == null)
-            {
-                SpeakText("No waypoints");
-                return;
-            }
-
-            SpeakText(waypointNavigator.FormatCurrentWaypoint());
+            // Reset dialogue tracker (clears page data + restores navigation)
+            FFV_ScreenReader.Patches.DialogueTracker.Reset();
         }
-
-        /// <summary>
-        /// Cycles to the next waypoint category
-        /// </summary>
-        internal void CycleNextWaypointCategory()
-        {
-            string mapId = GetCurrentMapIdString();
-            waypointNavigator.CycleNextCategory(mapId);
-            SpeakText(waypointNavigator.GetCategoryAnnouncement());
-        }
-
-        /// <summary>
-        /// Cycles to the previous waypoint category
-        /// </summary>
-        internal void CyclePreviousWaypointCategory()
-        {
-            string mapId = GetCurrentMapIdString();
-            waypointNavigator.CyclePreviousCategory(mapId);
-            SpeakText(waypointNavigator.GetCategoryAnnouncement());
-        }
-
-        /// <summary>
-        /// Pathfinds to the currently selected waypoint
-        /// </summary>
-        internal void PathfindToCurrentWaypoint()
-        {
-            var waypoint = waypointNavigator.SelectedWaypoint;
-            if (waypoint == null)
-            {
-                SpeakText("No waypoint selected");
-                return;
-            }
-
-            var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-            if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
-            {
-                SpeakText("Not in field");
-                return;
-            }
-
-            Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
-
-            var pathInfo = FieldNavigationHelper.FindPathTo(
-                playerPos,
-                waypoint.Position,
-                playerController.mapHandle,
-                playerController.fieldPlayer
-            );
-
-            if (pathInfo.Success)
-            {
-                SpeakText($"Path to {waypoint.WaypointName}: {pathInfo.Description}");
-            }
-            else
-            {
-                // Still announce distance and direction even without path
-                string description = waypoint.FormatDescription(playerPos);
-                SpeakText($"No path to {waypoint.WaypointName}. {description}");
-            }
-        }
-
-        /// <summary>
-        /// Adds a new waypoint at the player's current position
-        /// </summary>
-        internal void AddNewWaypoint()
-        {
-            var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-            if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
-            {
-                SpeakText("Not in field");
-                return;
-            }
-
-            Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
-            string mapId = GetCurrentMapIdString();
-
-            // Determine category - use current filter unless it's "All"
-            var category = waypointNavigator.CurrentCategory;
-            if (category == Field.WaypointCategory.All)
-            {
-                category = Field.WaypointCategory.Miscellaneous;
-            }
-
-            // Generate auto-name
-            string name = waypointManager.GetNextWaypointName(mapId);
-
-            var waypoint = waypointManager.AddWaypoint(name, playerPos, mapId, category);
-            waypointNavigator.RefreshList(mapId);
-
-            string categoryName = Field.WaypointEntity.GetCategoryDisplayName(category);
-            SpeakText($"Added {name} as {categoryName}");
-        }
-
-        /// <summary>
-        /// Removes the currently selected waypoint
-        /// </summary>
-        internal void RemoveCurrentWaypoint()
-        {
-            var waypoint = waypointNavigator.SelectedWaypoint;
-            if (waypoint == null)
-            {
-                SpeakText("No waypoint selected");
-                return;
-            }
-
-            string name = waypoint.WaypointName;
-            waypointManager.RemoveWaypoint(waypoint.WaypointId);
-
-            string mapId = GetCurrentMapIdString();
-            waypointNavigator.RefreshList(mapId);
-            waypointNavigator.ClearSelection();
-
-            SpeakText($"Removed {name}");
-        }
-
-        /// <summary>
-        /// Clears all waypoints for the current map (with double-press confirmation)
-        /// </summary>
-        internal void ClearAllWaypointsForMap()
-        {
-            string mapId = GetCurrentMapIdString();
-
-            if (waypointManager.ClearMapWaypoints(mapId, out int count))
-            {
-                waypointNavigator.RefreshList(mapId);
-                waypointNavigator.ClearSelection();
-
-                if (count > 0)
-                {
-                    SpeakText($"Cleared {count} waypoints from map");
-                }
-                else
-                {
-                    SpeakText("No waypoints to clear");
-                }
-            }
-            else
-            {
-                SpeakText($"Press again within 2 seconds to clear {count} waypoints");
-            }
-        }
-
-        #endregion
     }
 }

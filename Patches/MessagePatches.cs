@@ -1,254 +1,540 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.Message;
 using Il2CppLast.Management;
-using Il2CppLast.UI;
-using Il2CppLast.UI.Touch;
-using Il2CppLast.UI.KeyInput;
-using Il2CppLast.UI.Message;
-using Il2CppLast.Battle;
-using Il2CppLast.Data.Master;
 using FFV_ScreenReader.Core;
-using UnityEngine;
-using Il2CppLast.Map;
+using FFV_ScreenReader.Field;
+using FFV_ScreenReader.Utils;
+using Il2CppInterop.Runtime;
 
 namespace FFV_ScreenReader.Patches
 {
-    // MessageWindowView.Awake patch removed as it was causing patching errors (method not found)
+    // ============================================================
+    // Per-Page Dialogue System with Multi-Line Support
+    // Ported from FF4. Announces dialogue text page-by-page as
+    // player advances, combining multiple display lines per page.
+    // Pipeline: SetContent → store pages → PlayingInit per page → announce
+    // Popups:   SetMessage → announce directly (no dedup)
+    // Speakers: SetSpeker → store in tracker → prepended on page announce
+    // ============================================================
 
-    [HarmonyPatch(typeof(Il2CppLast.Message.MessageWindowView), "SetSpeker")]
-    public static class MessageWindowView_SetSpeker_Patch
+    /// <summary>
+    /// Tracks dialogue state for per-page announcements and navigation suppression.
+    /// Stores content from SetContent, announces via PlayingInit hook.
+    /// Handles multi-line pages by combining lines within page boundaries.
+    /// </summary>
+    public static class DialogueTracker
     {
-        private static string lastSpeaker = "";
+        private static bool _isInDialogue = false;
+        private static MessageWindowView _cachedView;
 
-        [HarmonyPostfix]
-        public static void Postfix(string value)
+        // Page tracking (ported from FF4)
+        private static List<string> currentMessageList = new List<string>();
+        private static List<int> currentPageBreaks = new List<int>();
+        private static int lastAnnouncedPageIndex = -1;
+
+        // Speaker tracking
+        private static string currentSpeaker = "";
+        private static string lastAnnouncedSpeaker = "";
+
+        /// <summary>
+        /// True while a dialogue/message window is active.
+        /// </summary>
+        public static bool IsInDialogue => _isInDialogue;
+
+        /// <summary>
+        /// Caches the MessageWindowView instance for staleness checks.
+        /// </summary>
+        public static void CacheView(MessageWindowView view) => _cachedView = view;
+
+        /// <summary>
+        /// Validates that dialogue is still actually active by checking the MessageWindowView.
+        /// If the view is gone or inactive, auto-clears stale dialogue state.
+        /// Returns true if dialogue is genuinely active.
+        /// </summary>
+        public static bool ValidateState()
         {
+            if (!_isInDialogue) return false;
+
             try
             {
-                // MelonLogger.Msg("MessageWindowView.SetSpeker patch executed.");
-                if (string.IsNullOrWhiteSpace(value))
+                if (_cachedView != null && _cachedView.gameObject != null && _cachedView.gameObject.activeInHierarchy)
+                    return true;
+
+                _cachedView = GameObjectCache.Refresh<MessageWindowView>();
+                if (_cachedView != null && _cachedView.gameObject != null && _cachedView.gameObject.activeInHierarchy)
+                    return true;
+            }
+            catch
+            {
+                // View reference became invalid
+            }
+
+            OnDialogueEnd();
+            _cachedView = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Called when dialogue starts. Suppresses navigation features.
+        /// </summary>
+        public static void OnDialogueStart()
+        {
+            if (_isInDialogue) return;
+            if (BattleState.IsInBattle) return; // Don't suppress if already in battle
+
+            _isInDialogue = true;
+
+            var mod = FFV_ScreenReaderMod.Instance;
+            mod?.SuppressNavigationForDialogue();
+        }
+
+        /// <summary>
+        /// Called when dialogue ends. Restores navigation features.
+        /// </summary>
+        public static void OnDialogueEnd()
+        {
+            if (!_isInDialogue) return;
+
+            _isInDialogue = false;
+
+            var mod = FFV_ScreenReaderMod.Instance;
+            mod?.RestoreNavigationAfterDialogue();
+        }
+
+        /// <summary>
+        /// Store messages and page breaks for per-page retrieval.
+        /// Called from SetContent postfix with data read from instance via pointers.
+        /// </summary>
+        public static void StoreMessages(List<string> messages, List<int> pageBreaks)
+        {
+            currentMessageList.Clear();
+            currentPageBreaks.Clear();
+
+            if (messages == null || messages.Count == 0)
+            {
+                return;
+            }
+
+            // Store cleaned messages
+            foreach (var msg in messages)
+            {
+                currentMessageList.Add(msg != null ? CleanMessage(msg) : "");
+            }
+
+            // Convert page breaks (ending line indices) to start indices
+            // newPageLineList contains the ENDING line index (inclusive) for each page
+            // e.g., [0, 2] means: page 0 ends at line 0, page 1 ends at line 2
+            currentPageBreaks.Add(0); // First page always starts at line 0
+
+            if (pageBreaks != null && pageBreaks.Count > 0)
+            {
+                for (int i = 0; i < pageBreaks.Count; i++)
                 {
-                    lastSpeaker = "";
-                    return;
+                    int nextStart = pageBreaks[i] + 1;
+                    if (nextStart < currentMessageList.Count)
+                    {
+                        currentPageBreaks.Add(nextStart);
+                    }
                 }
+            }
 
-                string cleanSpeaker = value.Trim();
+            // Reset page tracking and enter dialogue state
+            lastAnnouncedPageIndex = -1;
+            OnDialogueStart();
+        }
 
-                if (cleanSpeaker == lastSpeaker)
+        /// <summary>
+        /// Set the current speaker. Will be prepended to page text if changed.
+        /// </summary>
+        public static void SetSpeaker(string speaker)
+        {
+            if (string.IsNullOrWhiteSpace(speaker))
+                return;
+
+            currentSpeaker = speaker.Trim();
+        }
+
+        /// <summary>
+        /// Gets all lines for a given page index, combined into one string.
+        /// </summary>
+        public static string GetPageText(int pageIndex)
+        {
+            if (pageIndex < 0 || pageIndex >= currentPageBreaks.Count)
+                return null;
+
+            int startLine = currentPageBreaks[pageIndex];
+            int endLine = (pageIndex + 1 < currentPageBreaks.Count)
+                ? currentPageBreaks[pageIndex + 1]
+                : currentMessageList.Count;
+
+            var sb = new StringBuilder();
+            for (int i = startLine; i < endLine && i < currentMessageList.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(currentMessageList[i]))
                 {
-                    return;
+                    if (sb.Length > 0)
+                        sb.Append(" ");
+                    sb.Append(currentMessageList[i]);
                 }
+            }
 
-                lastSpeaker = cleanSpeaker;
-                MelonLogger.Msg($"[Speaker] {cleanSpeaker}");
-                FFV_ScreenReaderMod.SpeakText(cleanSpeaker, interrupt: false);
+            return sb.Length > 0 ? sb.ToString() : null;
+        }
+
+        /// <summary>
+        /// Announce the current page. Called from PlayingInit.
+        /// Skips already-announced pages, prepends speaker if changed.
+        /// </summary>
+        public static void AnnounceForPage(int pageIndex, string speakerFromInstance)
+        {
+            // Update speaker from instance if available
+            if (!string.IsNullOrWhiteSpace(speakerFromInstance))
+            {
+                SetSpeaker(speakerFromInstance);
+            }
+
+            // Skip if not in dialogue or no pages stored
+            if (!_isInDialogue || currentPageBreaks.Count == 0)
+                return;
+
+            // Skip if already announced this page or out of range
+            if (pageIndex < 0 || pageIndex >= currentPageBreaks.Count || pageIndex == lastAnnouncedPageIndex)
+                return;
+
+            string pageText = GetPageText(pageIndex);
+            if (string.IsNullOrWhiteSpace(pageText))
+            {
+                lastAnnouncedPageIndex = pageIndex; // Advance past empty page
+                return;
+            }
+
+            // Build announcement with speaker if changed
+            string announcement;
+            if (!string.IsNullOrEmpty(currentSpeaker) && currentSpeaker != lastAnnouncedSpeaker)
+            {
+                announcement = $"{currentSpeaker}: {pageText}";
+                lastAnnouncedSpeaker = currentSpeaker;
+            }
+            else
+            {
+                announcement = pageText;
+            }
+
+            lastAnnouncedPageIndex = pageIndex;
+            FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+        }
+
+        /// <summary>
+        /// Full reset — clears page data, speaker, and ends dialogue state.
+        /// Called when dialogue window closes (MessageWindowManager.Close).
+        /// </summary>
+        public static void Reset()
+        {
+            currentMessageList.Clear();
+            currentPageBreaks.Clear();
+            lastAnnouncedPageIndex = -1;
+            currentSpeaker = "";
+            lastAnnouncedSpeaker = "";
+            OnDialogueEnd();
+            _cachedView = null;
+        }
+
+        private static string CleanMessage(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return message;
+
+            string clean = TextUtils.StripIconMarkup(message);
+            return TextUtils.NormalizeWhitespace(clean);
+        }
+    }
+
+    /// <summary>
+    /// Pointer-based access to MessageWindowManager IL2CPP fields.
+    /// Offsets verified identical to FF4 in FF5 dump.cs.
+    /// </summary>
+    public static class MessageWindowHelper
+    {
+        private const int OFFSET_MESSAGE_LIST = 0x88;        // List<string> messageList
+        private const int OFFSET_NEW_PAGE_LINE_LIST = 0xA0;  // List<int> newPageLineList
+        private const int OFFSET_SPEAKER_VALUE = 0xA8;       // string spekerValue
+        private const int OFFSET_CURRENT_PAGE_NUMBER = 0xF8; // int currentPageNumber
+
+        /// <summary>
+        /// Reads the messageList field from a manager instance using pointer-based access.
+        /// </summary>
+        public static List<string> ReadMessageListFromInstance(MessageWindowManager instance)
+        {
+            if (instance == null)
+                return null;
+
+            try
+            {
+                IntPtr instancePtr = instance.Pointer;
+                if (instancePtr == IntPtr.Zero)
+                    return null;
+
+                unsafe
+                {
+                    IntPtr listPtr = *(IntPtr*)((byte*)instancePtr.ToPointer() + OFFSET_MESSAGE_LIST);
+                    if (listPtr == IntPtr.Zero)
+                        return null;
+
+                    var il2cppList = new Il2CppSystem.Collections.Generic.List<string>(listPtr);
+                    if (il2cppList == null)
+                        return null;
+
+                    var result = new List<string>();
+                    int count = il2cppList.Count;
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        var msg = il2cppList[i];
+                        result.Add(msg ?? "");
+                    }
+
+                    return result;
+                }
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in MessageWindowView.SetSpeker patch: {ex.Message}");
+                MelonLogger.Warning($"[MessageWindow] Error reading messageList: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads the newPageLineList field from a manager instance using pointer-based access.
+        /// </summary>
+        public static List<int> ReadPageBreaksFromInstance(MessageWindowManager instance)
+        {
+            if (instance == null)
+                return null;
+
+            try
+            {
+                IntPtr instancePtr = instance.Pointer;
+                if (instancePtr == IntPtr.Zero)
+                    return null;
+
+                unsafe
+                {
+                    IntPtr listPtr = *(IntPtr*)((byte*)instancePtr.ToPointer() + OFFSET_NEW_PAGE_LINE_LIST);
+                    if (listPtr == IntPtr.Zero)
+                        return null;
+
+                    var il2cppList = new Il2CppSystem.Collections.Generic.List<int>(listPtr);
+                    if (il2cppList == null)
+                        return null;
+
+                    var result = new List<int>();
+                    int count = il2cppList.Count;
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        result.Add(il2cppList[i]);
+                    }
+
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[MessageWindow] Error reading newPageLineList: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads the spekerValue field from a manager instance using pointer-based access.
+        /// </summary>
+        public static string ReadSpeakerFromInstance(MessageWindowManager instance)
+        {
+            if (instance == null)
+                return null;
+
+            try
+            {
+                IntPtr instancePtr = instance.Pointer;
+                if (instancePtr == IntPtr.Zero)
+                    return null;
+
+                unsafe
+                {
+                    IntPtr stringPtr = *(IntPtr*)((byte*)instancePtr.ToPointer() + OFFSET_SPEAKER_VALUE);
+                    if (stringPtr == IntPtr.Zero)
+                        return null;
+
+                    return IL2CPP.Il2CppStringToManaged(stringPtr);
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[MessageWindow] Error reading speaker: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the current page number from MessageWindowManager instance using pointer-based access.
+        /// </summary>
+        public static int GetCurrentPageNumber(MessageWindowManager instance)
+        {
+            if (instance == null)
+                return -1;
+
+            try
+            {
+                IntPtr instancePtr = instance.Pointer;
+                if (instancePtr == IntPtr.Zero)
+                    return -1;
+
+                unsafe
+                {
+                    int pageNum = *(int*)((byte*)instancePtr.ToPointer() + OFFSET_CURRENT_PAGE_NUMBER);
+                    return pageNum;
+                }
+            }
+            catch
+            {
+                return -1;
             }
         }
     }
 
-    [HarmonyPatch(typeof(Il2CppLast.Message.MessageWindowView), "SetMessage")]
-    public static class MessageWindowView_SetMessage_Patch
-    {
-        private static string lastMessage = "";
+    // ============================================================
+    // Harmony Patches
+    // ============================================================
 
+    /// <summary>
+    /// Stores speaker name in DialogueTracker for prepending to page text.
+    /// Speaker is announced as part of the page, not separately.
+    /// </summary>
+    [HarmonyPatch(typeof(MessageWindowManager), "SetSpeker")]
+    public static class MessageWindowManager_SetSpeker_Patch
+    {
         [HarmonyPostfix]
-        public static void Postfix(Il2CppLast.Message.MessageWindowView __instance, string message)
+        public static void Postfix(string name)
         {
             try
             {
-                MelonLogger.Msg($"[DEBUG] MessageWindowView.SetMessage called with: '{message}'");
-                
+                DialogueTracker.SetSpeaker(name);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in MessageWindowManager.SetSpeker patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles popup/non-dialogue text from MessageWindowView.
+    /// During dialogue, text flows through SetContent → PlayingInit pipeline instead.
+    /// No dedup — popups must re-read when re-triggered.
+    /// </summary>
+    [HarmonyPatch(typeof(MessageWindowView), "SetMessage")]
+    public static class MessageWindowView_SetMessage_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(MessageWindowView __instance, string message)
+        {
+            try
+            {
+                DialogueTracker.CacheView(__instance);
                 if (string.IsNullOrWhiteSpace(message))
+                    return;
+
+                if (DialogueTracker.IsInDialogue)
                 {
-                    if (!string.IsNullOrWhiteSpace(lastMessage))
-                    {
-                        lastMessage = "";
-                    }
                     return;
                 }
 
-                string cleanMessage = message.Trim();
-
-                if (cleanMessage == lastMessage)
-                {
-                    MelonLogger.Msg($"[DEBUG] Message unchanged, skipping");
-                    return;
-                }
-
-                if (!string.IsNullOrWhiteSpace(lastMessage) && cleanMessage.StartsWith(lastMessage))
-                {
-                    string newText = cleanMessage.Substring(lastMessage.Length).Trim();
-                    if (!string.IsNullOrWhiteSpace(newText))
-                    {
-                        MelonLogger.Msg($"[MessageWindowView.SetMessage - New] {newText}");
-                        FFV_ScreenReaderMod.SpeakText(newText, interrupt: false);
-                    }
-                }
-                else
-                {
-                    MelonLogger.Msg($"[MessageWindowView.SetMessage - Full] {cleanMessage}");
-                    FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false);
-                }
-
-                lastMessage = cleanMessage;
-                
-                // Also try to read from the MessageText component directly
-                try
-                {
-                    if (__instance != null && __instance.MessageText != null)
-                    {
-                        string textComponentText = __instance.MessageText.text;
-                        MelonLogger.Msg($"[DEBUG] MessageText.text property contains: '{textComponentText}'");
-                    }
-                }
-                catch (Exception innerEx)
-                {
-                    MelonLogger.Warning($"Could not read MessageText component: {innerEx.Message}");
-                }
+                CoroutineManager.StartUntracked(DelayedSetMessageSpeak(message.Trim()));
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in MessageWindowView.SetMessage patch: {ex.Message}");
             }
         }
+
+        private static IEnumerator DelayedSetMessageSpeak(string message)
+        {
+            yield return null;
+
+            if (PopupState.IsConfirmationPopupActive)
+            {
+                yield break;
+            }
+
+            if (SaveLoadMenuState.ShouldSuppress())
+            {
+                yield break;
+            }
+
+            if (NamingPatches.ShouldSuppress())
+            {
+                yield break;
+            }
+
+            FFV_ScreenReaderMod.SpeakText(message, interrupt: false);
+        }
     }
 
-    // FF5 specific: Patch Unity Text component's text property setter
-    // This should capture dialogue text being set to UI Text components
-    [HarmonyPatch(typeof(UnityEngine.UI.Text), "set_text")]
-    public static class UnityText_SetText_Patch
+    /// <summary>
+    /// Reads messageList and page breaks from instance via pointers, stores in DialogueTracker.
+    /// Does NOT speak — text is announced per-page by PlayingInit.
+    /// </summary>
+    [HarmonyPatch(typeof(MessageWindowManager), "SetContent")]
+    public static class MessageWindowManager_SetContent_Patch
     {
-        private static string lastTextValue = "";
-        private static float lastTextTime = 0f;
-
         [HarmonyPostfix]
-        public static void Postfix(UnityEngine.UI.Text __instance, string value)
+        public static void Postfix(MessageWindowManager __instance)
         {
             try
             {
-                // Only process non-empty text
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    return;
-                }
-
-                string cleanText = value.Trim();
-                
-                // Avoid duplicate announcements (debounce within 0.1 seconds)
-                float currentTime = UnityEngine.Time.time;
-                if (cleanText == lastTextValue && (currentTime - lastTextTime) < 0.1f)
-                {
-                    return;
-                }
-
-                // Try to identify if this is a message window text component
-                bool isMessageText = false;
-                string gameObjectName = "";
-                try
-                {
-                    if (__instance != null && __instance.gameObject != null)
-                    {
-                        gameObjectName = __instance.gameObject.name;
-                        
-                        // INCLUDE: Message/Dialogue text
-                        if (gameObjectName.Contains("Message") && !gameObjectName.Contains("System"))
-                        {
-                            isMessageText = true;
-                        }
-                        
-                        // EXCLUDE: Menu, UI, Status, and other non-dialogue text
-                        if (gameObjectName.Contains("Menu") || 
-                            gameObjectName.Contains("Item") || 
-                            gameObjectName.Contains("Ability") ||
-                            gameObjectName.Contains("Status") ||
-                            gameObjectName.Contains("HP") ||
-                            gameObjectName.Contains("MP") ||
-                            gameObjectName.Contains("Level") ||
-                            gameObjectName.Contains("Button") ||
-                            gameObjectName.Contains("Icon") ||
-                            gameObjectName.Contains("Gauge") ||
-                            gameObjectName.Contains("Number") ||
-                            gameObjectName.Contains("Command"))
-                        {
-                            isMessageText = false;
-                        }
-
-                        // Robust Battle Exclusion to prevent "Attack" overwriting "Target"
-                        // If the text is part of a Battle Menu that we have specialized patches for, ignore it here.
-                        if (__instance.GetComponentInParent<Il2CppLast.UI.KeyInput.BattleCommandSelectController>() != null ||
-                            __instance.GetComponentInParent<Il2CppLast.UI.KeyInput.BattleItemInfomationController>() != null ||
-                            __instance.GetComponentInParent<Il2CppSerial.FF5.UI.KeyInput.BattleQuantityAbilityInfomationController>() != null ||
-                            __instance.GetComponentInParent<Il2CppLast.UI.KeyInput.ItemUseController>() != null)
-                        {
-                            // MelonLogger.Msg($"[DEBUG] Ignoring UnityText update from Battle Controller: {cleanText}");
-                            return;
-                        }
-                    }
-                }
-                catch { }
-
-                if (isMessageText)
-                {
-                    MelonLogger.Msg($"[UnityText:{gameObjectName}] {cleanText}");
-                    FFV_ScreenReaderMod.SpeakText(cleanText, interrupt: false);
-                    lastTextValue = cleanText;
-                    lastTextTime = currentTime;
-                }
+                var messageList = MessageWindowHelper.ReadMessageListFromInstance(__instance);
+                var pageBreaks = MessageWindowHelper.ReadPageBreaksFromInstance(__instance);
+                DialogueTracker.StoreMessages(messageList, pageBreaks);
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in UnityText.set_text patch: {ex.Message}");
+                MelonLogger.Warning($"Error in MessageWindowManager.SetContent patch: {ex.Message}");
             }
         }
     }
 
-
-
-    // FF5 specific: Patching MessageWindowController as a fallback/primary source for dialogue updates
-    // DISABLED AGAIN: Still causing crashes even with IntPtr. Will try property setters instead.
-    /*
-    [HarmonyPatch(typeof(Il2CppLast.Message.MessageWindowController), "SetMessage")]
-    public static class MessageWindowController_SetMessage_Patch
+    /// <summary>
+    /// Per-page dialogue announcement. Fires when entering Playing state — once per page.
+    /// Gets current page number from instance and announces via DialogueTracker.
+    /// </summary>
+    [HarmonyPatch(typeof(MessageWindowManager), "PlayingInit")]
+    public static class MessageWindowManager_PlayingInit_Patch
     {
         [HarmonyPostfix]
-        public static void Postfix(IntPtr message)
+        public static void Postfix(MessageWindowManager __instance)
         {
             try
             {
-                if (message == IntPtr.Zero)
-                {
-                    return;
-                }
-
-                // Manually marshal the string to avoid ArgumentOutOfRangeException
-                string managedMessage = Il2CppInterop.Runtime.IL2CPP.Il2CppStringToManaged(message);
-                
-                if (string.IsNullOrWhiteSpace(managedMessage))
-                {
-                    return;
-                }
-
-                string cleanMessage = managedMessage.Trim();
-                // We use interrupt: true here because a new message command usually implies the previous one is done/skipped
-                MelonLogger.Msg($"[MessageWindowController] {cleanMessage}");
-                FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: true); 
+                int currentPage = MessageWindowHelper.GetCurrentPageNumber(__instance);
+                string speaker = MessageWindowHelper.ReadSpeakerFromInstance(__instance);
+                DialogueTracker.AnnounceForPage(currentPage, speaker);
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in MessageWindowController.SetMessage patch: {ex.Message}");
+                MelonLogger.Warning($"Error in MessageWindowManager.PlayingInit patch: {ex.Message}");
             }
         }
     }
-    */
 
-    // FF5 specific: Patching FadeMessageManager for location names, chapter titles, etc.
-    [HarmonyPatch(typeof(Il2CppLast.Message.FadeMessageManager), "Play")]
+    /// <summary>
+    /// Patch FadeMessageManager for location names, chapter titles, etc.
+    /// </summary>
+    [HarmonyPatch(typeof(FadeMessageManager), "Play")]
     public static class FadeMessageManager_Play_Patch
     {
         [HarmonyPostfix]
@@ -262,8 +548,7 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 string cleanMessage = message.Trim();
-                MelonLogger.Msg($"[FadeMessageManager] {cleanMessage}");
-                FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false); // Usually background text, don't interrupt
+                FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false);
             }
             catch (Exception ex)
             {
@@ -272,8 +557,10 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // FF5 specific: Patching LineFadeMessageManager for scrolling credits, intro text, etc.
-    [HarmonyPatch(typeof(Il2CppLast.Message.LineFadeMessageManager), "Play")]
+    /// <summary>
+    /// Patch LineFadeMessageManager for scrolling credits, intro text, etc.
+    /// </summary>
+    [HarmonyPatch(typeof(LineFadeMessageManager), "Play")]
     public static class LineFadeMessageManager_Play_Patch
     {
         [HarmonyPostfix]
@@ -286,8 +573,7 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                var sb = new System.Text.StringBuilder();
-                // Iterate using for loop because Il2Cpp List enumeration can be tricky
+                var sb = new StringBuilder();
                 for (int i = 0; i < messages.Count; i++)
                 {
                     string msg = messages[i];
@@ -300,7 +586,6 @@ namespace FFV_ScreenReader.Patches
                 string fullText = sb.ToString().Trim();
                 if (!string.IsNullOrWhiteSpace(fullText))
                 {
-                    MelonLogger.Msg($"[LineFadeMessageManager] {fullText}");
                     FFV_ScreenReaderMod.SpeakText(fullText, interrupt: false);
                 }
             }
@@ -311,84 +596,10 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // FF5 specific: Patching MessageWindowManager.SetSpeker for speaker names
-    [HarmonyPatch(typeof(Il2CppLast.Message.MessageWindowManager), "SetSpeker")]
-    public static class MessageWindowManager_SetSpeker_Patch
-    {
-        private static string lastSpeaker = "";
-
-        [HarmonyPostfix]
-        public static void Postfix(string name)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    lastSpeaker = "";
-                    return;
-                }
-
-                string cleanSpeaker = name.Trim();
-                if (cleanSpeaker == lastSpeaker)
-                {
-                    return;
-                }
-
-                lastSpeaker = cleanSpeaker;
-                MelonLogger.Msg($"[MessageWindowManager.Speaker] {cleanSpeaker}");
-                FFV_ScreenReaderMod.SpeakText(cleanSpeaker, interrupt: false);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in MessageWindowManager.SetSpeker patch: {ex.Message}");
-            }
-        }
-    }
-
-    // FF5 specific: Patching MessageWindowManager.SetContent for dialogue content
-    // BaseContent is in Last.Systems.Message namespace and has ContentText property
-    [HarmonyPatch(typeof(Il2CppLast.Message.MessageWindowManager), "SetContent")]
-    public static class MessageWindowManager_SetContent_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(Il2CppSystem.Collections.Generic.List<Il2CppLast.Systems.Message.BaseContent> contentList)
-        {
-            try
-            {
-                if (contentList == null || contentList.Count == 0)
-                {
-                    MelonLogger.Msg("[MessageWindowManager.Content] Content list is null or empty");
-                    return;
-                }
-
-                MelonLogger.Msg($"[MessageWindowManager.Content] Content list with {contentList.Count} items set");
-
-                var sb = new System.Text.StringBuilder();
-                for (int i = 0; i < contentList.Count; i++)
-                {
-                    var content = contentList[i];
-                    if (content != null && !string.IsNullOrWhiteSpace(content.ContentText))
-                    {
-                        sb.AppendLine(content.ContentText.Trim());
-                    }
-                }
-
-                string fullText = sb.ToString().Trim();
-                if (!string.IsNullOrWhiteSpace(fullText))
-                {
-                    MelonLogger.Msg($"[MessageWindowManager.Content - Text] {fullText}");
-                    FFV_ScreenReaderMod.SpeakText(fullText, interrupt: false);
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in MessageWindowManager.SetContent patch: {ex.Message}");
-            }
-        }
-    }
-
-    // FF5 specific: Patching SystemMessageWindowManager for system messages
-    [HarmonyPatch(typeof(Il2CppLast.Management.SystemMessageWindowManager), "SetMessage")]
+    /// <summary>
+    /// Patch SystemMessageWindowManager for system messages.
+    /// </summary>
+    [HarmonyPatch(typeof(SystemMessageWindowManager), "SetMessage")]
     public static class SystemMessageWindowManager_SetMessage_Patch
     {
         [HarmonyPostfix]
@@ -402,20 +613,26 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Try to resolve the message ID to actual text
-                var messageManager = Il2CppLast.Management.MessageManager.Instance;
+                var messageManager = MessageManager.Instance;
                 if (messageManager != null)
                 {
                     string message = messageManager.GetMessage(messageId);
                     if (!string.IsNullOrWhiteSpace(message))
                     {
-                        MelonLogger.Msg($"[SystemMessage] {message}");
+                        // Skip if this is the current map name — already announced by GameStatePatches
+                        string currentMap = MapNameResolver.GetCurrentMapName();
+                        if (!string.IsNullOrEmpty(currentMap) &&
+                            message.Trim().Equals(currentMap.Trim(), StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+
                         FFV_ScreenReaderMod.SpeakText(message, interrupt: true);
                     }
                 }
                 else
                 {
                     // Fallback: speak the ID itself
-                    MelonLogger.Msg($"[SystemMessage ID] {messageId}");
                     FFV_ScreenReaderMod.SpeakText(messageId, interrupt: true);
                 }
             }
@@ -426,8 +643,10 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // FF5 specific: Patching MessageChoiceWindowManager for choice menus
-    [HarmonyPatch(typeof(Il2CppLast.Management.MessageChoiceWindowManager), "Play", new Type[] { typeof(string[]) })]
+    /// <summary>
+    /// Patch MessageChoiceWindowManager for choice menus.
+    /// </summary>
+    [HarmonyPatch(typeof(MessageChoiceWindowManager), "Play", new Type[] { typeof(string[]) })]
     public static class MessageChoiceWindowManager_Play_Patch
     {
         [HarmonyPostfix]
@@ -440,7 +659,7 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                var sb = new System.Text.StringBuilder("Choices: ");
+                var sb = new StringBuilder("Choices: ");
                 for (int i = 0; i < values.Length; i++)
                 {
                     if (!string.IsNullOrWhiteSpace(values[i]))
@@ -454,44 +673,11 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 string choicesText = sb.ToString();
-                MelonLogger.Msg($"[MessageChoice] {choicesText}");
                 FFV_ScreenReaderMod.SpeakText(choicesText, interrupt: true);
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in MessageChoiceWindowManager.Play patch: {ex.Message}");
-            }
-        }
-    }
-
-    [HarmonyPatch(typeof(EventProcedure), "EventTalk")]
-    public static class EventProcedure_EventTalk_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(string messageId, Vector3 worldPos, int changeCharacterStatusId)
-        {
-            try
-            {
-                MelonLogger.Msg("EventProcedure.EventTalk patch executed.");
-                if (string.IsNullOrWhiteSpace(messageId))
-                {
-                    return;
-                }
-
-                var messageManager = Il2CppLast.Management.MessageManager.Instance;
-                if (messageManager != null)
-                {
-                    string message = messageManager.GetMessage(messageId);
-                    if (!string.IsNullOrWhiteSpace(message))
-                    {
-                        MelonLogger.Msg($"[EventTalk] {message}");
-                        FFV_ScreenReaderMod.SpeakText(message, interrupt: false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in EventProcedure.EventTalk patch: {ex.Message}");
             }
         }
     }

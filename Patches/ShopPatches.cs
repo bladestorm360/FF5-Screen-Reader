@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Il2CppLast.UI;
 using Il2CppLast.UI.KeyInput;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
@@ -9,14 +10,21 @@ using System;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Tracks shop menu state to prevent 'I' key from working outside shop menus
+    /// Tracks shop menu state to prevent 'I' key from working outside shop menus.
+    /// Delegates IsShopMenuActive to MenuStateRegistry for centralized state management.
     /// </summary>
     public static class ShopMenuTracker
     {
-        public static bool IsShopMenuActive { get; set; }
+        public static bool IsShopMenuActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.SHOP_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.SHOP_MENU, value);
+        }
         public static ShopInfoController ActiveInfoController { get; set; }
         public static string LastItemDescription { get; set; }
         public static string LastItemMpCost { get; set; }
+        public static bool EnteredEquipmentFromShop { get; set; }
+        public static bool IsInShopSession { get; set; }
 
         /// <summary>
         /// Validates that shop menu is actually active and visible.
@@ -24,18 +32,14 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static bool ValidateState()
         {
-            if (IsShopMenuActive && ActiveInfoController != null)
+            if (IsShopMenuActive && !AnnouncementDeduplicator.IsControllerActive(ActiveInfoController))
             {
-                if (ActiveInfoController.gameObject == null ||
-                    !ActiveInfoController.gameObject.activeInHierarchy)
-                {
-                    // Controller is no longer active, clear state
-                    IsShopMenuActive = false;
-                    ActiveInfoController = null;
-                    LastItemDescription = null;
-                    LastItemMpCost = null;
-                    return false;
-                }
+                IsShopMenuActive = false;
+                ActiveInfoController = null;
+                LastItemDescription = null;
+                LastItemMpCost = null;
+                EnteredEquipmentFromShop = false;
+                return false;
             }
             return IsShopMenuActive;
         }
@@ -77,8 +81,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (!string.IsNullOrEmpty(announcement))
                 {
-                    MelonLogger.Msg($"[Shop Details] {announcement}");
-                    FFV_ScreenReaderMod.SpeakText(announcement);
+                        FFV_ScreenReaderMod.SpeakText(announcement);
                 }
             }
             catch (Exception ex)
@@ -98,10 +101,11 @@ namespace FFV_ScreenReader.Patches
     /// - Quantity selection (quantity + total price)
     /// - 'I' key support for re-reading item descriptions
     ///
-    /// Not Yet Implemented:
-    /// - Equipment submenu (entire screen is inaccessible)
-    ///   Uses different navigation patterns (RB/LB for characters, LEFT/RIGHT for slots)
-    ///   Requires visual debugging to identify the correct controller methods
+    /// - Equipment command bar (Equip/Strongest/Remove Everything) via EquipmentCommandView.SetFocus
+    ///   with dual-state management for shop/equipment transitions
+    ///
+    /// Partially Implemented:
+    ///   Full equipment submenu (character slots, item lists) still needs additional patches
     /// </summary>
     [HarmonyPatch]
     public static class ShopPatches
@@ -115,10 +119,14 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (__instance?.contentList == null || index < 0 || index >= __instance.contentList.Count)
-                    return;
+                // Restore shop state if returning from equipment submenu
+                if (ShopMenuTracker.EnteredEquipmentFromShop)
+                {
+                    ShopMenuTracker.EnteredEquipmentFromShop = false;
+                    ShopMenuTracker.IsShopMenuActive = true;
+                }
 
-                var content = __instance.contentList[index];
+                var content = SelectContentHelper.TryGetItem(__instance?.contentList, index);
                 if (content?.view?.nameText == null)
                     return;
 
@@ -133,8 +141,6 @@ namespace FFV_ScreenReader.Patches
                 MelonLogger.Error($"Error in AfterShopCommandSetCursor: {ex.Message}");
             }
         }
-
-        private static string lastAnnouncedItem = "";
 
         /// <summary>
         /// Announces individual items in shop buy/sell lists with name and price.
@@ -159,9 +165,6 @@ namespace FFV_ScreenReader.Patches
                 // Get price from shopListItemContentView
                 string price = __instance.shopListItemContentView?.priceText?.text;
                 string announcement = string.IsNullOrEmpty(price) ? itemName : $"{itemName}, {price}";
-
-                // Store for later description announcement
-                lastAnnouncedItem = itemName;
 
                 CoroutineManager.StartManaged(DelayedAnnounceShopItem(announcement));
             }
@@ -191,14 +194,7 @@ namespace FFV_ScreenReader.Patches
                 string mpCost = __instance.itemInfoController?.shopItemInfoView?.mpText?.text;
                 ShopMenuTracker.LastItemMpCost = mpCost;
 
-                // Build the announcement
-                string announcement = value;
-                if (!string.IsNullOrEmpty(mpCost))
-                {
-                    announcement = $"{value}. {mpCost}";
-                }
-
-                CoroutineManager.StartManaged(DelayedAnnounceDescription(announcement));
+                // Data stored for I-key access; no auto-announce (Q key toggles natively)
             }
             catch (Exception ex)
             {
@@ -249,35 +245,90 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
+        /// <summary>
+        /// Manages shop state transitions when entering equipment command bar.
+        /// Announcement is handled by EquipmentCommandView.SetFocus patch instead.
+        /// </summary>
+        [HarmonyPatch(typeof(EquipmentCommandController), nameof(EquipmentCommandController.SetFocus))]
+        [HarmonyPostfix]
+        private static void AfterEquipmentCommandSetFocus(EquipmentCommandController __instance, EquipmentCommandId id, bool isFocus)
+        {
+            if (!isFocus) return;
+
+            // When entering equipment from shop, clear shop state (dual-state pattern)
+            if (ShopMenuTracker.IsShopMenuActive)
+            {
+                ShopMenuTracker.EnteredEquipmentFromShop = true;
+                ShopMenuTracker.IsShopMenuActive = false;
+                ShopMenuTracker.ActiveInfoController = null;
+            }
+        }
+
+        /// <summary>
+        /// Announces equipment command bar options (Equip, Strongest, Remove Everything)
+        /// per-view during navigation. This fires for each view as the cursor moves,
+        /// unlike the controller-level SetFocus which only fires once on entry.
+        /// </summary>
+        [HarmonyPatch(typeof(EquipmentCommandView), nameof(EquipmentCommandView.SetFocus))]
+        [HarmonyPostfix]
+        private static void AfterEquipmentCommandViewSetFocus(EquipmentCommandView __instance, bool isFocus)
+        {
+            try
+            {
+                if (!isFocus) return;
+                if (__instance?.Data == null) return;
+
+                string commandName = __instance.Data.Name;
+                if (string.IsNullOrEmpty(commandName)) return;
+
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.SHOP_EQUIPMENT_COMMAND, commandName)) return;
+
+                FFV_ScreenReaderMod.SpeakText(commandName);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in EquipmentCommandView.SetFocus patch: {ex.Message}");
+            }
+        }
+
         private static IEnumerator DelayedAnnounceShopCommand(string commandText)
         {
             yield return null; // Wait one frame for UI to update
-            MelonLogger.Msg($"[Shop Command] {commandText}");
             FFV_ScreenReaderMod.SpeakText($"{commandText}");
         }
 
         private static IEnumerator DelayedAnnounceShopItem(string itemText)
         {
             yield return null; // Wait one frame for UI to update
-            MelonLogger.Msg($"[Shop Item] {itemText}");
             FFV_ScreenReaderMod.SpeakText($"{itemText}");
-        }
-
-        private static IEnumerator DelayedAnnounceDescription(string descriptionText)
-        {
-            yield return null; // Wait one frame for UI to update
-            MelonLogger.Msg($"[Shop Description] {descriptionText}");
-            FFV_ScreenReaderMod.SpeakText($"{descriptionText}");
         }
 
         private static IEnumerator DelayedAnnounceQuantity(string quantityText)
         {
             yield return null; // Wait one frame for UI to update
-            MelonLogger.Msg($"[Shop Quantity] {quantityText}");
             FFV_ScreenReaderMod.SpeakText($"{quantityText}");
         }
     }
 
-    // NOTE: OnHide method does not exist in FF5's ShopCommandMenuController
-    // Shop state is managed through ValidateState() checks instead
+    /// <summary>
+    /// Tracks ShopController.Show/Close for shop session lifetime.
+    /// Used by InputManager to keep context as Global (not Field) during shop transitions.
+    /// </summary>
+    [HarmonyPatch]
+    public static class ShopSessionPatches
+    {
+        [HarmonyPatch(typeof(ShopController), nameof(ShopController.Show))]
+        [HarmonyPostfix]
+        private static void AfterShopShow()
+        {
+            ShopMenuTracker.IsInShopSession = true;
+        }
+
+        [HarmonyPatch(typeof(ShopController), nameof(ShopController.Close))]
+        [HarmonyPostfix]
+        private static void AfterShopClose()
+        {
+            ShopMenuTracker.IsInShopSession = false;
+        }
+    }
 }

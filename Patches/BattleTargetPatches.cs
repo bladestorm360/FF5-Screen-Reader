@@ -5,6 +5,7 @@ using MelonLoader;
 using Il2CppLast.Battle;
 using Il2CppLast.Management;
 using FFV_ScreenReader.Core;
+using FFV_ScreenReader.Utils;
 using UnityEngine;
 using BattlePlayerData = Il2Cpp.BattlePlayerData;
 
@@ -21,26 +22,38 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class BattleTargetPatches
     {
-        private static int lastAnnouncedPlayerIndex = -1;
-        private static int lastAnnouncedEnemyIndex = -1;
-        private static bool lastWasAllPlayers = false;
-        private static bool lastWasAllEnemies = false;
-
         /// <summary>
         /// Indicates whether target selection is currently active.
         /// Used by MenuTextDiscovery to suppress reading "Attack" etc. during target selection.
         /// </summary>
-        public static bool IsTargetSelectionActive { get; private set; } = false;
+        public static bool IsTargetSelectionActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.BATTLE_TARGET);
+            private set => MenuStateRegistry.SetActive(MenuStateRegistry.BATTLE_TARGET, value);
+        }
+
+        static BattleTargetPatches()
+        {
+            MenuStateRegistry.RegisterResetHandler(MenuStateRegistry.BATTLE_TARGET, () =>
+            {
+                AnnouncementDeduplicator.Reset(
+                    AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX,
+                    AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX,
+                    AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS,
+                    AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES);
+            });
+        }
 
         /// <summary>
         /// Resets the announcement state. Call this when entering/exiting target selection.
         /// </summary>
         public static void ResetState()
         {
-            lastAnnouncedPlayerIndex = -1;
-            lastAnnouncedEnemyIndex = -1;
-            lastWasAllPlayers = false;
-            lastWasAllEnemies = false;
+            AnnouncementDeduplicator.Reset(
+                AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX,
+                AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX,
+                AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS,
+                AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES);
         }
 
         /// <summary>
@@ -49,7 +62,6 @@ namespace FFV_ScreenReader.Patches
         public static void SetTargetSelectionActive(bool active)
         {
             IsTargetSelectionActive = active;
-            MelonLogger.Msg($"[Battle Target] Target selection active: {active}");
         }
 
         /// <summary>
@@ -246,21 +258,15 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 // Prevent duplicate announcements
-                if (index == lastAnnouncedPlayerIndex) return;
-                lastAnnouncedPlayerIndex = index;
-                lastWasAllPlayers = false;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX, index)) return;
+                AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS);
 
                 var selectedPlayer = GetPlayerAtIndex(list, index);
-                if (selectedPlayer == null)
-                {
-                    MelonLogger.Msg($"[Battle Target] Could not get player at index {index}");
-                    return;
-                }
+                if (selectedPlayer == null) return;
 
                 string announcement = BuildPlayerAnnouncement(selectedPlayer);
                 if (!string.IsNullOrEmpty(announcement))
                 {
-                    MelonLogger.Msg($"[Battle Target - Player] {announcement}");
                     FFV_ScreenReaderMod.SpeakText(announcement);
                 }
             }
@@ -278,21 +284,15 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 // Prevent duplicate announcements
-                if (index == lastAnnouncedEnemyIndex) return;
-                lastAnnouncedEnemyIndex = index;
-                lastWasAllEnemies = false;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX, index)) return;
+                AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES);
 
                 var selectedEnemy = GetEnemyAtIndex(list, index);
-                if (selectedEnemy == null)
-                {
-                    MelonLogger.Msg($"[Battle Target] Could not get enemy at index {index}");
-                    return;
-                }
+                if (selectedEnemy == null) return;
 
                 string announcement = BuildEnemyAnnouncement(selectedEnemy);
                 if (!string.IsNullOrEmpty(announcement))
                 {
-                    MelonLogger.Msg($"[Battle Target - Enemy] {announcement}");
                     FFV_ScreenReaderMod.SpeakText(announcement);
                 }
             }
@@ -307,11 +307,9 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void AnnounceAllPlayers()
         {
-            if (lastWasAllPlayers) return;
-            lastWasAllPlayers = true;
-            lastAnnouncedPlayerIndex = -1;
+            if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS, "all")) return;
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX);
 
-            MelonLogger.Msg("[Battle Target] All allies");
             FFV_ScreenReaderMod.SpeakText("All allies");
         }
 
@@ -320,11 +318,9 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void AnnounceAllEnemies()
         {
-            if (lastWasAllEnemies) return;
-            lastWasAllEnemies = true;
-            lastAnnouncedEnemyIndex = -1;
+            if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES, "all")) return;
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX);
 
-            MelonLogger.Msg("[Battle Target] All enemies");
             FFV_ScreenReaderMod.SpeakText("All enemies");
         }
     }
@@ -343,7 +339,6 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                MelonLogger.Msg($"[Battle Target] SelectContent(Player) called with index {index}");
                 BattleTargetPatches.AnnouncePlayerTarget(list, index);
             }
             catch (Exception ex)
@@ -367,7 +362,6 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                MelonLogger.Msg($"[Battle Target] SelectContent(Enemy) called with index {index}");
                 BattleTargetPatches.AnnounceEnemyTarget(list, index);
             }
             catch (Exception ex)
@@ -388,7 +382,6 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                MelonLogger.Msg("[Battle Target] PlayerAllInit called");
                 BattleTargetPatches.AnnounceAllPlayers();
             }
             catch (Exception ex)
@@ -409,7 +402,6 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                MelonLogger.Msg("[Battle Target] EnemyAllInit called");
                 BattleTargetPatches.AnnounceAllEnemies();
             }
             catch (Exception ex)
@@ -430,7 +422,6 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                MelonLogger.Msg($"[Battle Target] ShowWindow({isShow})");
                 // Set target selection active state based on visibility
                 BattleTargetPatches.SetTargetSelectionActive(isShow);
                 // Reset announcement tracking when target selection opens or closes

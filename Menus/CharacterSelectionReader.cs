@@ -26,8 +26,6 @@ namespace FFV_ScreenReader.Menus
         {
             try
             {
-                MelonLogger.Msg($"=== CharacterSelectionReader: Checking cursor at index {cursorIndex} ===");
-
                 // Safety check: Only read character data if we're in a menu or battle
                 // This prevents character data from being read during game load when menu scenes are preloaded
                 var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
@@ -49,7 +47,6 @@ namespace FFV_ScreenReader.Menus
 
                 if (!isBattleScene && !isMenuOpen)
                 {
-                    MelonLogger.Msg("CharacterSelectionReader: Menu not open and not in battle - skipping character data read to prevent false positives during scene load");
                     return null;
                 }
 
@@ -64,15 +61,12 @@ namespace FFV_ScreenReader.Menus
                         current.name.Contains("status") || current.name.Contains("formation") ||
                         current.name.Contains("party") || current.name.Contains("member"))
                     {
-                        MelonLogger.Msg($"Found potential character menu structure: {current.name}");
-
                         // Try to find Content list (common pattern: Scroll View -> Viewport -> Content)
                         Transform contentList = FindContentList(current);
 
                         if (contentList != null && cursorIndex >= 0 && cursorIndex < contentList.childCount)
                         {
                             Transform characterSlot = contentList.GetChild(cursorIndex);
-                            MelonLogger.Msg($"Found character slot at index {cursorIndex}: {characterSlot.name}");
 
                             // Try to read the character information
                             string characterInfo = ReadCharacterInformation(characterSlot, cursorIndex);
@@ -94,11 +88,9 @@ namespace FFV_ScreenReader.Menus
 
                         if (hasPartText && hasLastText)
                         {
-                            MelonLogger.Msg("Skipping equipment slot navigation (handled by EquipmentInfoWindowController patch)");
                             return null;
                         }
 
-                        MelonLogger.Msg($"Found character info element: {current.name}");
                         string characterInfo = ReadCharacterInformation(current, cursorIndex);
                         if (characterInfo != null)
                         {
@@ -113,7 +105,6 @@ namespace FFV_ScreenReader.Menus
                         var abilityCommandController = current.GetComponentInParent<Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController>();
                         if (abilityCommandController != null)
                         {
-                            MelonLogger.Msg("Skipping ability command slot navigation (handled by AbilityCommandController.SelectContent patch)");
                             return null;
                         }
                     }
@@ -121,8 +112,6 @@ namespace FFV_ScreenReader.Menus
                     current = current.parent;
                     depth++;
                 }
-
-                MelonLogger.Msg("CharacterSelectionReader: Not a character selection menu");
             }
             catch (Exception ex)
             {
@@ -132,27 +121,7 @@ namespace FFV_ScreenReader.Menus
             return null;
         }
 
-        /// <summary>
-        /// Find the Content transform within a ScrollView structure.
-        /// </summary>
-        private static Transform FindContentList(Transform root)
-        {
-            try
-            {
-                // Use non-allocating recursive search
-                var content = FindTransformInChildren(root, "Content");
-                if (content != null && content.parent != null &&
-                    (content.parent.name == "Viewport" || content.parent.parent?.name == "Scroll View"))
-                {
-                    return content;
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error($"Error finding content list: {ex.Message}");
-            }
-            return null;
-        }
+
 
         /// <summary>
         /// Read character information from a character slot transform.
@@ -176,18 +145,7 @@ namespace FFV_ScreenReader.Menus
                     menuCharController = slotTransform.GetComponentInChildren<MenuCharacterController>();
                 }
 
-                // Log what we found
-                if (statusController != null)
-                {
-                    MelonLogger.Msg("Found ICharaStatusContentController");
-                }
-                if (menuCharController != null)
-                {
-                    MelonLogger.Msg("Found MenuCharacterController");
-                }
-
                 // Try direct text extraction as fallback
-                MelonLogger.Msg("Trying text component reading");
                 return ReadFromTextComponents(slotTransform, slotIndex);
             }
             catch (Exception ex)
@@ -213,18 +171,14 @@ namespace FFV_ScreenReader.Menus
                 string maxHP = null;
                 string currentMP = null;
                 string maxMP = null;
-                int textCount = 0;
 
                 // Use non-allocating traversal instead of GetComponentsInChildren
                 ForEachTextInChildren(slotTransform, text =>
                 {
-                    textCount++;
                     if (text == null || text.text == null) return;
 
                     string content = text.text.Trim();
                     if (string.IsNullOrEmpty(content)) return;
-
-                    MelonLogger.Msg($"  Text component '{text.name}': '{content}'");
 
                     // Check for character name
                     if (text.name.Contains("name") && !text.name.Contains("job") &&
@@ -276,8 +230,6 @@ namespace FFV_ScreenReader.Menus
                         }
                     }
                 });
-
-                MelonLogger.Msg($"Found {textCount} text components in character slot");
 
                 // Build announcement string
                 string announcement = "";
@@ -359,7 +311,6 @@ namespace FFV_ScreenReader.Menus
 
                 if (!string.IsNullOrEmpty(announcement))
                 {
-                    MelonLogger.Msg($"Character info read: {announcement}");
                     return announcement;
                 }
             }

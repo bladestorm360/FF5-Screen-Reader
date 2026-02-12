@@ -1,17 +1,36 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using Il2CppLast.Entity.Field;
 using Il2CppLast.Map;
 using UnityEngine;
 using Il2Cpp;
+using MelonLoader;
 using FFV_ScreenReader.Utils;
+using MapRouteSearcher = Il2Cpp.MapRouteSearcher;
+using FieldPlayerController = Il2CppLast.Map.FieldPlayerController;
 
 namespace FFV_ScreenReader.Field
 {
     public static class FieldNavigationHelper
     {
+        /// <summary>
+        /// Maps FieldEntity instances to their vehicle type information.
+        /// Populated during GetAllFieldEntities() from Transportation.ModelList.
+        /// </summary>
+        public static Dictionary<FieldEntity, (int Type, string MessageId)> VehicleTypeMap { get; }
+            = new Dictionary<FieldEntity, (int, string)>();
+
+        /// <summary>
+        /// Resets the vehicle type map. Called on map transitions.
+        /// </summary>
+        public static void ResetVehicleTypeMap()
+        {
+            VehicleTypeMap.Clear();
+        }
+
         public static List<FieldEntity> GetAllFieldEntities()
         {
             var results = new List<FieldEntity>();
@@ -48,18 +67,183 @@ namespace FFV_ScreenReader.Field
                         }
                     }
                 }
+
+                // Populate VehicleTypeMap from TransportationController.ModelList
+                PopulateVehicleTypeMap(fieldMap.fieldController.transportation, results);
             }
 
             return results;
         }
-        
+
+        /// <summary>
+        /// Populates VehicleTypeMap from Transportation.ModelList using pointer offsets.
+        /// This mirrors FF4's approach to iterate all vehicles on the map.
+        /// </summary>
+        private static unsafe void PopulateVehicleTypeMap(Il2CppLast.Map.TransportationController transportController, List<FieldEntity> results)
+        {
+            if (transportController == null) return;
+
+            try
+            {
+                // Access Transportation.ModelList via pointer offsets
+                IntPtr transportControllerPtr = transportController.Pointer;
+                if (transportControllerPtr == IntPtr.Zero)
+                    return;
+
+                // TransportationController.infoData (Transportation) at offset 0x18
+                IntPtr infoDataPtr = *(IntPtr*)((byte*)transportControllerPtr + 0x18);
+                if (infoDataPtr == IntPtr.Zero)
+                    return;
+
+                // Transportation.modelList (Dictionary<int, TransportationInfo>) at offset 0x18
+                IntPtr modelListPtr = *(IntPtr*)((byte*)infoDataPtr + 0x18);
+                if (modelListPtr == IntPtr.Zero)
+                    return;
+
+                // Cast to IL2CPP Dictionary
+                var modelListObj = new Il2CppSystem.Object(modelListPtr);
+                var modelDict = modelListObj.TryCast<Il2CppSystem.Collections.Generic.Dictionary<int, TransportationInfo>>();
+                if (modelDict == null)
+                    return;
+
+                // Iterate all vehicles in ModelList
+                foreach (var kvp in modelDict)
+                {
+                    try
+                    {
+                        var transportInfo = kvp.Value;
+                        if (transportInfo == null) continue;
+
+                        bool enabled = transportInfo.Enable;
+                        int vehicleType = transportInfo.Type;
+                        string messageId = transportInfo.MessageId ?? "";
+
+                        // Get the FieldEntity (MapObject) for this vehicle
+                        var mapObject = transportInfo.MapObject;
+                        if (mapObject == null)
+                            continue;
+
+                        // Filter out non-vehicle types (NONE=0, PLAYER=1, SYMBOL=4, CONTENT=5)
+                        // Also skip disabled vehicles (not yet unlocked in story)
+                        if (vehicleType > 1 && vehicleType != 4 && vehicleType != 5 && enabled)
+                        {
+                            if (!VehicleTypeMap.ContainsKey(mapObject))
+                            {
+                                VehicleTypeMap[mapObject] = (vehicleType, messageId);
+                            }
+
+                            // Add vehicle MapObject to results so EntityCache can track it
+                            if (!results.Contains(mapObject))
+                            {
+                                results.Add(mapObject);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MelonLogger.Warning($"[Vehicle] Error processing vehicle: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Vehicle] Error in PopulateVehicleTypeMap: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Checks adjacent tiles for landing spots when controlling a ship.
+        /// Uses terrain attributes + TransportationController.CheckLandingList to detect
+        /// tiles where the ship can dock. This works for both ship-style (pirate ship)
+        /// and airship-style landings.
+        /// </summary>
+        public static void GetNearbyLandingSpots(FieldPlayer player, List<SoundPlayer.Direction> resultBuffer)
+        {
+            resultBuffer.Clear();
+            if (player == null || player.transform == null) return;
+
+            try
+            {
+                var fieldMap = GameObjectCache.Get<FieldMap>();
+                var fieldController = fieldMap?.fieldController;
+                if (fieldController == null) return;
+
+                var transportController = fieldController.transportation;
+                if (transportController == null)
+                    return;
+
+                // Get the current transport ID for CheckLandingList
+                int transportId = MoveStateHelper.GetCurrentTransportType();
+
+                // Use the transport controller's ID if available, fall back to MoveStateHelper
+                var currentTransportInfo = transportController.CurrentTransportation;
+                int checkTransportId = currentTransportInfo?.Id ?? transportId;
+
+                Vector3 pos = player.transform.position;
+                float tile = GameConstants.TILE_SIZE;
+
+                // Check each adjacent tile's terrain attribute
+                CheckAdjacentLanding(fieldController, transportController, checkTransportId,
+                    pos, new Vector3(0, tile, 0), SoundPlayer.Direction.North, resultBuffer);
+                CheckAdjacentLanding(fieldController, transportController, checkTransportId,
+                    pos, new Vector3(0, -tile, 0), SoundPlayer.Direction.South, resultBuffer);
+                CheckAdjacentLanding(fieldController, transportController, checkTransportId,
+                    pos, new Vector3(tile, 0, 0), SoundPlayer.Direction.East, resultBuffer);
+                CheckAdjacentLanding(fieldController, transportController, checkTransportId,
+                    pos, new Vector3(-tile, 0, 0), SoundPlayer.Direction.West, resultBuffer);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[LandingPing] Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Checks a single adjacent tile for landing eligibility using terrain attributes.
+        /// A tile is a landing spot if:
+        /// 1. CheckLandingList returns true for the tile's attribute (airship-style), OR
+        /// 2. The tile's attribute is NOT in the vehicle's OkList (ship-style: can't sail there = land)
+        /// </summary>
+        private static void CheckAdjacentLanding(
+            FieldController fieldController,
+            Il2CppLast.Map.TransportationController transportController,
+            int transportId,
+            Vector3 playerWorldPos,
+            Vector3 offset,
+            SoundPlayer.Direction direction,
+            List<SoundPlayer.Direction> resultBuffer)
+        {
+            try
+            {
+                Vector3 adjacentWorldPos = playerWorldPos + offset;
+                Vector3 adjacentCellPos = fieldController.ConvertWorldPositionToCellPosition(adjacentWorldPos);
+                int attribute = fieldController.GetCellAttribute(new Vector2(adjacentCellPos.x, adjacentCellPos.y));
+
+                bool isInLandingList = transportController.CheckLandingList(transportId, attribute);
+                bool isInOkList = transportController.CheckOkList(transportId, attribute);
+
+                // Landing spot detection:
+                // - CheckLandingList: explicit landing tiles (e.g., airship landing spots)
+                // - NOT in OkList: tile the vehicle can't traverse = land for ships
+                // Use either signal as a landing indicator
+                if (isInLandingList || !isInOkList)
+                {
+                    resultBuffer.Add(direction);
+                }
+            }
+            catch
+            {
+                // Silently skip this direction on error
+            }
+        }
+
         public static string GetWalkableDirections(FieldPlayer player, IMapAccessor mapHandle)
         {
             if (player == null || mapHandle == null)
                 return "Cannot check directions";
 
             Vector3 currentPos = player.transform.position;
-            float stepSize = 16f;
+            float stepSize = GameConstants.TILE_SIZE;
 
             var directions = new List<string>();
 
@@ -89,7 +273,8 @@ namespace FFV_ScreenReader.Field
         {
             try
             {
-                var fieldController = GameObjectCache.Get<FieldController>();
+                var fieldMap = GameObjectCache.Get<FieldMap>();
+                var fieldController = fieldMap?.fieldController;
                 if (fieldController != null)
                 {
                     return fieldController.IsCanMoveToDestPosition(player, ref position);
@@ -102,6 +287,137 @@ namespace FFV_ScreenReader.Field
             }
         }
         
+        /// <summary>
+        /// Result structure for wall proximity detection.
+        /// Distance values: -1 = no wall within range, 0 = adjacent/blocked
+        /// </summary>
+        public struct WallDistances
+        {
+            public int NorthDist;
+            public int SouthDist;
+            public int EastDist;
+            public int WestDist;
+
+            public WallDistances(int north, int south, int east, int west)
+            {
+                NorthDist = north;
+                SouthDist = south;
+                EastDist = east;
+                WestDist = west;
+            }
+        }
+
+        /// <summary>
+        /// Gets distance to nearest wall in each cardinal direction (in tiles).
+        /// Returns -1 for a direction if no wall adjacent (1 tile away).
+        /// </summary>
+        public static WallDistances GetNearbyWallsWithDistance(FieldPlayer player)
+        {
+            if (player == null || player.transform == null)
+                return new WallDistances(-1, -1, -1, -1);
+
+            Vector3 pos = player.transform.localPosition;
+
+            return new WallDistances(
+                GetWallDistance(player, pos, new Vector3(0, GameConstants.TILE_SIZE, 0)),
+                GetWallDistance(player, pos, new Vector3(0, -GameConstants.TILE_SIZE, 0)),
+                GetWallDistance(player, pos, new Vector3(GameConstants.TILE_SIZE, 0, 0)),
+                GetWallDistance(player, pos, new Vector3(-GameConstants.TILE_SIZE, 0, 0))
+            );
+        }
+
+        /// <summary>
+        /// Gets the distance to a wall in a given direction using pathfinding.
+        /// Returns: 0 = adjacent/blocked, -1 = no wall adjacent
+        /// Only checks the immediately adjacent tile to reduce confusion from distant walls.
+        /// </summary>
+        private static int GetWallDistance(FieldPlayer player, Vector3 pos, Vector3 step)
+        {
+            if (IsAdjacentTileBlocked(player, pos, step))
+                return 0;
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Checks if an adjacent tile is blocked using pathfinding.
+        /// More reliable than IsCanMoveToDestPosition for predictive checks.
+        /// </summary>
+        private static bool IsAdjacentTileBlocked(FieldPlayer player, Vector3 playerPos, Vector3 direction)
+        {
+            try
+            {
+                var playerController = GameObjectCache.Get<FieldPlayerController>();
+                if (playerController == null)
+                {
+                    playerController = GameObjectCache.Refresh<FieldPlayerController>();
+                    if (playerController == null)
+                        return false;
+                }
+
+                var mapHandle = playerController.mapHandle;
+                if (mapHandle == null)
+                    return false;
+
+                int mapWidth = mapHandle.GetCollisionLayerWidth();
+                int mapHeight = mapHandle.GetCollisionLayerHeight();
+
+                if (mapWidth <= 0 || mapHeight <= 0 || mapWidth > 10000 || mapHeight > 10000)
+                    return false;
+
+                Vector3 startCell = new Vector3(
+                    Mathf.FloorToInt(mapWidth * 0.5f + playerPos.x * GameConstants.TILE_SIZE_INVERSE),
+                    Mathf.FloorToInt(mapHeight * 0.5f - playerPos.y * GameConstants.TILE_SIZE_INVERSE),
+                    player.gameObject.layer - 9
+                );
+
+                Vector3 targetPos = playerPos + direction;
+                Vector3 destCell = new Vector3(
+                    Mathf.FloorToInt(mapWidth * 0.5f + targetPos.x * GameConstants.TILE_SIZE_INVERSE),
+                    Mathf.FloorToInt(mapHeight * 0.5f - targetPos.y * GameConstants.TILE_SIZE_INVERSE),
+                    startCell.z
+                );
+
+                bool playerCollisionState = player._IsOnCollision_k__BackingField;
+
+                var pathPoints = MapRouteSearcher.Search(mapHandle, startCell, destCell, playerCollisionState);
+                bool blocked = pathPoints == null || pathPoints.Count == 0;
+
+                return blocked;
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[WallTones] IsAdjacentTileBlocked error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if a direction from the player position leads to a map exit entity.
+        /// Used to suppress wall tones at map exits, doors, and stairs where
+        /// MapRouteSearcher.Search() reports blocked but the tile is actually accessible.
+        /// </summary>
+        public static bool IsDirectionNearMapExit(Vector3 playerPos, Vector3 direction,
+            List<Vector3> mapExitPositions, float tolerance = GameConstants.MAP_EXIT_TOLERANCE)
+        {
+            if (mapExitPositions == null || mapExitPositions.Count == 0)
+                return false;
+
+            Vector3 adjacentTilePos = playerPos + direction;
+
+            foreach (var exitPos in mapExitPositions)
+            {
+                float dx = adjacentTilePos.x - exitPos.x;
+                float dy = adjacentTilePos.y - exitPos.y;
+                float dist2D = Mathf.Sqrt(dx * dx + dy * dy);
+
+                if (dist2D <= tolerance)
+                    return true;
+            }
+
+            return false;
+        }
+
         public static PathInfo FindPathTo(Vector3 playerWorldPos, Vector3 targetWorldPos, IMapAccessor mapHandle, FieldPlayer player = null)
         {
             var pathInfo = new PathInfo { Success = false };
@@ -118,14 +434,14 @@ namespace FFV_ScreenReader.Field
                 int mapHeight = mapHandle.GetCollisionLayerHeight();
                 
                 Vector3 startCell = new Vector3(
-                    Mathf.FloorToInt(mapWidth * 0.5f + playerWorldPos.x * 0.0625f),
-                    Mathf.FloorToInt(mapHeight * 0.5f - playerWorldPos.y * 0.0625f),
+                    Mathf.FloorToInt(mapWidth * 0.5f + playerWorldPos.x * GameConstants.TILE_SIZE_INVERSE),
+                    Mathf.FloorToInt(mapHeight * 0.5f - playerWorldPos.y * GameConstants.TILE_SIZE_INVERSE),
                     0
                 );
 
                 Vector3 destCell = new Vector3(
-                    Mathf.FloorToInt(mapWidth * 0.5f + targetWorldPos.x * 0.0625f),
-                    Mathf.FloorToInt(mapHeight * 0.5f - targetWorldPos.y * 0.0625f),
+                    Mathf.FloorToInt(mapWidth * 0.5f + targetWorldPos.x * GameConstants.TILE_SIZE_INVERSE),
+                    Mathf.FloorToInt(mapHeight * 0.5f - targetWorldPos.y * GameConstants.TILE_SIZE_INVERSE),
                     0
                 );
                 
@@ -156,17 +472,18 @@ namespace FFV_ScreenReader.Field
                     // If direct path failed, try adjacent tiles
                     if (pathPoints == null || pathPoints.Count == 0)
                     {
-                        // Try adjacent tiles (one cell = 16 units in world space)
+                        // Try adjacent tiles (one cell = TILE_SIZE units in world space)
                         // Try all 8 directions: cardinals first, then diagonals
+                        float t = GameConstants.TILE_SIZE;
                         Vector3[] adjacentOffsets = new Vector3[] {
-                            new Vector3(0, 16, 0),    // north
-                            new Vector3(16, 0, 0),    // east
-                            new Vector3(0, -16, 0),   // south
-                            new Vector3(-16, 0, 0),   // west
-                            new Vector3(16, 16, 0),   // northeast
-                            new Vector3(16, -16, 0),  // southeast
-                            new Vector3(-16, -16, 0), // southwest
-                            new Vector3(-16, 16, 0)   // northwest
+                            new Vector3(0, t, 0),    // north
+                            new Vector3(t, 0, 0),    // east
+                            new Vector3(0, -t, 0),   // south
+                            new Vector3(-t, 0, 0),   // west
+                            new Vector3(t, t, 0),    // northeast
+                            new Vector3(t, -t, 0),   // southeast
+                            new Vector3(-t, -t, 0),  // southwest
+                            new Vector3(-t, t, 0)    // northwest
                         };
 
                         foreach (var offset in adjacentOffsets)
@@ -175,8 +492,8 @@ namespace FFV_ScreenReader.Field
 
                             // Convert to cell coordinates
                             Vector3 adjacentDestCell = new Vector3(
-                                Mathf.FloorToInt(mapWidth * 0.5f + adjacentTargetWorld.x * 0.0625f),
-                                Mathf.FloorToInt(mapHeight * 0.5f - adjacentTargetWorld.y * 0.0625f),
+                                Mathf.FloorToInt(mapWidth * 0.5f + adjacentTargetWorld.x * GameConstants.TILE_SIZE_INVERSE),
+                                Mathf.FloorToInt(mapHeight * 0.5f - adjacentTargetWorld.y * GameConstants.TILE_SIZE_INVERSE),
                                 0
                             );
 
@@ -273,24 +590,7 @@ namespace FFV_ScreenReader.Field
         
         private static string GetCardinalDirectionName(Vector3 dir)
         {
-            if (Mathf.Abs(dir.x) > 0.4f && Mathf.Abs(dir.y) > 0.4f)
-            {
-                if (dir.y > 0 && dir.x > 0) return "Northeast";
-                if (dir.y > 0 && dir.x < 0) return "Northwest";
-                if (dir.y < 0 && dir.x > 0) return "Southeast";
-                if (dir.y < 0 && dir.x < 0) return "Southwest";
-            }
-            
-            if (Mathf.Abs(dir.y) > Mathf.Abs(dir.x))
-            {
-                return dir.y > 0 ? "North" : "South";
-            }
-            else if (Mathf.Abs(dir.x) > 0.1f)
-            {
-                return dir.x > 0 ? "East" : "West";
-            }
-
-            return "Unknown";
+            return FFV_ScreenReader.Utils.DirectionHelper.GetCompassDirectionFromVector(dir);
         }
     }
     

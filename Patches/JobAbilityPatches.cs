@@ -18,10 +18,17 @@ using GameCursor = Il2CppLast.UI.Cursor;
 
 namespace FFV_ScreenReader.Patches
 {
-    // Track job menu state for I key handling
+    /// <summary>
+    /// Track job menu state for I key handling.
+    /// Delegates IsJobMenuActive to MenuStateRegistry for centralized state management.
+    /// </summary>
     public static class JobMenuTracker
     {
-        public static bool IsJobMenuActive { get; set; }
+        public static bool IsJobMenuActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.JOB_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.JOB_MENU, value);
+        }
         public static Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController ActiveController { get; set; }
         public static int CurrentJobIndex { get; set; }
 
@@ -31,28 +38,28 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static bool ValidateState()
         {
-            if (IsJobMenuActive && ActiveController != null)
+            if (IsJobMenuActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
             {
-                if (ActiveController.gameObject == null ||
-                    !ActiveController.gameObject.activeInHierarchy)
-                {
-                    // Controller is no longer active, clear state
-                    IsJobMenuActive = false;
-                    ActiveController = null;
-                    CurrentJobIndex = -1;
-                    return false;
-                }
+                IsJobMenuActive = false;
+                ActiveController = null;
+                CurrentJobIndex = -1;
+                return false;
             }
             return IsJobMenuActive;
         }
     }
 
     /// <summary>
-    /// Track ability/magic menu state for I key handling
+    /// Track ability/magic menu state for I key handling.
+    /// Delegates IsAbilityMenuActive to MenuStateRegistry for centralized state management.
     /// </summary>
     public static class AbilityMenuTracker
     {
-        public static bool IsAbilityMenuActive { get; set; }
+        public static bool IsAbilityMenuActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.ABILITY_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.ABILITY_MENU, value);
+        }
         public static Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController ActiveController { get; set; }
         public static OwnedAbility CurrentAbility { get; set; }
         public static string CurrentAbilityDescription { get; set; }
@@ -63,23 +70,10 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static bool ValidateState()
         {
-            if (IsAbilityMenuActive && ActiveController != null)
+            if (IsAbilityMenuActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
             {
-                try
-                {
-                    if (ActiveController.gameObject == null ||
-                        !ActiveController.gameObject.activeInHierarchy)
-                    {
-                        // Controller is no longer active, clear state
-                        ClearState();
-                        return false;
-                    }
-                }
-                catch
-                {
-                    ClearState();
-                    return false;
-                }
+                ClearState();
+                return false;
             }
             return IsAbilityMenuActive;
         }
@@ -94,54 +88,75 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Track ability slot menu state for I key handling (AbilityChangeController.SelectCommand)
+    /// Track ability slot menu state for I key handling (AbilityChangeController.SelectCommand).
+    /// Delegates IsActive to MenuStateRegistry for centralized state management.
     /// </summary>
     public static class AbilitySlotMenuTracker
     {
-        public static bool IsActive { get; set; }
+        public static bool IsActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.ABILITY_SLOT_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.ABILITY_SLOT_MENU, value);
+        }
+        public static Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController ActiveController { get; set; }
         public static string CurrentDescription { get; set; }
 
         public static bool ValidateState()
         {
-            // Simple check - state is managed by mutual exclusion with other trackers
+            if (IsActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
+            {
+                ClearState();
+                return false;
+            }
             return IsActive;
         }
 
         public static void ClearState()
         {
             IsActive = false;
+            ActiveController = null;
             CurrentDescription = null;
         }
     }
 
     /// <summary>
-    /// Track ability equip menu state for I key handling (AbilityChangeController)
+    /// Helper to clear all job/ability tracker state at once.
+    /// Used when entering unrelated menus (item, config, etc.) to prevent stale state.
+    /// </summary>
+    public static class JobAbilityTrackerHelper
+    {
+        public static void ClearAllTrackers()
+        {
+            JobMenuTracker.IsJobMenuActive = false;
+            JobMenuTracker.ActiveController = null;
+            JobMenuTracker.CurrentJobIndex = -1;
+            AbilityMenuTracker.ClearState();
+            AbilitySlotMenuTracker.ClearState();
+            AbilityEquipMenuTracker.ClearState();
+        }
+    }
+
+    /// <summary>
+    /// Track ability equip menu state for I key handling (AbilityChangeController).
+    /// Delegates IsActive to MenuStateRegistry for centralized state management.
     /// </summary>
     public static class AbilityEquipMenuTracker
     {
-        public static bool IsActive { get; set; }
+        public static bool IsActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.ABILITY_EQUIP_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.ABILITY_EQUIP_MENU, value);
+        }
         public static Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController ActiveController { get; set; }
         public static AbilityEquipData CurrentAbilityData { get; set; }
         public static string CurrentDescription { get; set; }
 
         public static bool ValidateState()
         {
-            if (IsActive && ActiveController != null)
+            if (IsActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
             {
-                try
-                {
-                    if (ActiveController.gameObject == null ||
-                        !ActiveController.gameObject.activeInHierarchy)
-                    {
-                        ClearState();
-                        return false;
-                    }
-                }
-                catch
-                {
-                    ClearState();
-                    return false;
-                }
+                ClearState();
+                return false;
             }
             return IsActive;
         }
@@ -163,8 +178,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController), "SelectContent")]
     public static class JobChangeWindowController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController __instance, int index, CustomScrollView.WithinRangeType scrollType)
         {
@@ -172,28 +185,18 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null) return;
 
-                // Track that job menu is active
+                // Track that job menu is active and clear other menu trackers
+                ItemMenuTracker.ClearState();
                 JobMenuTracker.IsJobMenuActive = true;
                 JobMenuTracker.ActiveController = __instance;
                 JobMenuTracker.CurrentJobIndex = index;
 
                 // Get character and job data using the public method
                 var targetCharacter = __instance.GetTargetCharacterData();
-                if (targetCharacter == null)
-                {
-                    MelonLogger.Msg("[Job Selection] targetCharacter is null");
-                    return;
-                }
+                if (targetCharacter == null) return;
 
                 // Get released (unlocked) jobs
-                var releaseJobs = __instance.GetReleaseJobs();
-                if (releaseJobs == null || index < 0 || index >= releaseJobs.Count)
-                {
-                    MelonLogger.Msg($"[Job Selection] releaseJobs null or index {index} out of range");
-                    return;
-                }
-
-                var job = releaseJobs[index];
+                var job = SelectContentHelper.TryGetItem(__instance.GetReleaseJobs(), index);
                 if (job == null) return;
 
                 // Get job name from message manager
@@ -226,10 +229,8 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Skip duplicate announcements
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SELECT, announcement)) return;
 
-                MelonLogger.Msg($"[Job Selection] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -251,8 +252,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController), nameof(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController.SelectContent))]
     public static class AbilityCommandController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController __instance, int index)
         {
@@ -260,37 +259,16 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null) return;
 
-                // Access contentList directly (SerializeField generates public accessor in Il2Cpp)
-                var contentList = __instance.contentList;
-                if (contentList == null || contentList.Count == 0)
-                {
-                    MelonLogger.Msg("[Ability Slot] contentList is null or empty");
-                    return;
-                }
-
-                if (index < 0 || index >= contentList.Count)
-                {
-                    MelonLogger.Msg($"[Ability Slot] Index {index} out of range (contentList count: {contentList.Count})");
-                    return;
-                }
-
-                // Get the content view at this index
-                var contentView = contentList[index];
-                if (contentView == null)
-                {
-                    MelonLogger.Msg($"[Ability Slot] contentView at index {index} is null");
-                    return;
-                }
+                var contentView = SelectContentHelper.TryGetItem(__instance.contentList, index);
+                if (contentView == null) return;
 
                 // Get the command from the content view
                 var command = contentView.Command;
                 if (command == null)
                 {
                     string emptyAnnouncement = "Empty slot";
-                    if (emptyAnnouncement == lastAnnouncement) return;
-                    lastAnnouncement = emptyAnnouncement;
+                    if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_COMMAND_SLOT, emptyAnnouncement)) return;
 
-                    MelonLogger.Msg($"[Ability Slot] {emptyAnnouncement}");
                     FFV_ScreenReaderMod.SpeakText(emptyAnnouncement);
                     return;
                 }
@@ -305,10 +283,8 @@ namespace FFV_ScreenReader.Patches
                 string announcement = commandName;
 
                 // Skip duplicate announcements
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_COMMAND_SLOT, announcement)) return;
 
-                MelonLogger.Msg($"[Ability Slot] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -326,8 +302,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController), "SelectContent")]
     public static class AbilityChangeController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController __instance, int index, CustomScrollView.WithinRangeType scrollType)
         {
@@ -336,24 +310,14 @@ namespace FFV_ScreenReader.Patches
                 if (__instance == null) return;
 
                 var view = __instance.view;
-                if (view == null)
-                {
-                    MelonLogger.Msg("[Ability Equip] view is null");
-                    return;
-                }
+                if (view == null) return;
 
                 var scrollView = view.ScrollView;
-                if (scrollView == null)
-                {
-                    MelonLogger.Msg("[Ability Equip] ScrollView is null");
-                    return;
-                }
+                if (scrollView == null) return;
 
                 // Search all visible content controllers for the one with focused data
                 AbilityEquipData abilityEquipData = null;
                 var contentControllers = scrollView.GetComponentsInChildren<Il2CppSerial.FF5.UI.KeyInput.AbilityChangeContentController>();
-
-                MelonLogger.Msg($"[Ability Equip DEBUG] Found {contentControllers?.Length ?? 0} content controllers, looking for index {index}");
 
                 foreach (var controller in contentControllers)
                 {
@@ -364,7 +328,6 @@ namespace FFV_ScreenReader.Patches
                         if (data.IsFocus)
                         {
                             abilityEquipData = data;
-                            MelonLogger.Msg($"[Ability Equip DEBUG] Found focused data: Index={data.Index}, NameMsgId={data.NameMessageId ?? "null"}");
                             break;
                         }
                     }
@@ -381,7 +344,6 @@ namespace FFV_ScreenReader.Patches
                             if (data.Index == index)
                             {
                                 abilityEquipData = data;
-                                MelonLogger.Msg($"[Ability Equip DEBUG] Found by index match: Index={data.Index}, NameMsgId={data.NameMessageId ?? "null"}");
                                 break;
                             }
                         }
@@ -390,15 +352,21 @@ namespace FFV_ScreenReader.Patches
 
                 if (abilityEquipData == null)
                 {
-                    MelonLogger.Msg($"[Ability Equip] Could not find ability data for index {index}");
+                    string emptyText = "Empty";
+                    if (AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, emptyText))
+                    {
+                        FFV_ScreenReaderMod.SpeakText(emptyText);
+                    }
                     return;
                 }
 
                 var messageManager = MessageManager.Instance;
                 if (messageManager == null) return;
 
-                // Clear other ability menu trackers for mutual exclusion
+                // Clear other menu trackers for mutual exclusion
                 AbilitySlotMenuTracker.ClearState();
+                AbilityMenuTracker.ClearState();
+                ItemMenuTracker.ClearState();
 
                 // Track for I key
                 AbilityEquipMenuTracker.IsActive = true;
@@ -415,11 +383,26 @@ namespace FFV_ScreenReader.Patches
                     AbilityEquipMenuTracker.CurrentDescription = null;
                 }
 
+                // Check for null NameMessageId first (empty/unlocked slots)
+                if (string.IsNullOrEmpty(abilityEquipData.NameMessageId))
+                {
+                    string emptyText = "Empty";
+                    if (AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, emptyText))
+                    {
+                        FFV_ScreenReaderMod.SpeakText(emptyText);
+                    }
+                    return;
+                }
+
                 // Get ability name
                 string abilityName = messageManager.GetMessage(abilityEquipData.NameMessageId);
                 if (string.IsNullOrWhiteSpace(abilityName))
                 {
-                    MelonLogger.Msg($"[Ability Equip] Could not get ability name for index {index}, NameMessageId={abilityEquipData.NameMessageId ?? "null"}");
+                    string emptyText = "Empty";
+                    if (AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, emptyText))
+                    {
+                        FFV_ScreenReaderMod.SpeakText(emptyText);
+                    }
                     return;
                 }
 
@@ -450,10 +433,8 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Skip duplicate announcements
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, announcement)) return;
 
-                MelonLogger.Msg($"[Ability Equip List] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -470,8 +451,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController), nameof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController.SelectCommand))]
     public static class AbilityChangeController_SelectCommand_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController __instance, int index)
         {
@@ -482,8 +461,10 @@ namespace FFV_ScreenReader.Patches
                 var view = __instance.view;
                 if (view == null) return;
 
-                // Clear equip menu tracker for mutual exclusion
+                // Clear other menu trackers for mutual exclusion
                 AbilityEquipMenuTracker.ClearState();
+                AbilityMenuTracker.ClearState();
+                ItemMenuTracker.ClearState();
 
                 // Get the equipped command from the slot's view controller
                 string slotContent = "empty";
@@ -531,16 +512,15 @@ namespace FFV_ScreenReader.Patches
 
                 // Track for I key
                 AbilitySlotMenuTracker.IsActive = true;
+                AbilitySlotMenuTracker.ActiveController = __instance;
                 AbilitySlotMenuTracker.CurrentDescription = slotDescription;
 
                 // Format: "Slot 1: White Magic" or "Slot 1: empty"
                 string announcement = $"Slot {index + 1}: {slotContent}";
 
                 // Skip duplicate announcements
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_EQUIP_COMMAND, announcement)) return;
 
-                MelonLogger.Msg($"[Ability Equip Command] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -559,8 +539,6 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppSystem.Collections.Generic.IEnumerable<ItemTargetSelectContentController>), typeof(GameCursor) })]
     public static class AbilityUseContentListController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController __instance,
             Il2CppSystem.Collections.Generic.IEnumerable<ItemTargetSelectContentController> targetContents,
@@ -570,82 +548,20 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null || targetCursor == null) return;
 
-                // Get the content list from the controller
-                var contentList = __instance.contentList;
-                if (contentList == null || contentList.Count == 0) return;
-
                 int index = targetCursor.Index;
-                if (index < 0 || index >= contentList.Count) return;
-
-                var selectedController = contentList[index];
+                var selectedController = SelectContentHelper.TryGetItem(__instance.contentList, index);
                 if (selectedController == null || selectedController.CurrentData == null) return;
 
                 var data = selectedController.CurrentData;
                 string characterName = data.Name;
                 if (string.IsNullOrEmpty(characterName)) return;
 
-                // Build announcement with HP and MP information
-                string announcement = characterName;
-
-                try
-                {
-                    // Get the character's parameter data
-                    var parameter = data.Parameter;
-                    if (parameter != null)
-                    {
-                        int currentHP = parameter.CurrentHP;
-                        int maxHP = parameter.ConfirmedMaxHp();
-                        int currentMP = parameter.CurrentMP;
-                        int maxMP = parameter.ConfirmedMaxMp();
-
-                        announcement += $", HP {currentHP}/{maxHP}, MP {currentMP}/{maxMP}";
-
-                        // Get status conditions
-                        var conditionList = parameter.ConfirmedConditionList();
-                        if (conditionList != null && conditionList.Count > 0)
-                        {
-                            var messageManager = MessageManager.Instance;
-                            if (messageManager != null)
-                            {
-                                var statusNames = new System.Collections.Generic.List<string>();
-
-                                foreach (var condition in conditionList)
-                                {
-                                    if (condition != null)
-                                    {
-                                        string conditionMesId = condition.MesIdName;
-
-                                        // Skip conditions with no message ID (internal/hidden statuses)
-                                        if (!string.IsNullOrEmpty(conditionMesId) && conditionMesId != "None")
-                                        {
-                                            string localizedConditionName = messageManager.GetMessage(conditionMesId);
-                                            if (!string.IsNullOrEmpty(localizedConditionName))
-                                            {
-                                                statusNames.Add(localizedConditionName);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (statusNames.Count > 0)
-                                {
-                                    announcement += $", {string.Join(", ", statusNames)}";
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MelonLogger.Warning($"Error reading HP/MP/Status for {characterName}: {ex.Message}");
-                    // Continue with just the name if stats can't be read
-                }
+                // Build announcement with HP, MP, and status conditions
+                string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
 
                 // Skip duplicates
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_USE_TARGET, announcement)) return;
 
-                MelonLogger.Msg($"[Ability Target] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -663,8 +579,6 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(GameCursor), typeof(bool), typeof(CustomScrollView.WithinRangeType), typeof(bool) })]
     public static class AbilityContentListController_SetCursor_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController __instance,
             GameCursor targetCursor, bool isScroll, CustomScrollView.WithinRangeType type, bool pageSkip)
@@ -675,29 +589,13 @@ namespace FFV_ScreenReader.Patches
 
                 int index = targetCursor.Index;
 
-                // Get the ability list
-                var abilityList = __instance.AbilityList;
-                if (abilityList == null || abilityList.Count == 0)
-                {
-                    MelonLogger.Msg($"[Spell List] abilityList is null or empty");
-                    return;
-                }
-
-                if (index < 0 || index >= abilityList.Count)
-                {
-                    MelonLogger.Msg($"[Spell List] Index {index} out of range (count: {abilityList.Count})");
-                    return;
-                }
-
-                var ability = abilityList[index];
+                var ability = SelectContentHelper.TryGetItem(__instance.AbilityList, index);
 
                 // Handle empty slots
                 if (ability == null)
                 {
                     string emptyAnnouncement = "Empty";
-                    if (emptyAnnouncement == lastAnnouncement) return;
-                    lastAnnouncement = emptyAnnouncement;
-                    MelonLogger.Msg($"[Spell List] {emptyAnnouncement}");
+                    if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SPELL_LIST, emptyAnnouncement)) return;
                     FFV_ScreenReaderMod.SpeakText(emptyAnnouncement);
                     return;
                 }
@@ -747,8 +645,12 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Skip duplicate announcements
-                if (announcement == lastAnnouncement) return;
-                lastAnnouncement = announcement;
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SPELL_LIST, announcement)) return;
+
+                // Clear other menu trackers for mutual exclusion
+                AbilitySlotMenuTracker.ClearState();
+                AbilityEquipMenuTracker.ClearState();
+                ItemMenuTracker.ClearState();
 
                 // Track for I key description
                 AbilityMenuTracker.IsAbilityMenuActive = true;
@@ -765,7 +667,6 @@ namespace FFV_ScreenReader.Patches
                     AbilityMenuTracker.CurrentAbilityDescription = null;
                 }
 
-                MelonLogger.Msg($"[Spell List] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -831,7 +732,6 @@ namespace FFV_ScreenReader.Patches
                     announcement = "No description available";
                 }
 
-                MelonLogger.Msg($"[Job Details] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -865,7 +765,6 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                MelonLogger.Msg($"[Ability/Magic Details] {description}");
                 FFV_ScreenReaderMod.SpeakText(description);
             }
             catch (Exception ex)
@@ -899,7 +798,6 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                MelonLogger.Msg($"[Ability Slot Details] {description}");
                 FFV_ScreenReaderMod.SpeakText(description);
             }
             catch (Exception ex)
@@ -933,7 +831,6 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                MelonLogger.Msg($"[Ability Equip Details] {description}");
                 FFV_ScreenReaderMod.SpeakText(description);
             }
             catch (Exception ex)

@@ -12,14 +12,38 @@ using Key = Il2CppSystem.Input.Key;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
+    /// Tracks config menu active state. Prevents stale config controllers
+    /// from leaking text into other menus (e.g., main menu after returning from config).
+    /// </summary>
+    public static class ConfigMenuState
+    {
+        public static bool IsActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.CONFIG_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.CONFIG_MENU, value);
+        }
+
+        public static void ClearState()
+        {
+            IsActive = false;
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_COMMAND);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_KEYS_SETTING);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_ARROW_VALUE);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_SLIDER_CONTROLLER);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_SLIDER_PERCENTAGE);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_TOUCH_ARROW_VALUE);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_TOUCH_SLIDER_CONTROLLER);
+            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_TOUCH_SLIDER_PERCENTAGE);
+        }
+    }
+
+    /// <summary>
     /// Controller-based patches for config menu navigation.
     /// Announces menu items directly from ConfigCommandController when navigating with up/down arrows.
     /// </summary>
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigCommandController), nameof(Il2CppLast.UI.KeyInput.ConfigCommandController.SetFocus))]
     public static class ConfigCommandController_SetFocus_Patch
     {
-        private static string lastAnnouncedText = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.ConfigCommandController __instance, bool isFocus)
         {
@@ -43,6 +67,20 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
+                // Mark config menu as active so TryReadFromConfigController works
+                ConfigMenuState.IsActive = true;
+
+                // Clear stale popup state (popup may have been dismissed without Close())
+                if (PopupState.IsConfirmationPopupActive)
+                {
+                    PopupState.Clear();
+                    AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_COMMAND);
+                }
+
+                // Clear all other menu trackers so I key falls through to config tooltip
+                JobAbilityTrackerHelper.ClearAllTrackers();
+                ItemMenuTracker.ClearState();
+
                 // Get the view which contains the localized text
                 var view = __instance.view;
                 if (view == null)
@@ -60,11 +98,10 @@ namespace FFV_ScreenReader.Patches
                 string menuText = nameText.text.Trim();
 
                 // Skip duplicate announcements
-                if (menuText == lastAnnouncedText)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_COMMAND, menuText))
                 {
                     return;
                 }
-                lastAnnouncedText = menuText;
 
                 // Also try to get the current value for this config option
                 string configValue = ConfigMenuReader.FindConfigValueFromController(__instance);
@@ -75,7 +112,6 @@ namespace FFV_ScreenReader.Patches
                     announcement = $"{menuText}: {configValue}";
                 }
 
-                MelonLogger.Msg($"[Config Menu] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
             }
             catch (Exception ex)
@@ -95,8 +131,6 @@ namespace FFV_ScreenReader.Patches
                      typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class ConfigKeysSettingController_SelectContent_Patch
     {
-        private static string lastAnnouncedText = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.ConfigKeysSettingController __instance, int index,
             Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ConfigControllCommandController> contentList)
@@ -109,19 +143,10 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                // Convert to list for index access
-                var list = contentList.TryCast<Il2CppSystem.Collections.Generic.List<Il2CppLast.UI.KeyInput.ConfigControllCommandController>>();
-                if (list == null || list.Count == 0 || index < 0 || index >= list.Count)
-                {
-                    return;
-                }
-
-                // Get the command at the cursor index
-                var command = list[index];
-                if (command == null)
-                {
-                    return;
-                }
+                var command = SelectContentHelper.TryGetItem(
+                    contentList.TryCast<Il2CppSystem.Collections.Generic.List<Il2CppLast.UI.KeyInput.ConfigControllCommandController>>(),
+                    index);
+                if (command == null) return;
 
                 var textParts = new System.Collections.Generic.List<string>();
 
@@ -173,13 +198,11 @@ namespace FFV_ScreenReader.Patches
                 string announcement = string.Join(" ", textParts);
 
                 // Skip duplicate announcements
-                if (announcement == lastAnnouncedText)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_KEYS_SETTING, announcement))
                 {
                     return;
                 }
-                lastAnnouncedText = announcement;
 
-                MelonLogger.Msg($"[Config Menu] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
             }
             catch (Exception ex)
@@ -196,8 +219,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase), "SwitchArrowSelectTypeProcess")]
     public static class ConfigActualDetails_SwitchArrowSelectType_Patch
     {
-        private static string lastArrowValue = "";
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase __instance,
@@ -225,10 +246,8 @@ namespace FFV_ScreenReader.Patches
                                 textValue != "←" && textValue != "→")
                             {
                                 // Only announce if value changed
-                                if (textValue == lastArrowValue) return;
+                                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_ARROW_VALUE, textValue)) return;
 
-                                lastArrowValue = textValue;
-                                MelonLogger.Msg($"[ConfigMenu] Arrow value changed: {textValue}");
                                 FFV_ScreenReaderMod.SpeakText(textValue, interrupt: true);
                                 return;
                             }
@@ -250,9 +269,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase), "SwitchSliderTypeProcess")]
     public static class ConfigActualDetails_SwitchSliderType_Patch
     {
-        private static string lastSliderPercentage = "";
-        private static ConfigCommandController lastController = null;
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase __instance,
@@ -270,26 +286,18 @@ namespace FFV_ScreenReader.Patches
                 string percentage = ConfigMenuReader.GetSliderPercentage(view.Slider);
                 if (string.IsNullOrEmpty(percentage)) return;
 
-                // Only announce if value changed for the SAME controller
-                // This prevents announcements when navigating between different sliders
-                if (controller == lastController && percentage == lastSliderPercentage)
-                {
-                    return;
-                }
+                // Track controller and percentage separately
+                bool controllerChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_CONTROLLER, controller);
+                bool percentageChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_PERCENTAGE, percentage);
+
+                // Both unchanged - skip
+                if (!controllerChanged && !percentageChanged) return;
 
                 // If we moved to a different controller (different option), don't announce
                 // Let MenuTextDiscovery handle the full "Name: Value" announcement
-                if (controller != lastController)
-                {
-                    lastController = controller;
-                    lastSliderPercentage = percentage;
-                    return;
-                }
+                if (controllerChanged) return;
 
                 // Same controller, value changed - announce just the new value
-                lastSliderPercentage = percentage;
-
-                MelonLogger.Msg($"[ConfigMenu] Slider value changed: {percentage}");
                 FFV_ScreenReaderMod.SpeakText(percentage, interrupt: true);
             }
             catch (Exception ex)
@@ -306,8 +314,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase), "SwitchArrowTypeProcess")]
     public static class ConfigActualDetailsTouch_SwitchArrowType_Patch
     {
-        private static string lastTouchArrowValue = "";
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase __instance,
@@ -333,10 +339,8 @@ namespace FFV_ScreenReader.Patches
                                 textValue != "←" && textValue != "→")
                             {
                                 // Only announce if value changed
-                                if (textValue == lastTouchArrowValue) return;
+                                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_ARROW_VALUE, textValue)) return;
 
-                                lastTouchArrowValue = textValue;
-                                MelonLogger.Msg($"[ConfigMenu] Touch arrow value changed: {textValue}");
                                 FFV_ScreenReaderMod.SpeakText(textValue, interrupt: true);
                                 return;
                             }
@@ -358,9 +362,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase), "SwitchSliderTypeProcess")]
     public static class ConfigActualDetailsTouch_SwitchSliderType_Patch
     {
-        private static string lastTouchSliderPercentage = "";
-        private static Il2CppLast.UI.Touch.ConfigCommandController lastTouchController = null;
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase __instance,
@@ -382,26 +383,18 @@ namespace FFV_ScreenReader.Patches
                 string percentage = ConfigMenuReader.GetSliderPercentage(slider);
                 if (string.IsNullOrEmpty(percentage)) return;
 
-                // Only announce if value changed for the SAME controller
-                // This prevents announcements when navigating between different sliders
-                if (controller == lastTouchController && percentage == lastTouchSliderPercentage)
-                {
-                    return;
-                }
+                // Track controller and percentage separately
+                bool controllerChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_CONTROLLER, controller);
+                bool percentageChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_PERCENTAGE, percentage);
+
+                // Both unchanged - skip
+                if (!controllerChanged && !percentageChanged) return;
 
                 // If we moved to a different controller (different option), don't announce
                 // Let MenuTextDiscovery handle the full "Name: Value" announcement
-                if (controller != lastTouchController)
-                {
-                    lastTouchController = controller;
-                    lastTouchSliderPercentage = percentage;
-                    return;
-                }
+                if (controllerChanged) return;
 
                 // Same controller, value changed - announce just the new value
-                lastTouchSliderPercentage = percentage;
-
-                MelonLogger.Msg($"[ConfigMenu] Touch slider value changed: {percentage}");
                 FFV_ScreenReaderMod.SpeakText(percentage, interrupt: true);
             }
             catch (Exception ex)

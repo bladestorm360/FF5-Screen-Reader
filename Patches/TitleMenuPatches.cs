@@ -17,8 +17,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.TitleMenuCommandController), nameof(Il2CppLast.UI.KeyInput.TitleMenuCommandController.SetCursor))]
     public static class TitleMenuCommandController_SetCursor_Patch
     {
-        private static TitleCommandId lastAnnouncedCommand = (TitleCommandId)(-1);
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.TitleMenuCommandController __instance, int index)
         {
@@ -29,6 +27,9 @@ namespace FFV_ScreenReader.Patches
                 {
                     return;
                 }
+
+                // Clear config menu state when returning to title menu
+                ConfigMenuState.ClearState();
 
                 // Get the active contents list
                 var activeContents = __instance.activeContents;
@@ -64,17 +65,12 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                // Get command ID for duplicate detection
-                TitleCommandId commandId = contentView.CommandId;
-
                 // Skip duplicate announcements
-                if (commandId == lastAnnouncedCommand)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.TITLE_MENU_COMMAND, (int)contentView.CommandId))
                 {
                     return;
                 }
-                lastAnnouncedCommand = commandId;
 
-                MelonLogger.Msg($"[Title Menu] {commandName}");
                 FFV_ScreenReaderMod.SpeakText(commandName, interrupt: true);
             }
             catch (Exception ex)

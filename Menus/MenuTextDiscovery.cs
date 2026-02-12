@@ -14,6 +14,7 @@ using ConfigActualDetailsControllerBase_KeyInput = Il2CppLast.UI.KeyInput.Config
 using ConfigKeysSettingController = Il2CppLast.UI.KeyInput.ConfigKeysSettingController;
 using ConfigControllCommandController = Il2CppLast.UI.KeyInput.ConfigControllCommandController;
 using MessageManager = Il2CppLast.Management.MessageManager;
+using FFV_ScreenReader.Utils;
 using static FFV_ScreenReader.Utils.TextUtils;
 
 namespace FFV_ScreenReader.Menus
@@ -33,35 +34,27 @@ namespace FFV_ScreenReader.Menus
         {
             yield return null; // Wait one frame
 
+            // Suppress if battle target selection became active during the delay
+            if (FFV_ScreenReader.Patches.BattleTargetPatches.IsTargetSelectionActive)
+                yield break;
+
             try
             {
                 // Safety checks to prevent crashes
                 if (cursor == null)
                 {
-                    MelonLogger.Msg("Cursor is null, skipping");
                     yield break;
                 }
 
                 if (cursor.gameObject == null)
                 {
-                    MelonLogger.Msg("Cursor GameObject is null, skipping");
                     yield break;
                 }
 
                 if (cursor.transform == null)
                 {
-                    MelonLogger.Msg("Cursor transform is null, skipping");
                     yield break;
                 }
-
-                // Get scene info for debugging
-                var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-
-                MelonLogger.Msg($"=== {direction} called (delayed) ===");
-                MelonLogger.Msg($"Scene: {sceneName}");
-                MelonLogger.Msg($"Cursor Index: {cursor.Index}");
-                MelonLogger.Msg($"Cursor GameObject: {cursor.gameObject?.name ?? "null"}");
-                MelonLogger.Msg($"Count: {count}, IsLoop: {isLoop}");
 
                 // Try multiple strategies to find menu text
                 string menuText = TryAllStrategies(cursor);
@@ -72,7 +65,6 @@ namespace FFV_ScreenReader.Menus
                     string configValue = ConfigMenuReader.FindConfigValueText(cursor.transform, cursor.Index);
                     if (configValue != null)
                     {
-                        MelonLogger.Msg($"Found config value: '{configValue}'");
                         // Combine option name and value
                         string fullText = $"{menuText}: {configValue}";
                         FFV_ScreenReaderMod.SpeakText(fullText);
@@ -82,12 +74,6 @@ namespace FFV_ScreenReader.Menus
                         FFV_ScreenReaderMod.SpeakText(menuText);
                     }
                 }
-                else
-                {
-                    MelonLogger.Msg("No menu text found in hierarchy");
-                }
-
-                MelonLogger.Msg("========================");
             }
             catch (Exception ex)
             {
@@ -102,15 +88,17 @@ namespace FFV_ScreenReader.Menus
         {
             string menuText = null;
 
+            // Strategy: Main menu (Items/Magic/Equip/Status/etc.) — read directly from CommandMenuController
+            menuText = TryReadMainMenu(cursor);
+            if (menuText != null) return menuText;
+
             // Strategy 0: Battle enemy targeting (check first as it's very specific)
             menuText = TryReadBattleEnemyTarget(cursor);
             if (menuText != null) return menuText;
 
-            // Strategy 1: Save/Load slot information
-            menuText = SaveSlotReader.TryReadSaveSlot(cursor.transform, cursor.Index);
-            if (menuText != null) return menuText;
+            // Note: Save/Load slot reading is now handled by SaveLoadPatches via Harmony patch on SaveListController.SelectContent
 
-            // Strategy 2: Character selection (formation, status, equipment, etc.)
+            // Strategy 1: Character selection (formation, status, equipment, etc.)
             menuText = CharacterSelectionReader.TryReadCharacterSelection(cursor.transform, cursor.Index);
             if (menuText != null) return menuText;
 
@@ -150,39 +138,91 @@ namespace FFV_ScreenReader.Menus
         }
 
         /// <summary>
+        /// Strategy: Read main menu item name from CommandMenuController.contents.
+        /// When MAIN_MENU is active, reads directly from the authoritative source
+        /// to avoid stale text from inactive sub-menus.
+        /// Only reads when cursor is actually under "command_menu" in the hierarchy,
+        /// preventing sub-menu command bars from returning main menu text.
+        /// </summary>
+        private static string TryReadMainMenu(GameCursor cursor)
+        {
+            try
+            {
+                if (!MenuStateRegistry.IsActive(MenuStateRegistry.MAIN_MENU))
+                    return null;
+
+                // Only read from CommandMenuController if cursor is in the actual command_menu hierarchy
+                if (!IsCursorInCommandMenu(cursor.transform))
+                    return null;
+
+                var controller = GameObjectCache.Get<Il2CppLast.UI.CommandMenuController>();
+                if (controller == null)
+                    controller = GameObjectCache.Refresh<Il2CppLast.UI.CommandMenuController>();
+
+                // Skip stale cached controllers whose GameObjects are inactive
+                if (controller != null && controller.gameObject != null &&
+                    !controller.gameObject.activeInHierarchy)
+                    controller = null;
+
+                if (controller == null || controller.contents == null)
+                    return null;
+
+                int index = cursor.Index;
+                if (index < 0 || index >= controller.contents.Count)
+                    return null;
+
+                var content = controller.contents[index];
+                if (content != null && content.NameText != null)
+                {
+                    string text = content.NameText.text?.Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        // Register with shared dedup so SetFocus won't re-announce on confirm
+                        AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.MAIN_MENU_SET_FOCUS, text);
+                        return text;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error reading main menu: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Check if the cursor is inside the main command_menu hierarchy.
+        /// Returns false for sub-menu command bars (equipment, etc.).
+        /// </summary>
+        private static bool IsCursorInCommandMenu(Transform cursorTransform)
+        {
+            Transform current = cursorTransform;
+            int depth = 0;
+            while (current != null && depth < 15)
+            {
+                if (current.name.ToLower().Contains("comand_menu"))
+                    return true;
+                current = current.parent;
+                depth++;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Strategy 0: Try to read enemy name during battle targeting.
-        /// Checks for BattleEnemyEntity objects and logs hierarchy for debugging.
+        /// Uses BattleState.IsInBattle flag instead of expensive FindObjectsOfType.
         /// </summary>
         private static string TryReadBattleEnemyTarget(GameCursor cursor)
         {
             try
             {
-                // Check if we're in battle by looking for BattleEnemyEntity
-                var enemyEntities = UnityEngine.Object.FindObjectsOfType<Il2CppLast.Battle.BattleEnemyEntity>();
-                if (enemyEntities == null || enemyEntities.Length == 0)
+                // Check if we're in battle using cached state flag
+                // This avoids expensive FindObjectsOfType<BattleEnemyEntity> call
+                if (!FFV_ScreenReader.Patches.BattleState.IsInBattle)
                 {
                     // Not in battle
                     return null;
-                }
-
-                MelonLogger.Msg($"[Battle Enemy] In battle with {enemyEntities.Length} enemies, cursor at index {cursor.Index}");
-
-                // Log the cursor hierarchy to see where enemy names might be
-                Transform current = cursor.transform;
-                for (int depth = 0; depth < 10 && current != null; depth++)
-                {
-                    var texts = current.GetComponentsInChildren<UnityEngine.UI.Text>();
-                    if (texts != null && texts.Length > 0)
-                    {
-                        foreach (var text in texts)
-                        {
-                            if (text != null && !string.IsNullOrWhiteSpace(text.text))
-                            {
-                                MelonLogger.Msg($"[Battle Enemy] Depth {depth}, Text on '{text.gameObject.name}': '{text.text}'");
-                            }
-                        }
-                    }
-                    current = current.parent;
                 }
 
                 // For now, return null to let fallback handle it
@@ -205,21 +245,29 @@ namespace FFV_ScreenReader.Menus
         {
             try
             {
+                // Only read config controllers when config menu is actually active
+                if (!MenuStateRegistry.IsActive(MenuStateRegistry.CONFIG_MENU))
+                    return null;
+
                 // Check if cursor is inside a dialog - if so, skip config controller
                 if (IsCursorInDialog(cursor.transform))
                 {
-                    MelonLogger.Msg("Cursor is in dialog, skipping config controller");
                     return null;
                 }
 
                 int cursorIndex = cursor.Index;
 
                 // Try Touch version (title screen)
-                var controllerTouch = UnityEngine.Object.FindObjectOfType<ConfigActualDetailsControllerBase_Touch>();
+                // Use GameObjectCache to avoid expensive FindObjectOfType
+                var controllerTouch = FFV_ScreenReader.Utils.GameObjectCache.Get<ConfigActualDetailsControllerBase_Touch>();
+                if (controllerTouch == null)
+                    controllerTouch = FFV_ScreenReader.Utils.GameObjectCache.Refresh<ConfigActualDetailsControllerBase_Touch>();
+                // Skip stale cached controllers whose GameObjects are inactive
+                if (controllerTouch != null && controllerTouch.gameObject != null &&
+                    !controllerTouch.gameObject.activeInHierarchy)
+                    controllerTouch = null;
                 if (controllerTouch != null && controllerTouch.CommandList != null)
                 {
-                    MelonLogger.Msg($"Found Touch ConfigActualDetailsControllerBase with {controllerTouch.CommandList.Count} commands");
-
                     if (cursorIndex >= 0 && cursorIndex < controllerTouch.CommandList.Count)
                     {
                         var command = controllerTouch.CommandList[cursorIndex];
@@ -228,7 +276,6 @@ namespace FFV_ScreenReader.Menus
                             string menuText = command.view.nameText.text?.Trim();
                             if (!string.IsNullOrEmpty(menuText))
                             {
-                                MelonLogger.Msg($"Read name from Touch controller at index {cursorIndex}: '{menuText}'");
                                 return menuText;
                             }
                         }
@@ -236,11 +283,16 @@ namespace FFV_ScreenReader.Menus
                 }
 
                 // Try KeyInput version (in-game)
-                var controllerKeyInput = UnityEngine.Object.FindObjectOfType<ConfigActualDetailsControllerBase_KeyInput>();
+                // Use GameObjectCache to avoid expensive FindObjectOfType
+                var controllerKeyInput = FFV_ScreenReader.Utils.GameObjectCache.Get<ConfigActualDetailsControllerBase_KeyInput>();
+                if (controllerKeyInput == null)
+                    controllerKeyInput = FFV_ScreenReader.Utils.GameObjectCache.Refresh<ConfigActualDetailsControllerBase_KeyInput>();
+                // Skip stale cached controllers whose GameObjects are inactive
+                if (controllerKeyInput != null && controllerKeyInput.gameObject != null &&
+                    !controllerKeyInput.gameObject.activeInHierarchy)
+                    controllerKeyInput = null;
                 if (controllerKeyInput != null && controllerKeyInput.CommandList != null)
                 {
-                    MelonLogger.Msg($"Found KeyInput ConfigActualDetailsControllerBase with {controllerKeyInput.CommandList.Count} commands");
-
                     if (cursorIndex >= 0 && cursorIndex < controllerKeyInput.CommandList.Count)
                     {
                         var command = controllerKeyInput.CommandList[cursorIndex];
@@ -249,7 +301,6 @@ namespace FFV_ScreenReader.Menus
                             string menuText = command.view.nameText.text?.Trim();
                             if (!string.IsNullOrEmpty(menuText))
                             {
-                                MelonLogger.Msg($"Read name from KeyInput controller at index {cursorIndex}: '{menuText}'");
                                 return menuText;
                             }
                         }
@@ -280,7 +331,6 @@ namespace FFV_ScreenReader.Menus
                     if (name.Contains("popup") || name.Contains("dialog") || name.Contains("prompt") ||
                         name.Contains("message_window") || name.Contains("yesno") || name.Contains("confirm"))
                     {
-                        MelonLogger.Msg($"Cursor is inside dialog: {current.name}");
                         return true;
                     }
                     current = current.parent;
@@ -307,20 +357,24 @@ namespace FFV_ScreenReader.Menus
                 // Check if cursor is in a dialog
                 if (IsCursorInDialog(cursor.transform))
                 {
-                    MelonLogger.Msg("Cursor is in dialog, skipping keys setting controller");
                     return null;
                 }
 
                 int cursorIndex = cursor.Index;
 
                 // Find the ConfigKeysSettingController
-                var keysController = UnityEngine.Object.FindObjectOfType<ConfigKeysSettingController>();
+                // Use GameObjectCache to avoid expensive FindObjectOfType
+                var keysController = FFV_ScreenReader.Utils.GameObjectCache.Get<ConfigKeysSettingController>();
+                if (keysController == null)
+                    keysController = FFV_ScreenReader.Utils.GameObjectCache.Refresh<ConfigKeysSettingController>();
+                // Skip stale cached controllers whose GameObjects are inactive
+                if (keysController != null && keysController.gameObject != null &&
+                    !keysController.gameObject.activeInHierarchy)
+                    keysController = null;
                 if (keysController == null)
                 {
                     return null;
                 }
-
-                MelonLogger.Msg("Found ConfigKeysSettingController");
 
                 // Determine which list to use based on which is populated and matches cursor index
                 // Try keyboard list first (most common)
@@ -333,7 +387,6 @@ namespace FFV_ScreenReader.Menus
                         string text = ReadKeyCommandText(command);
                         if (text != null)
                         {
-                            MelonLogger.Msg($"Read from keyboard command list at index {cursorIndex}: '{text}'");
                             return text;
                         }
                     }
@@ -349,7 +402,6 @@ namespace FFV_ScreenReader.Menus
                         string text = ReadKeyCommandText(command);
                         if (text != null)
                         {
-                            MelonLogger.Msg($"Read from gamepad command list at index {cursorIndex}: '{text}'");
                             return text;
                         }
                     }
@@ -365,7 +417,6 @@ namespace FFV_ScreenReader.Menus
                         string text = ReadKeyCommandText(command);
                         if (text != null)
                         {
-                            MelonLogger.Msg($"Read from mouse command list at index {cursorIndex}: '{text}'");
                             return text;
                         }
                     }
@@ -401,7 +452,6 @@ namespace FFV_ScreenReader.Menus
                             if (!string.IsNullOrWhiteSpace(localizedText))
                             {
                                 textParts.Add(localizedText.Trim());
-                                MelonLogger.Msg($"Localized MessageId '{command.MessageId}' to '{localizedText}'");
                             }
                         }
                     }
@@ -456,7 +506,6 @@ namespace FFV_ScreenReader.Menus
                 {
                     if (current.gameObject == null)
                     {
-                        MelonLogger.Msg("Current gameObject is null, breaking hierarchy walk");
                         break;
                     }
 
@@ -465,7 +514,6 @@ namespace FFV_ScreenReader.Menus
                     if (text?.text != null && !string.IsNullOrEmpty(text.text.Trim()))
                     {
                         string menuText = text.text;
-                        MelonLogger.Msg($"Found menu text: '{menuText}' from {current.name} (direct)");
                         return menuText;
                     }
 
@@ -499,7 +547,6 @@ namespace FFV_ScreenReader.Menus
                     if (configViewTouch != null && configViewTouch.nameText?.text != null)
                     {
                         string menuText = configViewTouch.nameText.text.Trim();
-                        MelonLogger.Msg($"Found menu text: '{menuText}' from Touch ConfigCommandView.nameText");
                         return menuText;
                     }
 
@@ -508,7 +555,6 @@ namespace FFV_ScreenReader.Menus
                     if (configViewKeyInput != null && configViewKeyInput.nameText?.text != null)
                     {
                         string menuText = configViewKeyInput.nameText.text.Trim();
-                        MelonLogger.Msg($"Found menu text: '{menuText}' from KeyInput ConfigCommandView.nameText");
                         return menuText;
                     }
 
@@ -519,7 +565,6 @@ namespace FFV_ScreenReader.Menus
                         if (configViewTouch != null && configViewTouch.nameText?.text != null)
                         {
                             string menuText = configViewTouch.nameText.text.Trim();
-                            MelonLogger.Msg($"Found menu text: '{menuText}' from parent Touch ConfigCommandView.nameText");
                             return menuText;
                         }
 
@@ -527,7 +572,6 @@ namespace FFV_ScreenReader.Menus
                         if (configViewKeyInput != null && configViewKeyInput.nameText?.text != null)
                         {
                             string menuText = configViewKeyInput.nameText.text.Trim();
-                            MelonLogger.Msg($"Found menu text: '{menuText}' from parent KeyInput ConfigCommandView.nameText");
                             return menuText;
                         }
                     }
@@ -561,13 +605,9 @@ namespace FFV_ScreenReader.Menus
                 var content = configRoot.GetComponentInChildren<Transform>()?.Find("MaskObject/Scroll View/Viewport/Content");
                 if (content != null && cursorIndex >= 0 && cursorIndex < content.childCount)
                 {
-                    MelonLogger.Msg($"In-game config: Found content with {content.childCount} items, cursor at {cursorIndex}");
-
                     var configItem = content.GetChild(cursorIndex);
                     if (configItem != null && configItem.gameObject != null)
                     {
-                        MelonLogger.Msg($"Config item name: {configItem.name}");
-
                         // Check if this has the same structure as title config
                         var rootChild = configItem.Find("root");
                         if (rootChild != null)
@@ -577,7 +617,6 @@ namespace FFV_ScreenReader.Menus
                             if (rootConfigViewTouch != null && rootConfigViewTouch.nameText?.text != null)
                             {
                                 string menuText = rootConfigViewTouch.nameText.text.Trim();
-                                MelonLogger.Msg($"Found menu text from root Touch ConfigCommandView: '{menuText}'");
                                 return menuText;
                             }
 
@@ -586,7 +625,6 @@ namespace FFV_ScreenReader.Menus
                             if (rootConfigViewKeyInput != null && rootConfigViewKeyInput.nameText?.text != null)
                             {
                                 string menuText = rootConfigViewKeyInput.nameText.text.Trim();
-                                MelonLogger.Msg($"Found menu text from root KeyInput ConfigCommandView: '{menuText}'");
                                 return menuText;
                             }
                         }
@@ -596,7 +634,6 @@ namespace FFV_ScreenReader.Menus
                         if (itemConfigViewTouch != null && itemConfigViewTouch.nameText?.text != null)
                         {
                             string menuText = itemConfigViewTouch.nameText.text.Trim();
-                            MelonLogger.Msg($"Found menu text: '{menuText}' from config item Touch ConfigCommandView");
                             return menuText;
                         }
 
@@ -605,22 +642,11 @@ namespace FFV_ScreenReader.Menus
                         if (itemConfigViewKeyInput != null && itemConfigViewKeyInput.nameText?.text != null)
                         {
                             string menuText = itemConfigViewKeyInput.nameText.text.Trim();
-                            MelonLogger.Msg($"Found menu text: '{menuText}' from config item KeyInput ConfigCommandView");
                             return menuText;
                         }
 
-                        // Debug: List all text components
-                        var allTexts = configItem.GetComponentsInChildren<UnityEngine.UI.Text>();
-                        MelonLogger.Msg($"Found {allTexts.Length} text components in config item:");
-                        foreach (var text in allTexts)
-                        {
-                            if (!string.IsNullOrEmpty(text.text?.Trim()))
-                            {
-                                MelonLogger.Msg($"  - {text.name}: '{text.text}'");
-                            }
-                        }
-
                         // Try to find the correct text (not "Battle Type")
+                        var allTexts = configItem.GetComponentsInChildren<UnityEngine.UI.Text>();
                         foreach (var text in allTexts)
                         {
                             // Skip if it's "Battle Type" and we're not on the first item
@@ -633,7 +659,6 @@ namespace FFV_ScreenReader.Menus
                                 if (!string.IsNullOrEmpty(text.text?.Trim()))
                                 {
                                     string menuText = text.text.Trim();
-                                    MelonLogger.Msg($"Found menu text from {text.name}: '{menuText}'");
                                     return menuText;
                                 }
                             }
@@ -644,7 +669,6 @@ namespace FFV_ScreenReader.Menus
                         if (configText?.text != null && !string.IsNullOrEmpty(configText.text.Trim()))
                         {
                             string menuText = configText.text;
-                            MelonLogger.Msg($"Found menu text (fallback): '{menuText}'");
                             return menuText;
                         }
                     }
@@ -673,7 +697,6 @@ namespace FFV_ScreenReader.Menus
                 {
                     if (current.gameObject == null)
                     {
-                        MelonLogger.Msg("Current gameObject is null in IconTextView check");
                         break;
                     }
 
@@ -682,9 +705,8 @@ namespace FFV_ScreenReader.Menus
                     if (iconTextView != null && iconTextView.nameText != null && iconTextView.nameText.text != null)
                     {
                         string menuText = iconTextView.nameText.text.Trim();
-                        if (!string.IsNullOrEmpty(menuText))
+                        if (!string.IsNullOrEmpty(menuText) && !ContainsCJK(menuText))
                         {
-                            MelonLogger.Msg($"Found menu text: '{menuText}' from IconTextView.nameText");
                             return menuText;
                         }
                     }
@@ -693,7 +715,6 @@ namespace FFV_ScreenReader.Menus
                     Transform contentList = FindContentList(current);
                     if (contentList != null && cursor.Index >= 0 && cursor.Index < contentList.childCount)
                     {
-                        MelonLogger.Msg($"Found Content list with {contentList.childCount} children, cursor at index {cursor.Index}");
                         Transform selectedChild = contentList.GetChild(cursor.Index);
 
                         if (selectedChild != null)
@@ -703,9 +724,8 @@ namespace FFV_ScreenReader.Menus
                             if (iconTextView != null && iconTextView.nameText != null && iconTextView.nameText.text != null)
                             {
                                 string menuText = iconTextView.nameText.text.Trim();
-                                if (!string.IsNullOrEmpty(menuText))
+                                if (!string.IsNullOrEmpty(menuText) && !ContainsCJK(menuText))
                                 {
-                                    MelonLogger.Msg($"Found menu text: '{menuText}' from Content[{cursor.Index}] IconTextView.nameText");
                                     return menuText;
                                 }
                             }
@@ -719,9 +739,8 @@ namespace FFV_ScreenReader.Menus
                                     battleAbilityView.iconTextView.nameText.text != null)
                                 {
                                     string menuText = battleAbilityView.iconTextView.nameText.text.Trim();
-                                    if (!string.IsNullOrEmpty(menuText))
+                                    if (!string.IsNullOrEmpty(menuText) && !ContainsCJK(menuText))
                                     {
-                                        MelonLogger.Msg($"Found menu text: '{menuText}' from Content[{cursor.Index}] BattleAbilityView.iconTextView");
                                         return menuText;
                                     }
                                 }
@@ -731,9 +750,8 @@ namespace FFV_ScreenReader.Menus
                                     battleAbilityView.abilityIconText.nameText.text != null)
                                 {
                                     string menuText = battleAbilityView.abilityIconText.nameText.text.Trim();
-                                    if (!string.IsNullOrEmpty(menuText))
+                                    if (!string.IsNullOrEmpty(menuText) && !ContainsCJK(menuText))
                                     {
-                                        MelonLogger.Msg($"Found menu text: '{menuText}' from Content[{cursor.Index}] BattleAbilityView.abilityIconText");
                                         return menuText;
                                     }
                                 }
@@ -748,9 +766,8 @@ namespace FFV_ScreenReader.Menus
                                     battleAbilityController.view.iconTextView.nameText.text != null)
                                 {
                                     string menuText = battleAbilityController.view.iconTextView.nameText.text.Trim();
-                                    if (!string.IsNullOrEmpty(menuText))
+                                    if (!string.IsNullOrEmpty(menuText) && !ContainsCJK(menuText))
                                     {
-                                        MelonLogger.Msg($"Found menu text: '{menuText}' from Content[{cursor.Index}] BattleAbilityController.view.iconTextView");
                                         return menuText;
                                     }
                                 }
@@ -760,9 +777,8 @@ namespace FFV_ScreenReader.Menus
                                     battleAbilityController.view.abilityIconText.nameText.text != null)
                                 {
                                     string menuText = battleAbilityController.view.abilityIconText.nameText.text.Trim();
-                                    if (!string.IsNullOrEmpty(menuText))
+                                    if (!string.IsNullOrEmpty(menuText) && !ContainsCJK(menuText))
                                     {
-                                        MelonLogger.Msg($"Found menu text: '{menuText}' from Content[{cursor.Index}] BattleAbilityController.view.abilityIconText");
                                         return menuText;
                                     }
                                 }
@@ -797,17 +813,12 @@ namespace FFV_ScreenReader.Menus
                     // In-game config uses command_list_root or similar structure
                     if (current.name.Contains("command_list") || current.name.Contains("menu_list"))
                     {
-                        MelonLogger.Msg($"Found in-game list structure: {current.name}, looking for config values");
-
                         // Try to find the content list with menu items
                         Transform contentList = FindContentList(current);
 
                         if (contentList != null && cursor.Index >= 0 && cursor.Index < contentList.childCount)
                         {
-                            MelonLogger.Msg($"In-game config: Found content list with {contentList.childCount} items, cursor at {cursor.Index}");
-
                             var menuItem = contentList.GetChild(cursor.Index);
-                            MelonLogger.Msg($"Menu item at index {cursor.Index}: {menuItem.name}");
 
                             // Look for ConfigCommandController on this item
                             var commandController = menuItem.GetComponent<ConfigCommandController>();
@@ -818,13 +829,10 @@ namespace FFV_ScreenReader.Menus
 
                             if (commandController != null)
                             {
-                                MelonLogger.Msg("Found ConfigCommandController");
-
                                 // Get the view which has the text
                                 if (commandController.view != null && commandController.view.nameText != null)
                                 {
                                     string menuText = commandController.view.nameText.text.Trim();
-                                    MelonLogger.Msg($"Got text from ConfigCommandController.view.nameText: '{menuText}'");
                                     return menuText;
                                 }
                             }
@@ -834,7 +842,6 @@ namespace FFV_ScreenReader.Menus
                             if (commandViewTouch != null && commandViewTouch.nameText != null)
                             {
                                 string menuText = commandViewTouch.nameText.text.Trim();
-                                MelonLogger.Msg($"Got text from Touch ConfigCommandView.nameText: '{menuText}'");
                                 return menuText;
                             }
 
@@ -843,7 +850,6 @@ namespace FFV_ScreenReader.Menus
                             if (commandViewKeyInput != null && commandViewKeyInput.nameText != null)
                             {
                                 string menuText = commandViewKeyInput.nameText.text.Trim();
-                                MelonLogger.Msg($"Got text from KeyInput ConfigCommandView.nameText: '{menuText}'");
                                 return menuText;
                             }
 
@@ -861,7 +867,6 @@ namespace FFV_ScreenReader.Menus
                             if (foundText != null)
                             {
                                 string menuText = foundText.text.Trim();
-                                MelonLogger.Msg($"Got text from Text component: '{menuText}'");
                                 return menuText;
                             }
                         }
@@ -893,15 +898,30 @@ namespace FFV_ScreenReader.Menus
                 {
                     if (current.gameObject == null)
                     {
-                        MelonLogger.Msg("Current gameObject is null in fallback check");
                         break;
                     }
 
                     var text = current.GetComponentInChildren<UnityEngine.UI.Text>();
                     if (text?.text != null && !string.IsNullOrEmpty(text.text.Trim()))
                     {
-                        string menuText = text.text;
-                        MelonLogger.Msg($"Found menu text: '{menuText}' from {current.name} (fallback)");
+                        // Skip inactive text components (stale from previous menus)
+                        if (!text.gameObject.activeInHierarchy)
+                        {
+                            current = current.parent;
+                            hierarchyDepth++;
+                            continue;
+                        }
+
+                        string menuText = text.text.Trim();
+
+                        // Skip text that contains CJK characters (likely untranslated Japanese)
+                        if (ContainsCJK(menuText))
+                        {
+                            current = current.parent;
+                            hierarchyDepth++;
+                            continue;
+                        }
+
                         return menuText;
                     }
                     current = current.parent;
@@ -917,20 +937,23 @@ namespace FFV_ScreenReader.Menus
         }
 
         /// <summary>
-        /// Find Content list under Scroll View.
+        /// Returns true if the text contains CJK characters (Chinese/Japanese/Korean).
+        /// Used to filter out untranslated raw text from inactive menu components.
         /// </summary>
-        private static Transform FindContentList(Transform root)
+        private static bool ContainsCJK(string text)
         {
-            var allTransforms = root.GetComponentsInChildren<Transform>();
-            foreach (var t in allTransforms)
+            foreach (char c in text)
             {
-                if (t.name == "Content" && t.parent != null &&
-                    (t.parent.name == "Viewport" || t.parent.parent?.name == "Scroll View"))
+                // CJK Unified Ideographs, Hiragana, Katakana
+                if ((c >= '\u4E00' && c <= '\u9FFF') || // CJK Unified Ideographs
+                    (c >= '\u3040' && c <= '\u309F') || // Hiragana
+                    (c >= '\u30A0' && c <= '\u30FF'))   // Katakana
                 {
-                    return t;
+                    return true;
                 }
             }
-            return null;
+            return false;
         }
+
     }
 }

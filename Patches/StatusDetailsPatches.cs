@@ -132,12 +132,7 @@ namespace FFV_ScreenReader.Patches
 
             try
             {
-                if (contents == null || index < 0 || index >= contents.Count)
-                {
-                    yield break;
-                }
-
-                var selectedContent = contents[index];
+                var selectedContent = SelectContentHelper.TryGetItem(contents, index);
                 if (selectedContent == null)
                 {
                     yield break;
@@ -148,7 +143,6 @@ namespace FFV_ScreenReader.Patches
 
                 if (!string.IsNullOrWhiteSpace(characterInfo))
                 {
-                    MelonLogger.Msg($"[Status Select] {characterInfo}");
                     FFV_ScreenReaderMod.SpeakText(characterInfo);
                 }
             }
@@ -175,7 +169,6 @@ namespace FFV_ScreenReader.Patches
 
                 // Register the controller in GameObjectCache
                 Utils.GameObjectCache.Register(__instance);
-                MelonLogger.Msg($"[StatusDetailsController] Registered StatusDetailsController in GameObjectCache");
 
                 // Use coroutine for one-frame delay to ensure UI has updated
                 CoroutineManager.StartManaged(DelayedStatusAnnouncement(__instance));
@@ -202,7 +195,6 @@ namespace FFV_ScreenReader.Patches
                 // InitDisplay fires during game load - we want to suppress that
                 if (!StatusMenuTracker.IsUserOpened)
                 {
-                    MelonLogger.Msg("[Status Init] Suppressed - menu not user-opened (likely game load)");
                     yield break;
                 }
 
@@ -220,7 +212,6 @@ namespace FFV_ScreenReader.Patches
                     yield break;
                 }
 
-                MelonLogger.Msg($"[Status Details] {statusText}");
                 FFV_ScreenReaderMod.SpeakText(statusText);
 
                 // Initialize navigation state
@@ -240,8 +231,6 @@ namespace FFV_ScreenReader.Patches
 
                         // Initialize the stat list
                         StatusNavigationReader.InitializeStatList();
-
-                        MelonLogger.Msg("[Status] Navigation initialized - use Up/Down arrows to browse stats");
                     }
                     else
                     {
@@ -283,7 +272,6 @@ namespace FFV_ScreenReader.Patches
 
                 // Clear user-opened flag
                 StatusMenuTracker.IsUserOpened = false;
-                MelonLogger.Msg("[Status] Menu exited, state cleared");
             }
             catch (Exception ex)
             {
@@ -313,7 +301,6 @@ namespace FFV_ScreenReader.Patches
                         var targetData = statusController.targetData;
                         if (targetData != null)
                         {
-                            MelonLogger.Msg("[Status] Successfully accessed targetData directly");
                             return targetData;
                         }
                     }
@@ -328,7 +315,6 @@ namespace FFV_ScreenReader.Patches
                         var traversed = Traverse.Create(statusController).Field("targetData").GetValue<OwnedCharacterData>();
                         if (traversed != null)
                         {
-                            MelonLogger.Msg("[Status] Successfully accessed targetData via Traverse");
                             return traversed;
                         }
                     }

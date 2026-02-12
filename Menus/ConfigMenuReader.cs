@@ -46,7 +46,11 @@ namespace FFV_ScreenReader.Menus
             try
             {
                 // Try KeyInput controller first (keyboard/gamepad mode)
-                var keyInputController = UnityEngine.Object.FindObjectOfType<ConfigActualDetailsControllerBase_KeyInput>();
+                // Use GameObjectCache to avoid expensive FindObjectOfType
+                var keyInputController = FFV_ScreenReader.Utils.GameObjectCache.Get<ConfigActualDetailsControllerBase_KeyInput>();
+                if (keyInputController == null)
+                    keyInputController = FFV_ScreenReader.Utils.GameObjectCache.Refresh<ConfigActualDetailsControllerBase_KeyInput>();
+
                 if (keyInputController != null && keyInputController.CommandList != null)
                 {
                     if (index >= 0 && index < keyInputController.CommandList.Count)
@@ -61,7 +65,10 @@ namespace FFV_ScreenReader.Menus
                 }
 
                 // Try Touch controller (touch mode)
-                var touchController = UnityEngine.Object.FindObjectOfType<ConfigActualDetailsControllerBase_Touch>();
+                var touchController = FFV_ScreenReader.Utils.GameObjectCache.Get<ConfigActualDetailsControllerBase_Touch>();
+                if (touchController == null)
+                    touchController = FFV_ScreenReader.Utils.GameObjectCache.Refresh<ConfigActualDetailsControllerBase_Touch>();
+
                 if (touchController != null && touchController.CommandList != null)
                 {
                     if (index >= 0 && index < touchController.CommandList.Count)
@@ -122,7 +129,6 @@ namespace FFV_ScreenReader.Menus
                 var arrowText = GetArrowChangeTextKeyInput(view);
                 if (!string.IsNullOrEmpty(arrowText))
                 {
-                    MelonLogger.Msg($"[ConfigMenuReader] Found arrow value: '{arrowText}'");
                     return arrowText;
                 }
             }
@@ -135,7 +141,6 @@ namespace FFV_ScreenReader.Menus
                     string percentage = GetSliderPercentage(view.Slider);
                     if (!string.IsNullOrEmpty(percentage))
                     {
-                        MelonLogger.Msg($"[ConfigMenuReader] Found slider percentage: '{percentage}'");
                         return percentage;
                     }
                 }
@@ -152,7 +157,6 @@ namespace FFV_ScreenReader.Menus
                         string dropdownText = dropdown.options[dropdown.value].text;
                         if (!string.IsNullOrEmpty(dropdownText))
                         {
-                            MelonLogger.Msg($"[ConfigMenuReader] Found dropdown value: '{dropdownText}'");
                             return dropdownText;
                         }
                     }
@@ -163,36 +167,11 @@ namespace FFV_ScreenReader.Menus
         }
 
         /// <summary>
-        /// Gets the arrow change text from a KeyInput ConfigCommandView using reflection or direct access.
+        /// Gets the arrow change text from a KeyInput ConfigCommandView.
         /// </summary>
         private static string GetArrowChangeTextKeyInput(ConfigCommandView_KeyInput view)
         {
-            try
-            {
-                // Try to access the arrowChangeText field via the view's child transforms
-                var arrowRoot = view.ArrowSelectTypeRoot;
-                if (arrowRoot != null)
-                {
-                    var texts = arrowRoot.GetComponentsInChildren<UnityEngine.UI.Text>();
-                    foreach (var text in texts)
-                    {
-                        if (text != null && !string.IsNullOrWhiteSpace(text.text))
-                        {
-                            string value = text.text.Trim();
-                            // Filter out arrow characters and empty text
-                            if (value != "<" && value != ">" && value != "◀" && value != "▶")
-                            {
-                                return value;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error getting arrow change text: {ex.Message}");
-            }
-            return null;
+            return GetArrowTextFromRoot(view.ArrowSelectTypeRoot);
         }
 
         /// <summary>
@@ -211,7 +190,6 @@ namespace FFV_ScreenReader.Menus
                 var arrowText = GetArrowChangeTextTouch(view);
                 if (!string.IsNullOrEmpty(arrowText))
                 {
-                    MelonLogger.Msg($"[ConfigMenuReader] Found touch arrow value: '{arrowText}'");
                     return arrowText;
                 }
             }
@@ -226,7 +204,6 @@ namespace FFV_ScreenReader.Menus
                     string percentage = GetSliderPercentage(slider);
                     if (!string.IsNullOrEmpty(percentage))
                     {
-                        MelonLogger.Msg($"[ConfigMenuReader] Found touch slider percentage: '{percentage}'");
                         return percentage;
                     }
                 }
@@ -240,9 +217,16 @@ namespace FFV_ScreenReader.Menus
         /// </summary>
         private static string GetArrowChangeTextTouch(ConfigCommandView_Touch view)
         {
+            return GetArrowTextFromRoot(view.ArrowButtonTypeRoot);
+        }
+
+        /// <summary>
+        /// Extracts the value text from an arrow root GameObject, filtering out arrow characters.
+        /// </summary>
+        private static string GetArrowTextFromRoot(GameObject arrowRoot)
+        {
             try
             {
-                var arrowRoot = view.ArrowButtonTypeRoot;
                 if (arrowRoot != null)
                 {
                     var texts = arrowRoot.GetComponentsInChildren<UnityEngine.UI.Text>();
@@ -251,7 +235,7 @@ namespace FFV_ScreenReader.Menus
                         if (text != null && !string.IsNullOrWhiteSpace(text.text))
                         {
                             string value = text.text.Trim();
-                            if (value != "<" && value != ">" && value != "◀" && value != "▶")
+                            if (value != "<" && value != ">" && value != "\u25c0" && value != "\u25b6")
                             {
                                 return value;
                             }
@@ -261,7 +245,7 @@ namespace FFV_ScreenReader.Menus
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error getting touch arrow change text: {ex.Message}");
+                MelonLogger.Warning($"Error getting arrow change text: {ex.Message}");
             }
             return null;
         }

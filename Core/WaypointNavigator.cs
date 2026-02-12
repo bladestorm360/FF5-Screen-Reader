@@ -166,24 +166,14 @@ namespace FFV_ScreenReader.Core
             return $"{categoryName}: {count} {plural}";
         }
 
-        /// <summary>
-        /// Sorts the waypoint list by distance from player, preserving current selection
-        /// </summary>
         private void SortByDistance()
         {
             if (currentList.Count <= 1)
                 return;
 
-            Vector3 playerPos = GetPlayerPosition();
-
-            // Preserve current selection through sort
             var currentSelection = SelectedWaypoint;
+            currentList = CollectionHelper.SortByDistance(currentList, GetPlayerPosition(), w => w.Position);
 
-            currentList = currentList
-                .OrderBy(w => Vector3.Distance(w.Position, playerPos))
-                .ToList();
-
-            // Restore index to current selection
             if (currentSelection != null)
             {
                 int newIndex = currentList.IndexOf(currentSelection);
@@ -192,22 +182,13 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        /// <summary>
-        /// Sorts the waypoint list by distance, preserving selection by waypoint ID.
-        /// Used when the list has been replaced and we need to find the old selection in the new list.
-        /// </summary>
         private void SortByDistancePreservingSelection(string waypointIdToPreserve)
         {
             if (currentList.Count <= 1)
                 return;
 
-            Vector3 playerPos = GetPlayerPosition();
+            currentList = CollectionHelper.SortByDistance(currentList, GetPlayerPosition(), w => w.Position);
 
-            currentList = currentList
-                .OrderBy(w => Vector3.Distance(w.Position, playerPos))
-                .ToList();
-
-            // Try to restore the previous selection by ID
             if (!string.IsNullOrEmpty(waypointIdToPreserve))
             {
                 int newIndex = currentList.FindIndex(w => w.WaypointId == waypointIdToPreserve);
@@ -218,29 +199,12 @@ namespace FFV_ScreenReader.Core
                 }
             }
 
-            // If previous selection not found in new list, reset to first element
             currentIndex = 0;
         }
 
-        /// <summary>
-        /// Gets the player's current position
-        /// </summary>
         private Vector3 GetPlayerPosition()
         {
-            try
-            {
-                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-                if (playerController?.fieldPlayer?.transform != null)
-                {
-                    return playerController.fieldPlayer.transform.localPosition;
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error getting player position: {ex.Message}");
-            }
-
-            return Vector3.zero;
+            return PlayerPositionHelper.GetLocalPosition();
         }
 
         /// <summary>

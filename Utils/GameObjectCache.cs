@@ -20,6 +20,11 @@ namespace FFV_ScreenReader.Utils
 
                 if (singleCache.TryGetValue(type, out var cached))
                 {
+                    if (cached is UnityEngine.Object unityObj && unityObj == null)
+                    {
+                        singleCache.Remove(type);
+                        return default(T);
+                    }
                     return (T)cached;
                 }
 
@@ -114,6 +119,11 @@ namespace FFV_ScreenReader.Utils
 
                 if (singleCache.TryGetValue(type, out var cached))
                 {
+                    if (cached is UnityEngine.Object unityObj && unityObj == null)
+                    {
+                        singleCache.Remove(type);
+                        return false;
+                    }
                     return true;
                 }
 

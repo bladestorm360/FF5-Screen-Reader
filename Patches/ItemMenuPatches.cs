@@ -14,6 +14,46 @@ using static FFV_ScreenReader.Utils.TextUtils;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
+    /// Track item menu state for I key handling.
+    /// Delegates IsActive to MenuStateRegistry for centralized state management.
+    /// </summary>
+    public static class ItemMenuTracker
+    {
+        public static bool IsActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.ITEM_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.ITEM_MENU, value);
+        }
+
+        public static ItemListContentData LastSelectedItem { get; set; }
+
+        public static bool ValidateState()
+        {
+            return IsActive;
+        }
+
+        public static void ClearState()
+        {
+            IsActive = false;
+            LastSelectedItem = null;
+        }
+    }
+
+    /// <summary>
+    /// Track ItemUseController state to avoid expensive FindObjectOfType calls.
+    /// Used by BattleCommandPatches to suppress announcements during item use targeting.
+    /// Delegates IsItemUseActive to MenuStateRegistry for centralized state management.
+    /// </summary>
+    public static class ItemUseTracker
+    {
+        public static bool IsItemUseActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.ITEM_USE);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.ITEM_USE, value);
+        }
+    }
+
+    /// <summary>
     /// Patches for item and equipment menu navigation in FF5.
     /// Announces item/equipment name, quantity, and description when browsing.
     /// </summary>
@@ -27,9 +67,6 @@ namespace FFV_ScreenReader.Patches
     })]
     public static class ItemListController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-        private static float lastAnnouncementTime = 0f;
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.ItemListController __instance,
@@ -39,8 +76,6 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                MelonLogger.Msg($"[Item Menu Patch] Called with index={index}, cursor.Index={targetCursor?.Index}");
-                
                 if (targets == null)
                 {
                     return;
@@ -63,6 +98,11 @@ namespace FFV_ScreenReader.Patches
                 {
                     return;
                 }
+
+                // Track for I key equipment compatibility lookup
+                ItemMenuTracker.IsActive = true;
+                ItemMenuTracker.LastSelectedItem = itemData;
+                JobAbilityTrackerHelper.ClearAllTrackers();
 
                 string itemName = itemData.Name;
                 if (string.IsNullOrEmpty(itemName))
@@ -102,16 +142,11 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Skip duplicates or rapid re-announcements
-                float currentTime = UnityEngine.Time.time;
-                if (announcement == lastAnnouncement && (currentTime - lastAnnouncementTime) < 0.1f)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_LIST, announcement))
                 {
-                    MelonLogger.Msg($"[Item Menu] Skipping duplicate within 100ms");
                     return;
                 }
-                lastAnnouncement = announcement;
-                lastAnnouncementTime = currentTime;
 
-                MelonLogger.Msg($"[Item Menu] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -129,9 +164,6 @@ namespace FFV_ScreenReader.Patches
     })]
     public static class EquipmentSelectWindowController_SetCursor_Patch
     {
-        private static string lastAnnouncement = "";
-        private static float lastAnnouncementTime = 0f;
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.EquipmentSelectWindowController __instance,
@@ -206,16 +238,11 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Skip duplicates or rapid re-announcements
-                float currentTime = UnityEngine.Time.time;
-                if (announcement == lastAnnouncement && (currentTime - lastAnnouncementTime) < 0.1f)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_EQUIP_SELECT, announcement))
                 {
-                    MelonLogger.Msg($"[Equipment Menu] Skipping duplicate within 100ms");
                     return;
                 }
-                lastAnnouncement = announcement;
-                lastAnnouncementTime = currentTime;
 
-                MelonLogger.Msg($"[Equipment Menu] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -231,9 +258,6 @@ namespace FFV_ScreenReader.Patches
     })]
     public static class EquipmentInfoWindowController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-        private static float lastAnnouncementTime = 0f;
-
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.EquipmentInfoWindowController __instance,
@@ -306,16 +330,11 @@ namespace FFV_ScreenReader.Patches
                 announcement = StripIconMarkup(announcement);
 
                 // Skip duplicates or rapid re-announcements
-                float currentTime = UnityEngine.Time.time;
-                if (announcement == lastAnnouncement && (currentTime - lastAnnouncementTime) < 0.1f)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_EQUIP_SLOT, announcement))
                 {
-                    MelonLogger.Msg($"[Equipment Slot] Skipping duplicate within 100ms");
                     return;
                 }
-                lastAnnouncement = announcement;
-                lastAnnouncementTime = currentTime;
 
-                MelonLogger.Msg($"[Equipment Slot] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
@@ -329,8 +348,6 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ItemUseController), "SelectContent", new Type[] { typeof(Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ItemTargetSelectContentController>), typeof(Il2CppLast.UI.Cursor) })]
     public static class ItemUseController_SelectContent_Patch
     {
-        private static string lastAnnouncement = "";
-
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.ItemUseController __instance, Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ItemTargetSelectContentController> targetContents, Il2CppLast.UI.Cursor targetCursor)
         {
@@ -366,70 +383,41 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                string announcement = characterName;
+                string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
 
-                try
-                {
-                    var parameter = data.Parameter;
-                    if (parameter != null)
-                    {
-                        int currentHP = parameter.CurrentHP;
-                        int maxHP = parameter.ConfirmedMaxHp();
-                        int currentMP = parameter.CurrentMP;
-                        int maxMP = parameter.ConfirmedMaxMp();
-
-                        announcement += $", HP {currentHP}/{maxHP}, MP {currentMP}/{maxMP}";
-
-                        var conditionList = parameter.ConfirmedConditionList();
-                        if (conditionList != null && conditionList.Count > 0)
-                        {
-                            var messageManager = MessageManager.Instance;
-                            if (messageManager != null)
-                            {
-                                var statusNames = new System.Collections.Generic.List<string>();
-
-                                foreach (var condition in conditionList)
-                                {
-                                    if (condition != null)
-                                    {
-                                        string conditionMesId = condition.MesIdName;
-                                        if (!string.IsNullOrEmpty(conditionMesId) && conditionMesId != "None")
-                                        {
-                                            string localizedConditionName = messageManager.GetMessage(conditionMesId);
-                                            if (!string.IsNullOrEmpty(localizedConditionName))
-                                            {
-                                                statusNames.Add(localizedConditionName);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (statusNames.Count > 0)
-                                {
-                                    announcement += $", {string.Join(", ", statusNames)}";
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MelonLogger.Warning($"Error reading HP/MP for {characterName}: {ex.Message}");
-                }
-
-                if (announcement == lastAnnouncement)
+                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_USE_TARGET, announcement))
                 {
                     return;
                 }
-                lastAnnouncement = announcement;
 
-                MelonLogger.Msg($"[Item Target] {announcement}");
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in ItemUseController.SelectContent patch: {ex.Message}");
             }
+        }
+    }
+
+    // Patch ItemUseController.Show to track when item use targeting becomes active
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ItemUseController), nameof(Il2CppLast.UI.KeyInput.ItemUseController.Show))]
+    public static class ItemUseController_Show_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            ItemUseTracker.IsItemUseActive = true;
+        }
+    }
+
+    // Patch ItemUseController.Close to track when item use targeting ends
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ItemUseController), nameof(Il2CppLast.UI.KeyInput.ItemUseController.Close))]
+    public static class ItemUseController_Close_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            ItemUseTracker.IsItemUseActive = false;
         }
     }
 }

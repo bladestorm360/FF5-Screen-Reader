@@ -1,3 +1,4 @@
+using Il2Cpp;
 using FFV_ScreenReader.Field;
 using UnityEngine;
 
@@ -6,7 +7,7 @@ namespace FFV_ScreenReader.Core.Filters
     public class PathfindingFilter : IEntityFilter
     {
         private bool isEnabled = false;
-        
+
         public bool IsEnabled
         {
             get => isEnabled;
@@ -22,11 +23,11 @@ namespace FFV_ScreenReader.Core.Filters
                 }
             }
         }
-        
+
         public string Name => "Pathfinding Filter";
-        
+
         public FilterTiming Timing => FilterTiming.OnCycle;
-        
+
         public bool PassesFilter(NavigableEntity entity, FilterContext context)
         {
             if (!IsEntityValid(entity))
@@ -48,15 +49,11 @@ namespace FFV_ScreenReader.Core.Filters
 
             return pathInfo.Success;
         }
-        
-        public void OnEnabled()
-        {
-        }
-        
-        public void OnDisabled()
-        {
-        }
-        
+
+        public void OnEnabled() { }
+
+        public void OnDisabled() { }
+
         private bool IsEntityValid(NavigableEntity entity)
         {
             if (entity?.GameEntity == null)
@@ -66,7 +63,7 @@ namespace FFV_ScreenReader.Core.Filters
             {
                 if (entity.GameEntity.gameObject == null || !entity.GameEntity.gameObject.activeInHierarchy)
                     return false;
-                
+
                 if (entity.GameEntity.transform == null)
                     return false;
 
@@ -77,5 +74,51 @@ namespace FFV_ScreenReader.Core.Filters
                 return false;
             }
         }
+    }
+
+    /// <summary>
+    /// Filters out ToLayer (layer transition) entities.
+    /// When enabled, hides layer transitions from the navigation list.
+    /// Default: disabled (ToLayer entities shown).
+    /// </summary>
+    public class ToLayerFilter : IEntityFilter
+    {
+        private bool isEnabled = false;
+
+        public bool IsEnabled
+        {
+            get => isEnabled;
+            set
+            {
+                if (value != isEnabled)
+                {
+                    isEnabled = value;
+                    if (value)
+                        OnEnabled();
+                    else
+                        OnDisabled();
+                }
+            }
+        }
+
+        public string Name => "Layer Transition Filter";
+
+        public FilterTiming Timing => FilterTiming.OnAdd;
+
+        public bool PassesFilter(NavigableEntity entity, FilterContext context)
+        {
+            // When enabled, reject EventEntity instances with ToLayer type
+            if (entity is EventEntity eventEntity &&
+                eventEntity.EventType == MapConstants.ObjectType.ToLayer)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public void OnEnabled() { }
+
+        public void OnDisabled() { }
     }
 }

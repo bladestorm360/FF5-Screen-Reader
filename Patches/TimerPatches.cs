@@ -7,6 +7,7 @@ using Il2CppLast.UI.Common.Map;
 using Il2CppLast.Timer;
 using FFV_ScreenReader.Core;
 using UnityEngine;
+using static FFV_ScreenReader.Utils.TextUtils;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -136,24 +137,6 @@ namespace FFV_ScreenReader.Patches
                 MelonLogger.Warning($"Error announcing timers: {ex.Message}");
                 FFV_ScreenReaderMod.SpeakText("Error reading timers", interrupt: true);
                 return false;
-            }
-        }
-
-        /// <summary>
-        /// Safely gets text from a Text component.
-        /// </summary>
-        private static string GetTextSafe(UnityEngine.UI.Text textComponent)
-        {
-            if (textComponent == null)
-                return string.Empty;
-
-            try
-            {
-                return textComponent.text?.Trim() ?? string.Empty;
-            }
-            catch
-            {
-                return string.Empty;
             }
         }
 

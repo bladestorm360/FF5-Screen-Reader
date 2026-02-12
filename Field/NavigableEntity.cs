@@ -37,20 +37,7 @@ namespace FFV_ScreenReader.Field
         
         protected string GetDirection(Vector3 from, Vector3 to)
         {
-            Vector3 diff = to - from;
-            float angle = Mathf.Atan2(diff.x, diff.y) * Mathf.Rad2Deg;
-            
-            if (angle < 0) angle += 360;
-            
-            if (angle >= 337.5 || angle < 22.5) return "North";
-            else if (angle >= 22.5 && angle < 67.5) return "Northeast";
-            else if (angle >= 67.5 && angle < 112.5) return "East";
-            else if (angle >= 112.5 && angle < 157.5) return "Southeast";
-            else if (angle >= 157.5 && angle < 202.5) return "South";
-            else if (angle >= 202.5 && angle < 247.5) return "Southwest";
-            else if (angle >= 247.5 && angle < 292.5) return "West";
-            else if (angle >= 292.5 && angle < 337.5) return "Northwest";
-            else return "Unknown";
+            return FFV_ScreenReader.Utils.DirectionHelper.GetCompassDirection(from, to);
         }
         
         protected string FormatSteps(float distance)
@@ -76,12 +63,20 @@ namespace FFV_ScreenReader.Field
         protected override string GetDisplayName()
         {
             string status = IsOpened ? "Opened" : "Unopened";
-            return $"{status} {Name}";
+            return $"{status} {GetEntityTypeName()}";
         }
 
         protected override string GetEntityTypeName()
         {
             return "Treasure Chest";
+        }
+
+        public override string FormatDescription(Vector3 playerPos)
+        {
+            float distance = Vector3.Distance(playerPos, Position);
+            string direction = GetDirection(playerPos, Position);
+            string status = IsOpened ? "Opened" : "Unopened";
+            return $"{status} {GetEntityTypeName()} ({FormatSteps(distance)} {direction})";
         }
     }
     
@@ -151,9 +146,9 @@ namespace FFV_ScreenReader.Field
         {
             if (!string.IsNullOrEmpty(DestinationName))
             {
-                return $"{Name} → {DestinationName}";
+                return DestinationName;
             }
-            return Name;
+            return GetEntityTypeName();
         }
 
         protected override string GetEntityTypeName()
@@ -178,6 +173,13 @@ namespace FFV_ScreenReader.Field
         protected override string GetEntityTypeName()
         {
             return "Save Point";
+        }
+
+        public override string FormatDescription(Vector3 playerPos)
+        {
+            float distance = Vector3.Distance(playerPos, Position);
+            string direction = GetDirection(playerPos, Position);
+            return $"{GetEntityTypeName()} ({FormatSteps(distance)} {direction})";
         }
     }
     
@@ -234,6 +236,52 @@ namespace FFV_ScreenReader.Field
                     return "Event";
                 default:
                     return type.ToString();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Represents a navigable vehicle entity (ship, airship, chocobo, etc.).
+    /// </summary>
+    public class VehicleEntity : NavigableEntity
+    {
+        public int TransportationId { get; set; }
+        public string MessageId { get; set; }
+
+        public override EntityCategory Category => EntityCategory.Vehicles;
+        public override int Priority => 10;
+        public override bool BlocksPathing => false;
+
+        protected override string GetDisplayName() => GetVehicleName(TransportationId, MessageId);
+        protected override string GetEntityTypeName() => "Vehicle";
+
+        /// <summary>
+        /// Gets a human-readable vehicle name for the given transportation ID.
+        /// </summary>
+        public static string GetVehicleName(int id, string messageId = null)
+        {
+            // Try MessageId first for localized name
+            if (!string.IsNullOrEmpty(messageId))
+            {
+                try
+                {
+                    var msg = Il2CppLast.Management.MessageManager.Instance?.GetMessage(messageId);
+                    if (!string.IsNullOrEmpty(msg))
+                        return msg;
+                }
+                catch { }
+            }
+
+            // FF5-specific vehicle names based on TransportationType enum
+            switch (id)
+            {
+                case 2: return "Ship";
+                case 3: return "Airship";
+                case 6: return "Submarine";
+                case 7: return "Wind Drake";
+                case 9: return "Chocobo";
+                case 10: return "Black Chocobo";
+                default: return $"Vehicle {id}";
             }
         }
     }
