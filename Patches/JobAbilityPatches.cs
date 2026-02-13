@@ -588,8 +588,21 @@ namespace FFV_ScreenReader.Patches
                 if (__instance == null || targetCursor == null) return;
 
                 int index = targetCursor.Index;
-
-                var ability = SelectContentHelper.TryGetItem(__instance.AbilityList, index);
+                OwnedAbility ability = null;
+                unsafe
+                {
+                    IntPtr contentListPtr = *(IntPtr*)((byte*)__instance.Pointer + 0x50);
+                    if (contentListPtr != IntPtr.Zero)
+                    {
+                        var contentList = new Il2CppSystem.Collections.Generic.List<BattleAbilityInfomationContentController>(contentListPtr);
+                        if (index >= 0 && index < contentList.Count)
+                        {
+                            var controller = contentList[index];
+                            if (controller != null)
+                                ability = controller.Data;
+                        }
+                    }
+                }
 
                 // Handle empty slots
                 if (ability == null)

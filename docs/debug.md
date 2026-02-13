@@ -228,6 +228,15 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 
 **Lesson**: `GetExpTableGroupId()` returns a group ID for character-level EXP tables, not ABP/job tables. For `ExpTableType.JobExp`, use `OwnedJobData.Id` as the group parameter.
 
+### Spell List — contentList Fix (2026-02-12)
+**Problem**: All spell slots reading as "Empty". Two prior approaches failed:
+1. Original: `AbilityList[targetCursor.Index]` — `AbilityList` is compact (learned spells only), but `targetCursor.Index` maps to the visual grid (includes empty slots for unlearned spells), causing index mismatch after the first tier.
+2. Previous fix: `__instance.SelectedOwnedAbility` — auto-property only updated by `SelectContent()`, not during cursor movement (`SetCursor`), so always null.
+
+**Solution**: Read private `contentList` field (offset 0x50) via IL2CPP pointer access. This is `List<BattleAbilityInfomationContentController>` indexed by visual grid position. Each controller's `.Data` property returns the `OwnedAbility` at that slot (null for empty/unlearned). Uses established unsafe pointer pattern (see `PopulateVehicleTypeMap`, `CacheTerrainMappingData`).
+
+**Lesson**: When a list controller has both a compact data list and a visual content list, always use the content list (indexed by visual cursor position) for cursor-driven navigation.
+
 ### Naming Popup Enhancements (2026-02-12)
 1. **CommonPopup initial button**: Read `selectCursor` at offset 0x68, get button text via ReadButtonFromCommandList. Wrapped in try/catch. Result: "Bartz. Use this name? Yes"
 2. **ChangeNamePopup hint**: Append `LocalizationHelper.GetModString("default_name_hint")` (12 languages). Result: "Enter a name for Bartz. Press Enter for default name"

@@ -13,7 +13,8 @@
       "Bash(for addr in 5955488 5955552 5980896 5979680 5980864)",
       "Bash(do)",
       "Bash(echo:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(ls:*)"
     ],
     "additionalDirectories": [
       "D:\\Games\\Dev\\Unity\\FFPR\\ff4\\ff4-screen-reader",
