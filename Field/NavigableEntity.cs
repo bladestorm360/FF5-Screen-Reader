@@ -14,7 +14,14 @@ namespace FFV_ScreenReader.Field
         
         public virtual Vector3 Position => GameEntity?.transform?.position ?? Vector3.zero;
         
-        public virtual string Name => GameEntity?.Property?.Name ?? "Unknown";
+        public virtual string Name
+        {
+            get
+            {
+                string rawName = GameEntity?.Property?.Name ?? "Unknown";
+                return Utils.EntityTranslator.Translate(rawName);
+            }
+        }
         
         public abstract EntityCategory Category { get; }
         

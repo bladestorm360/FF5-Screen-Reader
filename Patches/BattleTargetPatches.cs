@@ -130,7 +130,18 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
-                return $"{name}: HP: {currentHp}/{maxHp}. MP: {currentMp}/{maxMp}";
+                string result = $"{name}: HP: {currentHp}/{maxHp}. MP: {currentMp}/{maxMp}";
+
+                // Append status effects if any
+                var statusParam = playerData.BattleUnitDataInfo?.Parameter;
+                if (statusParam != null)
+                {
+                    string conditions = CharacterStatusHelper.GetStatusConditions(statusParam);
+                    if (!string.IsNullOrEmpty(conditions))
+                        result += $". status: {conditions}";
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -191,7 +202,18 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
-                return $"{name}: HP: {currentHp}/{maxHp}";
+                string result = $"{name}: HP: {currentHp}/{maxHp}";
+
+                // Append status effects if any
+                var statusParam = battleInfo?.Parameter;
+                if (statusParam != null)
+                {
+                    string conditions = CharacterStatusHelper.GetStatusConditions(statusParam);
+                    if (!string.IsNullOrEmpty(conditions))
+                        result += $". status: {conditions}";
+                }
+
+                return result;
             }
             catch (Exception ex)
             {

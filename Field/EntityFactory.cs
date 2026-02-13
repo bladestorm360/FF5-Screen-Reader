@@ -121,7 +121,7 @@ namespace FFV_ScreenReader.Field
         /// <summary>
         /// Checks if a string contains Japanese characters (Hiragana, Katakana, or CJK Unified Ideographs).
         /// </summary>
-        private static bool ContainsJapaneseCharacters(string text)
+        internal static bool ContainsJapaneseCharacters(string text)
         {
             if (string.IsNullOrEmpty(text)) return false;
             foreach (char c in text)

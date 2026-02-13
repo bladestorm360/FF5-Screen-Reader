@@ -118,7 +118,7 @@ namespace FFV_ScreenReader.Core
             RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.Shift, mod.ToggleLandingPings, "Toggle landing pings");
             RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.None, mod.ToggleWallTones, "Toggle wall tones");
             RegisterFieldWithBattleFeedback(KeyCode.Alpha9, KeyModifier.None, mod.ToggleAudioBeacons, "Toggle audio beacons");
-            RegisterFieldWithBattleFeedback(KeyCode.Alpha0, KeyModifier.None, mod.ResetToAllCategory, "Reset to All category");
+            RegisterFieldWithBattleFeedback(KeyCode.Alpha0, KeyModifier.None, EntityTranslator.EntityDump.DumpCurrentMap, "Dump entity names");
             RegisterFieldWithBattleFeedback(KeyCode.Equals, KeyModifier.None, mod.CycleNextCategory, "Next entity category (global)");
             RegisterFieldWithBattleFeedback(KeyCode.Minus, KeyModifier.None, mod.CyclePreviousCategory, "Previous entity category (global)");
 

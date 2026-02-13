@@ -60,6 +60,7 @@
 - `LocalizationHelper` — MessageManager wrapper + 12-language mod string dictionary
 - `BattleResultDataStore` — Static data store for navigator (points + stats)
 - `BattleUnitHelper`, `CharacterStatusHelper`, `SelectContentHelper`
+- `EntityTranslator` — JSON-based Japanese→English name translation (4-tier lookup) + nested `EntityDump` (key 0)
 - `WindowsFocusHelper` — VK constants, focus management
 
 ## Key Game Namespaces
@@ -205,7 +206,7 @@ VK constant dedup (ConfirmationDialog, TextInputWindow → WindowsFocusHelper). 
 ### Per-Phase Battle Results (2026-02-11)
 Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up, in Serial.FF5.UI.Touch namespace — manual FindType patch), ShowGetAbilitysInit/ShowLevelUpAbilitysInit (abilities via UI text), ShowGetItemsInit (items via GetContentDataList). Status-up: 1-frame delay, heuristic (category, before, after) triple detection. Battle action dedup: object-based identity instead of string.
 
-**Status**: AWAITING IN-GAME TESTING — temp logging active, needs verification then cleanup.
+**Status**: Verified in-game.
 
 ### Battle Results: Stat Gains, EXP Format & Navigator (2026-02-12)
 
@@ -236,6 +237,19 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 **Solution**: Read private `contentList` field (offset 0x50) via IL2CPP pointer access. This is `List<BattleAbilityInfomationContentController>` indexed by visual grid position. Each controller's `.Data` property returns the `OwnedAbility` at that slot (null for empty/unlearned). Uses established unsafe pointer pattern (see `PopulateVehicleTypeMap`, `CacheTerrainMappingData`).
 
 **Lesson**: When a list controller has both a compact data list and a visual content list, always use the content list (indexed by visual cursor position) for cursor-driven navigation.
+
+### ConditionType 4 Mislabel Fix (2026-02-12)
+**Problem**: ConditionType 4 labeled "KO" in CharacterStatusHelper fallback names. Diagnostic logging showed characters with HP and Poison also showing "KO". ConditionType 4 is `Dying` (critical/low-HP flag), not actual KO — ConditionType 5 (`UnableFight`) is real KO.
+
+**Fix**: Renamed fallback for ConditionType 4 from "KO" to "Critical" in `CharacterStatusHelper.ConditionTypeFallbackNames`.
+
+### Entity Translator + Entity Dump (2026-02-12)
+**Feature**: Translates Japanese NPC/entity names to English via external JSON file (`UserData/EntityNames.json`). Ported 4-tier lookup from FF4: exact match → strip numeric/SC prefix → strip circled suffix → strip both. EntityDump (key 0) collects Japanese entity names per map and writes to JSON. Duplicate detection: compares existing map entries, only adds truly new names.
+
+**Architecture**: `Utils/EntityTranslator.cs` (static class + nested `EntityDump`). `NavigableEntity.Name` property calls `Translate()`. `EntityFactory.ContainsJapaneseCharacters` changed to `internal` for dump filtering. JSON load/save follows WaypointManager pattern (manual parse/serialize, UTF-8).
+
+### Battle Target Status Effects (2026-02-12)
+**Feature**: Target selection now shows status conditions after HP/MP. Player: "Name: HP x/y. MP x/y. status: Poison, Blind". Enemy: "Name: HP x/y. status: Poison". Reuses `CharacterStatusHelper.GetStatusConditions()` (same whitelist, localized names, fallback names).
 
 ### Naming Popup Enhancements (2026-02-12)
 1. **CommonPopup initial button**: Read `selectCursor` at offset 0x68, get button text via ReadButtonFromCommandList. Wrapped in try/catch. Result: "Bartz. Use this name? Yes"

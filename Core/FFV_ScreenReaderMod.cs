@@ -81,6 +81,9 @@ namespace FFV_ScreenReader.Core
             // Initialize external sound player for distinct audio feedback
             SoundPlayer.Initialize();
 
+            // Initialize entity name translator (loads UserData/EntityNames.json)
+            EntityTranslator.Initialize();
+
             // Initialize mod menu (F8 settings menu)
             ModMenu.Initialize();
 
@@ -464,19 +467,6 @@ namespace FFV_ScreenReader.Core
             EntityCategory newCategory = (EntityCategory)prevCategory;
 
             entityNavigator.SetCategory(newCategory);
-
-            AnnounceCategoryChange();
-        }
-
-        internal void ResetToAllCategory()
-        {
-            if (entityNavigator.Category == EntityCategory.All)
-            {
-                SpeakText("Already in All category");
-                return;
-            }
-
-            entityNavigator.SetCategory(EntityCategory.All);
 
             AnnounceCategoryChange();
         }

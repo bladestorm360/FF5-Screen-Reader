@@ -36,6 +36,8 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Battle results stat gains (HP/MP +N format from data) | Done |
 | Battle results EXP totals-only speech format | Done |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
+| Entity name translator (JSON-based, EntityDump key 0) | Done |
+| Battle targeting status effects (Poison, Blind, etc.) | Done |
 | Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
 
 ## Documentation
