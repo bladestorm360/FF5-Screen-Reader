@@ -32,6 +32,10 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Entity filter refactor (IEntityFilter, FilterTiming, IGroupingStrategy) | Done |
 | Performance optimization (GameObjectCache, state flags, GameConstants) | Done |
 | LocalizationHelper (12-language mod string dictionary) | Done |
+| Battle results navigator (L key, navigable grid with EXP/Next/ABP) | Done (ABP fix applied) |
+| Battle results stat gains (HP/MP +N format from data) | Done |
+| Battle results EXP totals-only speech format | Done |
+| EXP counter sound (rapid beep, auto-stops on animation end) | Done |
 | Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
 
 ## Documentation

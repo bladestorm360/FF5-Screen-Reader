@@ -116,6 +116,17 @@ namespace FFV_ScreenReader.Utils
         }
 
         /// <summary>
+        /// EXP counter beep parameters (battle results rolling animation).
+        /// </summary>
+        public static class ExpCounter
+        {
+            public const int FREQUENCY = 2000;
+            public const int BEEP_MS = 50;
+            public const int SILENCE_MS = 50;
+            public const float VOLUME = 0.15f;
+        }
+
+        /// <summary>
         /// waveOut API flag constants.
         /// </summary>
         public static class WaveFlags

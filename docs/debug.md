@@ -9,7 +9,8 @@
 - `EntityCache` — Caches field entities; grouping via IGroupingStrategy
 - `EntityNavigator` — Entity cycling with timing-aware filters (OnAdd/OnCycle)
 - `Filters/` — IEntityFilter (FilterTiming, FilterContext), CategoryFilter, PathfindingFilter, ToLayerFilter, IGroupingStrategy, MapExitGroupingStrategy
-- `PreferencesManager` — 15 MelonPreferences entries
+- `PreferencesManager` — 17 MelonPreferences entries (added ExpCounter toggle + volume)
+- `BattleResultNavigator` — Focus-stealing navigable results window (L key)
 - `WaypointController` — Waypoint CRUD (add, rename, remove, cycle, pathfind)
 - `AudioLoopManager` — 3 audio loops, toggles, battle/dialogue suppression (singleton)
 - `NavigationStateSnapshot` — Struct for save/restore of 5 navigation booleans
@@ -21,7 +22,7 @@
 - `BattleCommandPatches` — Battle command selection
 - `BattleTargetPatches` — Battle target selection
 - `BattleMessagePatches` — Damage/heal/status + BattleCommandMessagePatches (defeat)
-- `BattleResultPatches` — Per-phase: ShowPointsInit, SetData (level-up), abilities, items
+- `BattleResultPatches` — Per-phase: ShowPointsInit (totals), ShowPointsExit (counter stop), SetData (stat diffs), abilities, items, EndWaitInit (cleanup)
 - `ItemMenuPatches` — Item menu + ItemMenuTracker + ItemUseTracker
 - `ItemDetailsAnnouncer` — I key equipment compatibility
 - `JobAbilityPatches` — Job/ability menus + JobAbilityTrackerHelper
@@ -50,13 +51,14 @@
 ### Utils (`Utils/`)
 - `TolkWrapper` — NVDA interface
 - `CoroutineManager` — Managed coroutines, self-cleanup, max 20, StartUntracked/StopManaged
-- `SoundPlayer` — waveOut playback (5 channels, looping, LRU tone cache, 16-bit)
+- `SoundPlayer` — waveOut playback (6 channels, looping, LRU tone cache, 16-bit)
 - `ToneGenerator` — Tone generation + WriteWavHeader
 - `GameConstants` — Audio, tile size, direction vectors, map IDs
 - `GameObjectCache` — Cached lookups (Get/Refresh pattern)
 - `TextUtils`, `CollectionHelper`, `DirectionHelper`, `PlayerPositionHelper`
 - `AnnouncementDeduplicator` + `AnnouncementContexts` — Dedup (string/int/object)
 - `LocalizationHelper` — MessageManager wrapper + 12-language mod string dictionary
+- `BattleResultDataStore` — Static data store for navigator (points + stats)
 - `BattleUnitHelper`, `CharacterStatusHelper`, `SelectContentHelper`
 - `WindowsFocusHelper` — VK constants, focus management
 
@@ -204,6 +206,27 @@ VK constant dedup (ConfirmationDialog, TextInputWindow → WindowsFocusHelper). 
 Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up, in Serial.FF5.UI.Touch namespace — manual FindType patch), ShowGetAbilitysInit/ShowLevelUpAbilitysInit (abilities via UI text), ShowGetItemsInit (items via GetContentDataList). Status-up: 1-frame delay, heuristic (category, before, after) triple detection. Battle action dedup: object-based identity instead of string.
 
 **Status**: AWAITING IN-GAME TESTING — temp logging active, needs verification then cleanup.
+
+### Battle Results: Stat Gains, EXP Format & Navigator (2026-02-12)
+
+**Changes:**
+1. **EXP totals-only speech**: ShowPointsInit now speaks "{EXP} EXP, {ABP} ABP, {Gil} Gil" (totals). Per-character EXP removed from speech, available via navigator.
+2. **Stat gains from data**: SetData_Postfix now takes `__0` (BattleResultCharacterData), extracts HP/MP diffs via `BeforData.parameter.ConfirmedMaxHp()` vs `AfterData.parameter.ConfirmedMaxHp()`. Format: "Bartz: HP +15, MP +5". Falls back to UI text if data extraction fails.
+3. **EXP counter sound**: Rapid 2000Hz beep loop on Counter channel during ShowPointsInit→ShowPointsExit. Toggle + volume in ModMenu. Uses ToneGenerator.GenerateLandingPing for beep+silence pattern.
+4. **Battle Result Navigator** (L key): Focus-stealing window following TextInputWindow pattern. Grid navigation (Up/Down=rows with full row readout, Left/Right=columns, Enter/Home=full row, Escape=close). Points grid: characters x {EXP, Next, ABP}. Stats grid: {CharName: Stat} x {Before, After, Change}. 12-language headers.
+5. **Data lifecycle**: ShowPointsInit stores points data (incl. NextExp via GetNextExp()), SetData stores stats data, EndWaitInit clears all. BattleResultDataStore.HasData drives KeyContext.BattleResult.
+6. **EXP counter auto-stop**: MonitorExpCounterAnimation coroutine polls pointer chain (ResultMenuController→pointController→characterListController) every 100ms. Reads perormanceEndCount vs contentList.Count via Marshal.ReadInt32/ReadIntPtr. Stops counter when animation completes. Safety net stops in ShowStatusUpInit/ShowGetAbilitysInit/ShowGetItemsInit/EndWaitInit remain.
+
+**Architecture**: New `KeyContext.BattleResult` active only when data store has data. `SoundChannel.Counter` (6th channel). `BattleResultDataStore` centralizes data between patches and navigator.
+
+### ABP Column Fix (2026-02-12)
+**Problem**: Battle result navigator ABP column showed incorrect values. Two bugs in `BattleResultPatches.cs` ABP computation:
+1. Used `GetExpTableGroupId()` (character EXP table group) as first arg to `ExpUtility.GetNextExp` — wrong for ABP lookup.
+2. Used `AfterData.OwnedJob` — correct (post-battle proficiency matches game display).
+
+**Fix**: Changed `GetExpTableGroupId()` → `ownedJob.Id` (job ID). The game's `ResultCharacterListContentController.SetData` passes the job ID as the group parameter for `ExpTableType.JobExp` lookups. Kept `AfterData` for proficiency source (matches game's displayed remaining ABP).
+
+**Lesson**: `GetExpTableGroupId()` returns a group ID for character-level EXP tables, not ABP/job tables. For `ExpTableType.JobExp`, use `OwnedJobData.Id` as the group parameter.
 
 ### Naming Popup Enhancements (2026-02-12)
 1. **CommonPopup initial button**: Read `selectCursor` at offset 0x68, get button text via ReadButtonFromCommandList. Wrapped in try/catch. Result: "Bartz. Use this name? Yes"

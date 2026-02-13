@@ -15,7 +15,8 @@ namespace FFV_ScreenReader.Utils
         WallBump,    // Wall bump sounds (separate from footsteps to avoid timing conflicts)
         WallTone,    // Wall proximity tones (loopable)
         Beacon,      // Audio beacon pings
-        Landing      // Landing ping tones (loopable, for ship docking detection)
+        Landing,     // Landing ping tones (loopable, for ship docking detection)
+        Counter      // EXP counter beep (loopable, battle results)
     }
 
     /// <summary>
@@ -41,6 +42,7 @@ namespace FFV_ScreenReader.Utils
 
         private static byte[] wallBumpWav;
         private static byte[] footstepWav;
+        private static byte[] expCounterWav;
 
         // One-shot wall tones (with decay)
         private static byte[] wallToneNorth;
@@ -117,6 +119,14 @@ namespace FFV_ScreenReader.Utils
             wallToneSouthSustain = ToneGenerator.GenerateStereoToneSustain(SoundConstants.WallToneFrequencies.SOUTH, sustain, bv * SoundConstants.WallToneVolumeMultipliers.SOUTH, SoundConstants.WallTonePan.SOUTH);
             wallToneEastSustain  = ToneGenerator.GenerateStereoToneSustain(SoundConstants.WallToneFrequencies.EAST,  sustain, bv * SoundConstants.WallToneVolumeMultipliers.EAST,  SoundConstants.WallTonePan.EAST);
             wallToneWestSustain  = ToneGenerator.GenerateStereoToneSustain(SoundConstants.WallToneFrequencies.WEST,  sustain, bv * SoundConstants.WallToneVolumeMultipliers.WEST,  SoundConstants.WallTonePan.WEST);
+
+            // EXP counter beep: short tone + silence for rapid ticking effect
+            expCounterWav = ToneGenerator.GenerateLandingPing(
+                SoundConstants.ExpCounter.FREQUENCY,
+                SoundConstants.ExpCounter.BEEP_MS + SoundConstants.ExpCounter.SILENCE_MS,
+                SoundConstants.ExpCounter.BEEP_MS,
+                SoundConstants.ExpCounter.VOLUME,
+                0.5f); // center pan
         }
 
         /// <summary>
@@ -405,6 +415,24 @@ namespace FFV_ScreenReader.Utils
             {
                 MelonLogger.Error($"[SoundPlayer] Error playing beacon: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Plays the EXP counter beep on loop (rapid ticking during EXP bar animation).
+        /// </summary>
+        public static void PlayExpCounter()
+        {
+            if (expCounterWav == null) return;
+            int volume = FFV_ScreenReader.Core.FFV_ScreenReaderMod.ExpCounterVolume;
+            AudioChannel.Play(expCounterWav, SoundChannel.Counter, loop: true, volumePercent: volume);
+        }
+
+        /// <summary>
+        /// Stops the EXP counter beep.
+        /// </summary>
+        public static void StopExpCounter()
+        {
+            AudioChannel.Stop(SoundChannel.Counter);
         }
 
         /// <summary>

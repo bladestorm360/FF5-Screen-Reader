@@ -20,10 +20,11 @@ namespace FFV_ScreenReader.Core
     /// </summary>
     public enum KeyContext
     {
-        Global,     // Always active (any screen)
-        Field,      // Only on field map (not in battle/dialogue)
-        Battle,     // Only in battle
-        Status      // Only on status screen
+        Global,        // Always active (any screen)
+        Field,         // Only on field map (not in battle/dialogue)
+        Battle,        // Only in battle
+        BattleResult,  // Only on battle results screen (EXP/stat display)
+        Status         // Only on status screen
     }
 
     /// <summary>

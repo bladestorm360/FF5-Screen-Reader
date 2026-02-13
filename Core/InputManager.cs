@@ -122,6 +122,9 @@ namespace FFV_ScreenReader.Core
             RegisterFieldWithBattleFeedback(KeyCode.Equals, KeyModifier.None, mod.CycleNextCategory, "Next entity category (global)");
             RegisterFieldWithBattleFeedback(KeyCode.Minus, KeyModifier.None, mod.CyclePreviousCategory, "Previous entity category (global)");
 
+            // --- Battle result navigator (L) ---
+            registry.Register(KeyCode.L, KeyModifier.None, KeyContext.BattleResult, OpenBattleResultNavigator, "Open battle result details");
+
             // Sort for correct modifier precedence
             registry.FinalizeRegistration();
         }
@@ -138,6 +141,10 @@ namespace FFV_ScreenReader.Core
 
             // Handle mod menu next (consumes all input when open)
             if (ModMenu.HandleInput())
+                return;
+
+            // Handle battle result navigator (consumes all input when open)
+            if (BattleResultNavigator.HandleInput())
                 return;
 
             if (!Input.anyKeyDown)
@@ -180,6 +187,10 @@ namespace FFV_ScreenReader.Core
             if (IsStatusScreenActive())
                 return KeyContext.Status;
 
+            // Check for battle results screen before general battle context
+            if (BattleResultDataStore.HasData)
+                return KeyContext.BattleResult;
+
             if (IsInBattle() || Patches.BattleState.IsInBattle)
                 return KeyContext.Battle;
 
@@ -214,6 +225,14 @@ namespace FFV_ScreenReader.Core
                 if (Input.GetKeyDown(key))
                     registry.TryExecute(key, currentModifiers, activeContext);
             }
+        }
+
+        private static void OpenBattleResultNavigator()
+        {
+            if (BattleResultDataStore.HasData)
+                BattleResultNavigator.Open();
+            else
+                FFV_ScreenReaderMod.SpeakText(LocalizationHelper.GetModString("no_data"), interrupt: true);
         }
 
         private void HandleMovementStateKey()

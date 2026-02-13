@@ -690,6 +690,7 @@ namespace FFV_ScreenReader.Core
         public static int WallToneVolume => PreferencesManager.WallToneVolume;
         public static int BeaconVolume => PreferencesManager.BeaconVolume;
         public static int LandingPingVolume => PreferencesManager.LandingPingVolume;
+        public static int ExpCounterVolume => PreferencesManager.ExpCounterVolume;
         public static int EnemyHPDisplay => PreferencesManager.EnemyHPDisplay;
 
         // Public static accessors for filter and audio toggle settings (used by ModMenu, BattleState)
@@ -700,6 +701,7 @@ namespace FFV_ScreenReader.Core
         public static bool FootstepsEnabled => AudioLoopManager.Instance?.IsFootstepsEnabled ?? false;
         public static bool AudioBeaconsEnabled => AudioLoopManager.Instance?.IsAudioBeaconsEnabled ?? false;
         public static bool LandingPingsEnabled => AudioLoopManager.Instance?.IsLandingPingsEnabled ?? false;
+        public static bool ExpCounterEnabled => PreferencesManager.ExpCounterDefault;
 
         // Public static setters delegated to PreferencesManager
         public static void SetWallBumpVolume(int value) => PreferencesManager.SetWallBumpVolume(value);
@@ -707,7 +709,14 @@ namespace FFV_ScreenReader.Core
         public static void SetWallToneVolume(int value) => PreferencesManager.SetWallToneVolume(value);
         public static void SetBeaconVolume(int value) => PreferencesManager.SetBeaconVolume(value);
         public static void SetLandingPingVolume(int value) => PreferencesManager.SetLandingPingVolume(value);
+        public static void SetExpCounterVolume(int value) => PreferencesManager.SetExpCounterVolume(value);
         public static void SetEnemyHPDisplay(int value) => PreferencesManager.SetEnemyHPDisplay(value);
+
+        public static void ToggleExpCounter()
+        {
+            bool newValue = !ExpCounterEnabled;
+            PreferencesManager.SaveExpCounter(newValue);
+        }
 
         /// <summary>
         /// Gets the FieldPlayer from the FieldPlayerController.

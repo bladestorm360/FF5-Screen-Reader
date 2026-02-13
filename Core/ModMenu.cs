@@ -203,6 +203,15 @@ namespace FFV_ScreenReader.Core
                     () => FFV_ScreenReaderMod.ToLayerFilterEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleToLayerFilter()),
 
+                // Battle Results section
+                new SectionHeader("Battle Results"),
+                new ToggleItem("EXP Counter Sound",
+                    () => FFV_ScreenReaderMod.ExpCounterEnabled,
+                    FFV_ScreenReaderMod.ToggleExpCounter),
+                new VolumeItem("EXP Counter Volume",
+                    () => FFV_ScreenReaderMod.ExpCounterVolume,
+                    FFV_ScreenReaderMod.SetExpCounterVolume),
+
                 // Battle Settings section
                 new SectionHeader("Battle Settings"),
                 new EnumItem("Enemy HP Display",

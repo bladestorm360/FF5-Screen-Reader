@@ -17,8 +17,27 @@ using static FFV_ScreenReader.Utils.TextUtils;
 
 namespace FFV_ScreenReader.Patches
 {
+    // Shared state across battle-result patch classes
+    internal static class BattleResultState
+    {
+        // True only while EXP counter sound is actually playing.
+        internal static bool ExpCounterPlaying;
+
+        /// <summary>
+        /// Stops the EXP counter sound if it is currently playing.
+        /// Safe to call from any phase-init postfix; the flag ensures it only fires once.
+        /// </summary>
+        internal static void StopExpCounterIfPlaying()
+        {
+            if (!ExpCounterPlaying) return;
+            ExpCounterPlaying = false;
+            SoundPlayer.StopExpCounter();
+            MelonLogger.Msg("[BattleResult] EXP counter stopped");
+        }
+    }
+
     // ----------------------------------------------------------------
-    //  Screen 1: EXP / Gil / ABP summary  (always fires)
+    //  Screen 1: EXP / Gil / ABP totals  (always fires)
     // ----------------------------------------------------------------
     [HarmonyPatch(typeof(ResultMenuController), nameof(ResultMenuController.ShowPointsInit))]
     public static class ResultMenuController_ShowPointsInit_Patch
@@ -40,31 +59,61 @@ namespace FFV_ScreenReader.Patches
                     AnnouncementContexts.BATTLE_RESULT_ABILITIES,
                     AnnouncementContexts.BATTLE_RESULT_ITEMS);
 
+                // Gather totals
+                int totalExp = data.GetExp;
+                int totalAbp = data.GetAbp;
+                int totalGil = data.GetGil;
+
+                // Build totals-only announcement
                 var parts = new List<string>();
+                if (totalExp > 0)
+                    parts.Add($"{totalExp:N0} EXP");
+                if (totalAbp > 0)
+                    parts.Add($"{totalAbp} ABP");
+                if (totalGil > 0)
+                    parts.Add($"{totalGil:N0} Gil");
 
-                // Gil
-                int gil = data.GetGil;
-                if (gil > 0)
-                    parts.Add($"{gil:N0} Gil");
-
-                // Per-character XP / ABP / brief level / job-level notes
+                // Per-character level-up / job-level-up notes (still announced in speech)
                 var charList = data.CharacterList;
+                var pointsDataList = new List<BattleResultDataStore.CharacterPointsData>();
+
                 if (charList != null)
                 {
-                    string earned = LocalizationHelper.GetModString("earned");
-
                     foreach (var c in charList)
                     {
                         if (c?.AfterData == null) continue;
 
                         string name = c.AfterData.Name;
-                        int exp  = c.GetExp;
-                        int abp  = c.GetABP;
 
-                        if (abp > 0)
-                            parts.Add($"{name} {earned} {exp:N0} XP, {abp} A B P");
-                        else
-                            parts.Add($"{name} {earned} {exp:N0} XP");
+                        // Get next EXP to level (0 = max level)
+                        int nextExp = 0;
+                        try { nextExp = c.AfterData.GetNextExp(); }
+                        catch { /* max level or unavailable */ }
+
+                        // Get ABP remaining to next job level (0 = mastered/no job)
+                        int abpToNext = 0;
+                        try
+                        {
+                            var ownedJob = c.BeforData.OwnedJob;
+                            if (ownedJob != null)
+                            {
+                                abpToNext = ExpUtility.GetNextExp(
+                                    ownedJob.Id, ownedJob.CurrentProficiency, Il2CppLast.Defaine.Master.ExpTableType.JobExp);
+                            }
+                        }
+                        catch { /* no job / freelancer / mastered */ }
+
+                        // Store per-character data for navigator
+                        pointsDataList.Add(new BattleResultDataStore.CharacterPointsData
+                        {
+                            Name = name,
+                            Exp = c.GetExp,
+                            Abp = abpToNext,
+                            NextExp = nextExp,
+                            IsLevelUp = c.IsLevelUp,
+                            NewLevel = c.AfterData.parameter?.ConfirmedLevel() ?? 0,
+                            IsJobLevelUp = c.IsJobLevelUp
+                        });
 
                         if (c.IsLevelUp)
                         {
@@ -77,16 +126,112 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
+                // Store data for navigator
+                BattleResultDataStore.SetPointsData(pointsDataList, totalExp, totalAbp, totalGil);
+
                 if (parts.Count == 0) return;
 
                 string announcement = string.Join(", ", parts);
+                MelonLogger.Msg($"[BattleResult] Points: {announcement}");
+
                 if (AnnouncementDeduplicator.ShouldAnnounce(
                         AnnouncementContexts.BATTLE_RESULT_POINTS, announcement))
                     FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+
+                // Start EXP counter sound if enabled
+                if (FFV_ScreenReaderMod.ExpCounterEnabled && totalExp > 0)
+                {
+                    SoundPlayer.PlayExpCounter();
+                    BattleResultState.ExpCounterPlaying = true;
+
+                    // Launch coroutine to stop counter when counting animation finishes
+                    CoroutineManager.StartUntracked(MonitorExpCounterAnimation(__instance.Pointer));
+                }
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in ShowPointsInit patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Polls the unsafe pointer chain from ResultMenuController to detect when
+        /// the EXP counting animation finishes, then stops the counter sound.
+        /// Chain: instance → +0x20 (pointController) → +0x30 (characterListController)
+        ///   → +0x20 (contentList, count at +0x18)
+        ///   → +0x30 (perormanceEndCount)
+        /// Animation done when: perormanceEndCount >= contentList.Count &amp;&amp; Count > 0
+        /// </summary>
+        private static IEnumerator MonitorExpCounterAnimation(IntPtr instancePtr)
+        {
+            var wait = new WaitForSeconds(0.1f);
+            bool loggedOnce = false;
+
+            // Navigate pointer chain once with diagnostic logging
+            if (instancePtr == IntPtr.Zero)
+            {
+                MelonLogger.Warning("[BattleResult] MonitorExp: instancePtr is null");
+                yield break;
+            }
+
+            IntPtr pointControllerPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(instancePtr, 0x20);
+            if (pointControllerPtr == IntPtr.Zero)
+            {
+                MelonLogger.Warning("[BattleResult] MonitorExp: pointController is null");
+                yield break;
+            }
+
+            IntPtr charListCtrlPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(pointControllerPtr, 0x30);
+            if (charListCtrlPtr == IntPtr.Zero)
+            {
+                MelonLogger.Warning("[BattleResult] MonitorExp: characterListController is null");
+                yield break;
+            }
+
+            IntPtr contentListPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(charListCtrlPtr, 0x20);
+            if (contentListPtr == IntPtr.Zero)
+            {
+                MelonLogger.Warning("[BattleResult] MonitorExp: contentList is null");
+                yield break;
+            }
+
+            // contentList.Count (List._size) at contentListPtr + 0x18
+            int contentCount = System.Runtime.InteropServices.Marshal.ReadInt32(contentListPtr, 0x18);
+            if (contentCount <= 0)
+            {
+                MelonLogger.Warning($"[BattleResult] MonitorExp: contentCount={contentCount}, aborting");
+                yield break;
+            }
+
+            MelonLogger.Msg($"[BattleResult] MonitorExp: chain OK. charListCtrl=0x{charListCtrlPtr:X}, contentCount={contentCount}");
+
+            // Poll until animation finishes or counter was already stopped by a safety net
+            while (BattleResultState.ExpCounterPlaying)
+            {
+                yield return wait;
+
+                try
+                {
+                    int endCount = System.Runtime.InteropServices.Marshal.ReadInt32(charListCtrlPtr, 0x30);
+
+                    if (!loggedOnce)
+                    {
+                        MelonLogger.Msg($"[BattleResult] MonitorExp: first poll endCount={endCount}/{contentCount}");
+                        loggedOnce = true;
+                    }
+
+                    if (endCount >= contentCount)
+                    {
+                        MelonLogger.Msg($"[BattleResult] MonitorExp: animation done (endCount={endCount} >= contentCount={contentCount})");
+                        BattleResultState.StopExpCounterIfPlaying();
+                        yield break;
+                    }
+                }
+                catch
+                {
+                    // Pointer became invalid — bail out silently, safety nets will handle it
+                    yield break;
+                }
             }
         }
     }
@@ -101,6 +246,7 @@ namespace FFV_ScreenReader.Patches
         [HarmonyPostfix]
         public static void Postfix()
         {
+            BattleResultState.StopExpCounterIfPlaying();
             MelonLogger.Msg("[BattleResult] ShowStatusUpInit fired");
         }
     }
@@ -116,6 +262,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
+                BattleResultState.StopExpCounterIfPlaying();
                 MelonLogger.Msg("[BattleResult] ShowGetAbilitysInit fired");
                 var skillCtrl = __instance.skillController;
                 if (skillCtrl == null) return;
@@ -195,6 +342,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
+                BattleResultState.StopExpCounterIfPlaying();
                 MelonLogger.Msg("[BattleResult] ShowGetItemsInit fired");
 
                 var data = __instance.targetData;
@@ -228,6 +376,35 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in ShowGetItemsInit patch: {ex.Message}");
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------
+    //  EndWaitInit: results dismissed, clear stored data
+    // ----------------------------------------------------------------
+    [HarmonyPatch(typeof(ResultMenuController), nameof(ResultMenuController.EndWaitInit))]
+    public static class ResultMenuController_EndWaitInit_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            try
+            {
+                // Close navigator if open
+                if (BattleResultNavigator.IsOpen)
+                    BattleResultNavigator.Close();
+
+                // Stop counter sound just in case
+                BattleResultState.StopExpCounterIfPlaying();
+
+                // Clear stored data
+                BattleResultDataStore.Clear();
+                MelonLogger.Msg("[BattleResult] EndWaitInit fired, data cleared");
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in EndWaitInit patch: {ex.Message}");
             }
         }
     }
@@ -316,27 +493,114 @@ namespace FFV_ScreenReader.Patches
         /// <summary>
         /// Postfix for ResultStatusUpController.SetData —
         /// fires once per character who leveled up.
+        /// __0 is the BattleResultCharacterData parameter.
         /// </summary>
-        public static void SetData_Postfix(object __instance)
+        public static void SetData_Postfix(object __instance, object __0)
         {
             try
             {
                 MelonLogger.Msg("[BattleResult] ResultStatusUpController.SetData fired");
+
+                // Try to extract stat diffs from the data parameter
+                BattleResultDataStore.CharacterStatData statData = null;
+                try
+                {
+                    statData = ExtractStatDiffs(__0);
+                }
+                catch (Exception ex)
+                {
+                    MelonLogger.Warning($"[BattleResult] SetData: could not extract stat diffs: {ex.Message}");
+                }
 
                 // Obtain the MonoBehaviour's Transform so we can read UI text
                 Transform root = GetTransformFromInstance(__instance);
                 if (root == null)
                 {
                     MelonLogger.Warning("[BattleResult] SetData: could not get Transform from __instance");
+                    // Even without UI, try to announce from data if available
+                    if (statData != null)
+                    {
+                        BattleResultDataStore.AddStatData(statData);
+                        AnnounceFromStatData(statData);
+                    }
                     return;
                 }
 
-                CoroutineManager.StartUntracked(AnnounceStatusUpCoroutine(root));
+                CoroutineManager.StartUntracked(AnnounceStatusUpCoroutine(root, statData));
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in SetData postfix: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Extract HP/MP diffs from the BattleResultCharacterData parameter.
+        /// </summary>
+        private static BattleResultDataStore.CharacterStatData ExtractStatDiffs(object charDataObj)
+        {
+            if (charDataObj == null) return null;
+
+            // Cast to BattleResultCharacterData
+            var charData = charDataObj as BattleResultData.BattleResultCharacterData;
+            if (charData == null) return null;
+
+            var beforeChar = charData.BeforData;
+            var afterChar = charData.AfterData;
+            if (beforeChar?.parameter == null || afterChar?.parameter == null) return null;
+
+            string charName = afterChar.Name;
+            var result = new BattleResultDataStore.CharacterStatData { Name = charName };
+
+            // Compare HP
+            int beforeHp = beforeChar.parameter.ConfirmedMaxHp();
+            int afterHp = afterChar.parameter.ConfirmedMaxHp();
+            int diffHp = afterHp - beforeHp;
+            result.Stats.Add(new BattleResultDataStore.StatChange
+            {
+                Category = "HP",
+                Before = beforeHp.ToString(),
+                After = afterHp.ToString(),
+                Diff = diffHp
+            });
+
+            // Compare MP
+            int beforeMp = beforeChar.parameter.ConfirmedMaxMp();
+            int afterMp = afterChar.parameter.ConfirmedMaxMp();
+            int diffMp = afterMp - beforeMp;
+            result.Stats.Add(new BattleResultDataStore.StatChange
+            {
+                Category = "MP",
+                Before = beforeMp.ToString(),
+                After = afterMp.ToString(),
+                Diff = diffMp
+            });
+
+            MelonLogger.Msg($"[BattleResult] StatDiffs for {charName}: HP {beforeHp}->{afterHp} (+{diffHp}), MP {beforeMp}->{afterMp} (+{diffMp})");
+
+            return result;
+        }
+
+        /// <summary>
+        /// Announces stat data directly (fallback when UI transform is not available).
+        /// </summary>
+        private static void AnnounceFromStatData(BattleResultDataStore.CharacterStatData statData)
+        {
+            var parts = new List<string>();
+            foreach (var stat in statData.Stats)
+            {
+                if (stat.Diff > 0)
+                    parts.Add($"{stat.Category} +{stat.Diff}");
+            }
+
+            if (parts.Count == 0) return;
+
+            string announcement = $"{statData.Name}: {string.Join(", ", parts)}";
+            MelonLogger.Msg($"[BattleResult] StatusUp (from data): {announcement}");
+
+            if (AnnouncementDeduplicator.ShouldAnnounce(
+                    AnnouncementContexts.BATTLE_RESULT_LEVELUP, announcement))
+                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
         }
 
         private static Transform GetTransformFromInstance(object instance)
@@ -351,10 +615,15 @@ namespace FFV_ScreenReader.Patches
         /// <summary>
         /// Waits 1 frame, then reads the status-up screen text and
         /// announces per-character stat changes.
+        /// Also stores stat data for the navigator.
         /// </summary>
-        private static IEnumerator AnnounceStatusUpCoroutine(Transform root)
+        private static IEnumerator AnnounceStatusUpCoroutine(Transform root, BattleResultDataStore.CharacterStatData statData)
         {
             yield return null; // let SetData finish populating the view
+
+            // Store stat data for navigator (even if UI read fails below)
+            if (statData != null)
+                BattleResultDataStore.AddStatData(statData);
 
             // Collect every visible text value under the controller
             var allTexts = new List<string>();
@@ -365,44 +634,74 @@ namespace FFV_ScreenReader.Patches
                     allTexts.Add(v);
             }, includeInactive: false);
 
-            if (allTexts.Count == 0) yield break;
+            if (allTexts.Count == 0)
+            {
+                // Fall back to data-based announcement
+                if (statData != null)
+                    AnnounceFromStatData(statData);
+                yield break;
+            }
 
             // Build a structured announcement.
             // Expected order from depth-first traversal:
             //   [0] = character name (from ResultStatusUpView.nameText)
             //   then groups of (category, beforeValue, afterValue)
             string charName = allTexts[0];
+
+            // Prefer data-based diff format "+N" over UI "before to after"
+            if (statData != null && statData.Stats.Count > 0)
+            {
+                var statParts = new List<string>();
+                foreach (var stat in statData.Stats)
+                {
+                    if (stat.Diff > 0)
+                        statParts.Add($"{stat.Category} +{stat.Diff}");
+                }
+
+                if (statParts.Count > 0)
+                {
+                    string announcement = $"{charName}: {string.Join(", ", statParts)}";
+                    MelonLogger.Msg($"[BattleResult] StatusUp: {announcement}");
+
+                    if (AnnouncementDeduplicator.ShouldAnnounce(
+                            AnnouncementContexts.BATTLE_RESULT_LEVELUP, announcement))
+                        FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                    yield break;
+                }
+            }
+
+            // Fallback: use UI text with "before to after" format
             string to = LocalizationHelper.GetModString("to");
 
-            var statParts = new List<string>();
+            var uiStatParts = new List<string>();
             int i = 1;
             while (i < allTexts.Count)
             {
                 // Try to detect a (category, before, after) triple
                 if (i + 2 < allTexts.Count && IsNumeric(allTexts[i + 1]) && IsNumeric(allTexts[i + 2]))
                 {
-                    statParts.Add($"{allTexts[i]} {allTexts[i + 1]} {to} {allTexts[i + 2]}");
+                    uiStatParts.Add($"{allTexts[i]} {allTexts[i + 1]} {to} {allTexts[i + 2]}");
                     i += 3;
                 }
                 else
                 {
                     // Unknown text — include as-is
-                    statParts.Add(allTexts[i]);
+                    uiStatParts.Add(allTexts[i]);
                     i++;
                 }
             }
 
-            string announcement;
-            if (statParts.Count > 0)
-                announcement = $"{charName}: {string.Join(", ", statParts)}";
+            string fallbackAnnouncement;
+            if (uiStatParts.Count > 0)
+                fallbackAnnouncement = $"{charName}: {string.Join(", ", uiStatParts)}";
             else
-                announcement = charName;
+                fallbackAnnouncement = charName;
 
-            MelonLogger.Msg($"[BattleResult] StatusUp: {announcement}");
+            MelonLogger.Msg($"[BattleResult] StatusUp: {fallbackAnnouncement}");
 
             if (AnnouncementDeduplicator.ShouldAnnounce(
-                    AnnouncementContexts.BATTLE_RESULT_LEVELUP, announcement))
-                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                    AnnouncementContexts.BATTLE_RESULT_LEVELUP, fallbackAnnouncement))
+                FFV_ScreenReaderMod.SpeakText(fallbackAnnouncement, interrupt: false);
         }
 
         /// <summary>

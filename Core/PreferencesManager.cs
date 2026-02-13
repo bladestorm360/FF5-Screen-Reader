@@ -19,6 +19,7 @@ namespace FFV_ScreenReader.Core
         private static MelonPreferences_Entry<bool> prefFootsteps;
         private static MelonPreferences_Entry<bool> prefAudioBeacons;
         private static MelonPreferences_Entry<bool> prefLandingPings;
+        private static MelonPreferences_Entry<bool> prefExpCounter;
 
         // Volume preferences (0-100, default 50)
         private static MelonPreferences_Entry<int> prefWallBumpVolume;
@@ -26,6 +27,7 @@ namespace FFV_ScreenReader.Core
         private static MelonPreferences_Entry<int> prefWallToneVolume;
         private static MelonPreferences_Entry<int> prefBeaconVolume;
         private static MelonPreferences_Entry<int> prefLandingPingVolume;
+        private static MelonPreferences_Entry<int> prefExpCounterVolume;
 
         // Enemy HP display mode (0=Numbers, 1=Percentage, 2=Hidden)
         private static MelonPreferences_Entry<int> prefEnemyHPDisplay;
@@ -44,12 +46,14 @@ namespace FFV_ScreenReader.Core
             prefFootsteps = prefsCategory.CreateEntry<bool>("Footsteps", false, "Footsteps", "Play click sound on each tile movement");
             prefAudioBeacons = prefsCategory.CreateEntry<bool>("AudioBeacons", false, "Audio Beacons", "Play periodic pings toward the selected entity");
             prefLandingPings = prefsCategory.CreateEntry<bool>("LandingPings", false, "Landing Pings", "Play directional pings indicating nearby landable tiles when on ship");
+            prefExpCounter = prefsCategory.CreateEntry<bool>("ExpCounter", true, "EXP Counter Sound", "Play rapid beeping while EXP bar animates on battle results");
 
             prefWallBumpVolume = prefsCategory.CreateEntry<int>("WallBumpVolume", 50, "Wall Bump Volume", "Volume for wall bump sounds (0-100)");
             prefFootstepVolume = prefsCategory.CreateEntry<int>("FootstepVolume", 50, "Footstep Volume", "Volume for footstep sounds (0-100)");
             prefWallToneVolume = prefsCategory.CreateEntry<int>("WallToneVolume", 50, "Wall Tone Volume", "Volume for wall proximity tones (0-100)");
             prefBeaconVolume = prefsCategory.CreateEntry<int>("BeaconVolume", 50, "Beacon Volume", "Volume for audio beacon pings (0-100)");
             prefLandingPingVolume = prefsCategory.CreateEntry<int>("LandingPingVolume", 50, "Landing Ping Volume", "Volume for landing ping tones (0-100)");
+            prefExpCounterVolume = prefsCategory.CreateEntry<int>("ExpCounterVolume", 50, "EXP Counter Volume", "Volume for EXP counter beep (0-100)");
 
             prefEnemyHPDisplay = prefsCategory.CreateEntry<int>("EnemyHPDisplay", 0, "Enemy HP Display", "0=Numbers, 1=Percentage, 2=Hidden");
         }
@@ -63,6 +67,7 @@ namespace FFV_ScreenReader.Core
         public static bool FootstepsDefault => prefFootsteps?.Value ?? false;
         public static bool AudioBeaconsDefault => prefAudioBeacons?.Value ?? false;
         public static bool LandingPingsDefault => prefLandingPings?.Value ?? false;
+        public static bool ExpCounterDefault => prefExpCounter?.Value ?? true;
 
         #endregion
 
@@ -73,6 +78,7 @@ namespace FFV_ScreenReader.Core
         public static int WallToneVolume => prefWallToneVolume?.Value ?? 50;
         public static int BeaconVolume => prefBeaconVolume?.Value ?? 50;
         public static int LandingPingVolume => prefLandingPingVolume?.Value ?? 50;
+        public static int ExpCounterVolume => prefExpCounterVolume?.Value ?? 50;
         public static int EnemyHPDisplay => prefEnemyHPDisplay?.Value ?? 0;
 
         #endregion
@@ -120,6 +126,15 @@ namespace FFV_ScreenReader.Core
             if (prefLandingPingVolume != null)
             {
                 prefLandingPingVolume.Value = Math.Clamp(value, 0, 100);
+                prefsCategory?.SaveToFile(false);
+            }
+        }
+
+        public static void SetExpCounterVolume(int value)
+        {
+            if (prefExpCounterVolume != null)
+            {
+                prefExpCounterVolume.Value = Math.Clamp(value, 0, 100);
                 prefsCategory?.SaveToFile(false);
             }
         }
@@ -173,6 +188,11 @@ namespace FFV_ScreenReader.Core
         public static void SaveLandingPings(bool value)
         {
             if (prefLandingPings != null) { prefLandingPings.Value = value; prefsCategory?.SaveToFile(false); }
+        }
+
+        public static void SaveExpCounter(bool value)
+        {
+            if (prefExpCounter != null) { prefExpCounter.Value = value; prefsCategory?.SaveToFile(false); }
         }
 
         #endregion
