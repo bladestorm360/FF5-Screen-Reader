@@ -114,7 +114,6 @@ namespace FFV_ScreenReader.Patches
         private const int COMMON_COMMAND_TEXT_OFFSET = 0x18;
 
 
-
         private static int lastAnnouncedIndex = -1;
         private static int lastPopupButtonIndex = -1;
 
@@ -207,6 +206,213 @@ namespace FFV_ScreenReader.Patches
                 MelonLogger.Warning($"[SaveLoad] Failed to patch Touch SaveListController: {ex.Message}");
             }
         }
+
+        #endregion
+
+        #region SetPopupActive Patches
+
+        private static void TryPatchLoadGameWindowController(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(KeyInputLoadGameWindowController);
+                var method = AccessTools.Method(controllerType, "SetPopupActive");
+
+                if (method != null)
+                {
+                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(LoadGameWindowSetPopupActive_Prefix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadGameWindowSetPopupActive_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadGameWindowController.SetPopupActive: {ex.Message}");
+            }
+        }
+
+        private static void TryPatchLoadWindowController(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(KeyInputLoadWindowController);
+                var method = AccessTools.Method(controllerType, "SetPopupActive");
+
+                if (method != null)
+                {
+                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(LoadWindowSetPopupActive_Prefix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadWindowSetPopupActive_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
+                }
+                else
+                {
+                    MelonLogger.Warning("[SaveLoad] LoadWindowController.SetPopupActive not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadWindowController.SetPopupActive: {ex.Message}");
+            }
+        }
+
+        private static void TryPatchSaveWindowController(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(KeyInputSaveWindowController);
+                var method = AccessTools.Method(controllerType, "SetPopupActive");
+
+                if (method != null)
+                {
+                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(SaveWindowSetPopupActive_Prefix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SaveWindowSetPopupActive_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
+                }
+                else
+                {
+                    MelonLogger.Warning("[SaveLoad] SaveWindowController.SetPopupActive not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch SaveWindowController.SetPopupActive: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region SetActive Patches for State Clearing
+
+        private static void TryPatchLoadGameWindowSetActive(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(KeyInputLoadGameWindowController);
+                var method = AccessTools.Method(controllerType, "SetActive", new Type[] { typeof(bool) });
+
+                if (method != null)
+                {
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadGameWindowSetActive_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadGameWindowController.SetActive: {ex.Message}");
+            }
+        }
+
+        private static void TryPatchLoadWindowSetActive(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(KeyInputLoadWindowController);
+                var method = AccessTools.Method(controllerType, "SetActive", new Type[] { typeof(bool) });
+
+                if (method != null)
+                {
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadWindowSetActive_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadWindowController.SetActive: {ex.Message}");
+            }
+        }
+
+        private static void TryPatchSaveWindowSetActive(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(KeyInputSaveWindowController);
+                var method = AccessTools.Method(controllerType, "SetActive", new Type[] { typeof(bool) });
+
+                if (method != null)
+                {
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SaveWindowSetActive_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch SaveWindowController.SetActive: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Popup Button Navigation Patches
+
+        /// <summary>
+        /// Patches SavePopup.UpdateCommand for button navigation.
+        /// This single patch handles ALL popup button navigation since all controllers use the same SavePopup class.
+        /// </summary>
+        private static void TryPatchSavePopupUpdateCommand(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type popupType = typeof(SavePopup);
+                var method = AccessTools.Method(popupType, "UpdateCommand");
+
+                if (method != null)
+                {
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SavePopupUpdateCommand_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
+                }
+                else
+                {
+                    MelonLogger.Warning("[SaveLoad] SavePopup.UpdateCommand not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch SavePopup.UpdateCommand: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Patches InterruptionWindowController.SetEnablePopup for QuickSave popup message reading.
+        /// </summary>
+        private static void TryPatchInterruptionController(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                Type controllerType = typeof(InterruptionController);
+                var method = AccessTools.Method(controllerType, "SetEnablePopup");
+
+                if (method != null)
+                {
+                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(InterruptionSetEnablePopup_Prefix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(InterruptionSetEnablePopup_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
+                }
+                else
+                {
+                    MelonLogger.Warning("[SaveLoad] InterruptionWindowController.SetEnablePopup not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Failed to patch InterruptionWindowController: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region SaveListController Postfix Methods
 
         /// <summary>
         /// Postfix for KeyInput SaveListController.SelectContent - announces save slot info.
@@ -475,7 +681,7 @@ namespace FFV_ScreenReader.Patches
         /// <summary>
         /// Helper to read Text component at a given offset.
         /// </summary>
-        private static string ReadTextAtOffset(IntPtr basePtr, int offset)
+        internal static string ReadTextAtOffset(IntPtr basePtr, int offset)
         {
             try
             {
@@ -508,350 +714,10 @@ namespace FFV_ScreenReader.Patches
 
         #endregion
 
-        #region Window Controller Patches for Confirmation Dialogs
-
-        private static void TryPatchLoadGameWindowController(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(KeyInputLoadGameWindowController);
-                var method = AccessTools.Method(controllerType, "SetPopupActive");
-
-                if (method != null)
-                {
-                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(LoadGameWindowSetPopupActive_Prefix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadGameWindowSetPopupActive_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadGameWindowController.SetPopupActive: {ex.Message}");
-            }
-        }
-
-        private static void TryPatchLoadWindowController(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(KeyInputLoadWindowController);
-                var method = AccessTools.Method(controllerType, "SetPopupActive");
-
-                if (method != null)
-                {
-                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(LoadWindowSetPopupActive_Prefix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadWindowSetPopupActive_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
-                }
-                else
-                {
-                    MelonLogger.Warning("[SaveLoad] LoadWindowController.SetPopupActive not found");
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadWindowController.SetPopupActive: {ex.Message}");
-            }
-        }
-
-        private static void TryPatchSaveWindowController(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(KeyInputSaveWindowController);
-                var method = AccessTools.Method(controllerType, "SetPopupActive");
-
-                if (method != null)
-                {
-                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(SaveWindowSetPopupActive_Prefix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SaveWindowSetPopupActive_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
-                }
-                else
-                {
-                    MelonLogger.Warning("[SaveLoad] SaveWindowController.SetPopupActive not found");
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch SaveWindowController.SetPopupActive: {ex.Message}");
-            }
-        }
-
-        #endregion
-
-        #region SetActive Patches for State Clearing
-
-        private static void TryPatchLoadGameWindowSetActive(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(KeyInputLoadGameWindowController);
-                var method = AccessTools.Method(controllerType, "SetActive", new Type[] { typeof(bool) });
-
-                if (method != null)
-                {
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadGameWindowSetActive_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadGameWindowController.SetActive: {ex.Message}");
-            }
-        }
-
-        private static void TryPatchLoadWindowSetActive(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(KeyInputLoadWindowController);
-                var method = AccessTools.Method(controllerType, "SetActive", new Type[] { typeof(bool) });
-
-                if (method != null)
-                {
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(LoadWindowSetActive_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch LoadWindowController.SetActive: {ex.Message}");
-            }
-        }
-
-        private static void TryPatchSaveWindowSetActive(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(KeyInputSaveWindowController);
-                var method = AccessTools.Method(controllerType, "SetActive", new Type[] { typeof(bool) });
-
-                if (method != null)
-                {
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SaveWindowSetActive_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch SaveWindowController.SetActive: {ex.Message}");
-            }
-        }
-
-        #endregion
-
-        #region Popup Button Navigation Patches
-
-        /// <summary>
-        /// Patches SavePopup.UpdateCommand for button navigation.
-        /// This single patch handles ALL popup button navigation since all controllers use the same SavePopup class.
-        /// </summary>
-        private static void TryPatchSavePopupUpdateCommand(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type popupType = typeof(SavePopup);
-                var method = AccessTools.Method(popupType, "UpdateCommand");
-
-                if (method != null)
-                {
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SavePopupUpdateCommand_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, postfix: new HarmonyMethod(postfix));
-                }
-                else
-                {
-                    MelonLogger.Warning("[SaveLoad] SavePopup.UpdateCommand not found");
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch SavePopup.UpdateCommand: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Patches InterruptionWindowController.SetEnablePopup for QuickSave popup message reading.
-        /// </summary>
-        private static void TryPatchInterruptionController(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                Type controllerType = typeof(InterruptionController);
-                var method = AccessTools.Method(controllerType, "SetEnablePopup");
-
-                if (method != null)
-                {
-                    var prefix = typeof(SaveLoadPatches).GetMethod(nameof(InterruptionSetEnablePopup_Prefix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(InterruptionSetEnablePopup_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(method, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
-                }
-                else
-                {
-                    MelonLogger.Warning("[SaveLoad] InterruptionWindowController.SetEnablePopup not found");
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch InterruptionWindowController: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Postfix for SavePopup.UpdateCommand - reads button text when navigating Yes/No.
-        /// </summary>
-        // SavePopup field offsets for title/message (dump.cs line 469928)
-        private const int SAVE_POPUP_TITLE_TEXT_OFFSET = 0x38;
-        private const int SAVE_POPUP_MESSAGE_TEXT_OFFSET = 0x40;
-
-        public static void SavePopupUpdateCommand_Postfix(SavePopup __instance)
-        {
-            try
-            {
-                if (__instance == null) return;
-
-                IntPtr ptr = __instance.Pointer;
-                if (ptr == IntPtr.Zero) return;
-
-                // Read cursor from offset 0x58
-                IntPtr cursorPtr = Marshal.ReadIntPtr(ptr + SAVE_POPUP_SELECT_CURSOR_OFFSET);
-                if (cursorPtr == IntPtr.Zero) return;
-
-                var cursor = new GameCursor(cursorPtr);
-                int index = cursor.Index;
-
-                // Deduplicate
-                if (index == lastPopupButtonIndex) return;
-
-                bool isFirstCall = (lastPopupButtonIndex == -1);
-                lastPopupButtonIndex = index;
-
-                // On first call after popup opens, delay read by 1 frame — title text may not be populated yet
-                if (isFirstCall)
-                {
-                    CoroutineManager.StartManaged(DelayedSavePopupRead(ptr, index));
-                    return; // Button will be read inside the coroutine after title+message
-                }
-
-                // Subsequent calls: read button text normally
-                string buttonText = ReadPopupButton(ptr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, index);
-                if (!string.IsNullOrWhiteSpace(buttonText))
-                {
-                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Error in SavePopupUpdateCommand: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Delayed read of save popup title + message + initial button, waiting 1 frame for UI to populate.
-        /// </summary>
-        private static IEnumerator DelayedSavePopupRead(IntPtr popupPtr, int buttonIndex)
-        {
-            yield return null; // Wait 1 frame for UI to populate
-
-            try
-            {
-                if (popupPtr == IntPtr.Zero) yield break;
-
-                // Read title + message
-                string title = ReadTextAtOffset(popupPtr, SAVE_POPUP_TITLE_TEXT_OFFSET);
-                string message = ReadTextAtOffset(popupPtr, SAVE_POPUP_MESSAGE_TEXT_OFFSET);
-                string announcement = PopupPatches.BuildAnnouncement(title, message);
-                if (!string.IsNullOrEmpty(announcement))
-                {
-                    FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
-                }
-
-                // Read initial button text (queues after title+message)
-                string buttonText = ReadPopupButton(popupPtr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, buttonIndex);
-                if (!string.IsNullOrWhiteSpace(buttonText))
-                {
-                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Error in DelayedSavePopupRead: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Postfix for InterruptionWindowController.SetEnablePopup - reads QuickSave popup message.
-        /// </summary>
-        public static void InterruptionSetEnablePopup_Postfix(object __instance, bool isEnable)
-        {
-            try
-            {
-                if (isEnable)
-                {
-                    var controller = __instance as InterruptionController;
-                    if (controller != null)
-                    {
-                        // Reset button index for fresh popup
-                        lastPopupButtonIndex = -1;
-                    }
-                }
-                else
-                {
-                    SaveLoadMenuState.IsInConfirmation = false;
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Error in InterruptionSetEnablePopup: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Reads button text from popup's commandList at the given index.
-        /// </summary>
-        private static string ReadPopupButton(IntPtr popupPtr, int cmdListOffset, int index)
-        {
-            try
-            {
-                IntPtr listPtr = Marshal.ReadIntPtr(popupPtr + cmdListOffset);
-                if (listPtr == IntPtr.Zero) return null;
-
-                int size = Marshal.ReadInt32(listPtr + 0x18);
-                if (index < 0 || index >= size) return null;
-
-                IntPtr itemsPtr = Marshal.ReadIntPtr(listPtr + 0x10);
-                if (itemsPtr == IntPtr.Zero) return null;
-
-                IntPtr commandPtr = Marshal.ReadIntPtr(itemsPtr + 0x20 + (index * 8));
-                if (commandPtr == IntPtr.Zero) return null;
-
-                IntPtr textPtr = Marshal.ReadIntPtr(commandPtr + COMMON_COMMAND_TEXT_OFFSET);
-                if (textPtr == IntPtr.Zero) return null;
-
-                var text = new UnityEngine.UI.Text(textPtr);
-                return text?.text;
-            }
-            catch { return null; }
-        }
-
-        #endregion
-
         #region Prefix Methods
 
         /// <summary>
-        /// Prefix for LoadGameWindowController.SetPopupActive — sets flags BEFORE the game method
+        /// Prefix for LoadGameWindowController.SetPopupActive -- sets flags BEFORE the game method
         /// calls Popup.Open() internally, so PopupOpen_Postfix sees IsActive=true and returns early.
         /// </summary>
         public static void LoadGameWindowSetPopupActive_Prefix(bool isEnable)
@@ -864,7 +730,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Prefix for LoadWindowController.SetPopupActive — sets flags BEFORE Popup.Open().
+        /// Prefix for LoadWindowController.SetPopupActive -- sets flags BEFORE Popup.Open().
         /// </summary>
         public static void LoadWindowSetPopupActive_Prefix(bool isEnable)
         {
@@ -876,7 +742,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Prefix for SaveWindowController.SetPopupActive — sets flags BEFORE Popup.Open().
+        /// Prefix for SaveWindowController.SetPopupActive -- sets flags BEFORE Popup.Open().
         /// </summary>
         public static void SaveWindowSetPopupActive_Prefix(bool isEnable)
         {
@@ -888,7 +754,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Prefix for InterruptionWindowController.SetEnablePopup — sets flags BEFORE Popup.Open().
+        /// Prefix for InterruptionWindowController.SetEnablePopup -- sets flags BEFORE Popup.Open().
         /// </summary>
         public static void InterruptionSetEnablePopup_Prefix(bool isEnable)
         {
@@ -909,8 +775,7 @@ namespace FFV_ScreenReader.Patches
             {
                 if (isEnable)
                 {
-                    var controller = __instance as KeyInputLoadGameWindowController;
-                    if (controller != null)
+                    if (__instance != null)
                     {
                         // Reset button index for fresh popup
                         lastPopupButtonIndex = -1;
@@ -1035,6 +900,163 @@ namespace FFV_ScreenReader.Patches
         {
             SaveLoadMenuState.ResetState();
             lastAnnouncedIndex = -1;
+        }
+
+        #endregion
+
+        #region Popup Button Navigation Methods
+
+        /// <summary>
+        /// SavePopup field offsets for title/message (dump.cs line 469928)
+        /// </summary>
+        private const int SAVE_POPUP_TITLE_TEXT_OFFSET = 0x38;
+        private const int SAVE_POPUP_MESSAGE_TEXT_OFFSET = 0x40;
+
+        public static void SavePopupUpdateCommand_Postfix(SavePopup __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                IntPtr ptr = __instance.Pointer;
+                if (ptr == IntPtr.Zero) return;
+
+                // Read cursor from offset 0x58
+                IntPtr cursorPtr = Marshal.ReadIntPtr(ptr + SAVE_POPUP_SELECT_CURSOR_OFFSET);
+                if (cursorPtr == IntPtr.Zero) return;
+
+                var cursor = new GameCursor(cursorPtr);
+                int index = cursor.Index;
+
+                // Deduplicate
+                if (index == lastPopupButtonIndex) return;
+
+                bool isFirstCall = (lastPopupButtonIndex == -1);
+                lastPopupButtonIndex = index;
+
+                // On first call after popup opens, delay read by 1 frame -- title text may not be populated yet
+                if (isFirstCall)
+                {
+                    CoroutineManager.StartManaged(DelayedSavePopupRead(ptr, index));
+                    return; // Button will be read inside the coroutine after title+message
+                }
+
+                // Subsequent calls: read button text normally
+                string buttonText = ReadPopupButton(ptr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, index);
+                if (!string.IsNullOrWhiteSpace(buttonText))
+                {
+                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Error in SavePopupUpdateCommand: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Delayed read of save popup title + message + initial button, waiting 1 frame for UI to populate.
+        /// </summary>
+        private static IEnumerator DelayedSavePopupRead(IntPtr popupPtr, int buttonIndex)
+        {
+            yield return null; // Wait 1 frame for UI to populate
+
+            try
+            {
+                if (popupPtr == IntPtr.Zero) yield break;
+
+                // Read title + message
+                string title = ReadTextAtOffset(popupPtr, SAVE_POPUP_TITLE_TEXT_OFFSET);
+                string message = ReadTextAtOffset(popupPtr, SAVE_POPUP_MESSAGE_TEXT_OFFSET);
+                string announcement = PopupPatches.BuildAnnouncement(title, message);
+                if (!string.IsNullOrEmpty(announcement))
+                {
+                    FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
+                }
+
+                // Read initial button text (queues after title+message)
+                string buttonText = ReadPopupButton(popupPtr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, buttonIndex);
+                if (!string.IsNullOrWhiteSpace(buttonText))
+                {
+                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Error in DelayedSavePopupRead: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Postfix for InterruptionWindowController.SetEnablePopup - reads QuickSave popup message.
+        /// </summary>
+        public static void InterruptionSetEnablePopup_Postfix(object __instance, bool isEnable)
+        {
+            try
+            {
+                if (isEnable)
+                {
+                    if (__instance != null)
+                    {
+                        // Reset button index for fresh popup
+                        lastPopupButtonIndex = -1;
+                    }
+                }
+                else
+                {
+                    SaveLoadMenuState.IsInConfirmation = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[SaveLoad] Error in InterruptionSetEnablePopup: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Postfix for InterruptionWindowController.InitComplite - reads Quick Save completion popup.
+        /// </summary>
+        public static void InterruptionInitComplite_Postfix()
+        {
+            // Reset lastPopupButtonIndex so SavePopup.UpdateCommand re-triggers first-call flow
+            lastPopupButtonIndex = -1;
+        }
+
+        /// <summary>
+        /// Postfix for SaveWindowController.CompleteInit - reads Normal Save completion popup.
+        /// </summary>
+        public static void SaveWindowCompleteInit_Postfix()
+        {
+            // Reset lastPopupButtonIndex so SavePopup.UpdateCommand re-triggers first-call flow
+            lastPopupButtonIndex = -1;
+        }
+
+        /// <summary>
+        /// Reads button text from popup's commandList at the given index.
+        /// </summary>
+        private static string ReadPopupButton(IntPtr popupPtr, int cmdListOffset, int index)
+        {
+            try
+            {
+                IntPtr listPtr = Marshal.ReadIntPtr(popupPtr + cmdListOffset);
+                if (listPtr == IntPtr.Zero) return null;
+
+                int size = Marshal.ReadInt32(listPtr + 0x18);
+                if (index < 0 || index >= size) return null;
+
+                IntPtr itemsPtr = Marshal.ReadIntPtr(listPtr + 0x10);
+                if (itemsPtr == IntPtr.Zero) return null;
+
+                IntPtr commandPtr = Marshal.ReadIntPtr(itemsPtr + 0x20 + (index * 8));
+                if (commandPtr == IntPtr.Zero) return null;
+
+                IntPtr textPtr = Marshal.ReadIntPtr(commandPtr + COMMON_COMMAND_TEXT_OFFSET);
+                if (textPtr == IntPtr.Zero) return null;
+
+                var text = new UnityEngine.UI.Text(textPtr);
+                return text?.text;
+            }
+            catch { return null; }
         }
 
         #endregion

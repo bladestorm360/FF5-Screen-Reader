@@ -80,11 +80,11 @@ namespace FFV_ScreenReader.Patches
     /// Patch for character selection list navigation.
     /// Announces character names when navigating up/down in the status character list.
     /// </summary>
-    [HarmonyPatch(typeof(StatusWindowController), nameof(StatusWindowController.SelectContent))]
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.StatusWindowController), nameof(Il2CppLast.UI.KeyInput.StatusWindowController.SelectContent))]
     public static class StatusWindowController_SelectContent_Patch
     {
         [HarmonyPostfix]
-        public static void Postfix(StatusWindowController __instance, List<StatusWindowContentControllerBase> contents, int index, Il2CppLast.UI.Cursor targetCursor)
+        public static void Postfix(Il2CppLast.UI.KeyInput.StatusWindowController __instance, List<StatusWindowContentControllerBase> contents, int index, Il2CppLast.UI.Cursor targetCursor)
         {
             try
             {
@@ -153,6 +153,9 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
+    /// <summary>
+    /// Patch for StatusDetailsController.InitDisplay.
+    /// </summary>
     [HarmonyPatch(typeof(StatusDetailsController), nameof(StatusDetailsController.InitDisplay))]
     public static class StatusDetailsController_InitDisplay_Patch
     {

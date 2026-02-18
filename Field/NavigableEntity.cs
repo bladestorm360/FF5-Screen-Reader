@@ -12,7 +12,20 @@ namespace FFV_ScreenReader.Field
     {
         public virtual FieldEntity GameEntity { get; set; }
         
-        public virtual Vector3 Position => GameEntity?.transform?.position ?? Vector3.zero;
+        public virtual Vector3 Position
+        {
+            get
+            {
+                try
+                {
+                    return GameEntity?.transform?.position ?? Vector3.zero;
+                }
+                catch
+                {
+                    return Vector3.zero;
+                }
+            }
+        }
         
         public virtual string Name
         {
@@ -22,7 +35,9 @@ namespace FFV_ScreenReader.Field
                 return Utils.EntityTranslator.Translate(rawName);
             }
         }
-        
+
+        public string DisplayName => GetDisplayName();
+
         public abstract EntityCategory Category { get; }
         
         public abstract int Priority { get; }

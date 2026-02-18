@@ -44,8 +44,7 @@ namespace FFV_ScreenReader.Utils
         private static int cachedTransportType = TRANSPORT_NONE;
         private static int lastAnnouncedState = -1;
 
-        // Dash flag tracking for walk/run toggle announcement (F1)
-        private static bool cachedDashFlag = false;
+        // Dash flag: read directly from player.moveState (no cached tracking needed)
 
         /// <summary>
         /// Set vehicle state when boarding (called from GetOn patch).
@@ -75,40 +74,33 @@ namespace FFV_ScreenReader.Utils
             cachedMoveState = MOVE_STATE_WALK;
             cachedTransportType = TRANSPORT_NONE;
             lastAnnouncedState = -1;
-            cachedDashFlag = false;
+            // cachedDashFlag removed — dash read directly from player
         }
 
         /// <summary>
-        /// Set the cached dash flag (called from SetDashFlag patch).
-        /// </summary>
-        public static void SetCachedDashFlag(bool value)
-        {
-            cachedDashFlag = value;
-        }
-
-        /// <summary>
-        /// Get the effective walk/run state.
+        /// Get the effective walk/run state by reading moveState directly from the player.
         /// In FF5, AutoDash setting inverts the running behavior:
         /// - AutoDash ON: Player runs by default, F1/hold makes them walk
         /// - AutoDash OFF: Player walks by default, F1/hold makes them run
-        /// The cachedDashFlag tracks the current MoveState (DUSH=running).
         /// </summary>
         public static bool GetDashFlag()
         {
             try
             {
-                // Read AutoDash from UserDataManager.Config
+                var playerController = GameObjectCache.Get<FieldPlayerController>();
+                var player = playerController?.fieldPlayer;
+                if (player == null) return false;
+
+                bool isDashing = (int)player.moveState == MOVE_STATE_DUSH;
+
                 var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
                 bool autoDash = (userDataManager?.Config?.IsAutoDash ?? 0) != 0;
 
-                // XOR: autoDash != cachedDashFlag = effective running
-                // If autoDash is on and MoveState is DUSH, user is effectively walking (toggle inverts)
-                // If autoDash is off and MoveState is DUSH, user is effectively running
-                return autoDash != cachedDashFlag;
+                return autoDash != isDashing;
             }
             catch
             {
-                return cachedDashFlag;
+                return false;
             }
         }
 

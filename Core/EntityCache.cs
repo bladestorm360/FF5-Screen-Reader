@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using UnityEngine;
 using FFV_ScreenReader.Field;
 using FFV_ScreenReader.Core.Filters;
 using Il2CppLast.Entity.Field;
 using Il2CppLast.Map;
+using MelonLoader;
 
 namespace FFV_ScreenReader.Core
 {
@@ -121,10 +123,12 @@ namespace FFV_ScreenReader.Core
         
         public void Scan()
         {
+            var sw = Stopwatch.StartNew();
+
             var currentFieldEntities = FieldNavigationHelper.GetAllFieldEntities();
-            
+
             var currentSet = new HashSet<FieldEntity>(currentFieldEntities);
-            
+
             var toRemove = new List<FieldEntity>();
             foreach (var kvp in entityMap)
             {
@@ -138,21 +142,26 @@ namespace FFV_ScreenReader.Core
             {
                 HandleEntityRemoval(fieldEntity);
             }
-            
+
             Vector3 playerPos = GetPlayerPosition();
 
+            int addedCount = 0;
             foreach (var fieldEntity in currentFieldEntities)
             {
                 if (!entityMap.ContainsKey(fieldEntity))
                 {
                     var navEntity = EntityFactory.CreateFromFieldEntity(fieldEntity, playerPos);
-                    
+
                     if (navEntity != null)
                     {
                         HandleEntityAddition(fieldEntity, navEntity);
+                        addedCount++;
                     }
                 }
             }
+
+            sw.Stop();
+            MelonLogger.Msg($"[EntityCache] Scan: {currentFieldEntities.Count} field entities, +{addedCount} new, -{toRemove.Count} stale, took {sw.ElapsedMilliseconds}ms");
         }
         
         private void HandleEntityAddition(FieldEntity fieldEntity, NavigableEntity navEntity)

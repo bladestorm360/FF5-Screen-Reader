@@ -17,6 +17,10 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.TitleMenuCommandController), nameof(Il2CppLast.UI.KeyInput.TitleMenuCommandController.SetCursor))]
     public static class TitleMenuCommandController_SetCursor_Patch
     {
+        private static string _pendingText;
+        private static int _pendingCommandId;
+        private static bool _announcePending;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.TitleMenuCommandController __instance, int index)
         {
@@ -65,18 +69,42 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.TITLE_MENU_COMMAND, (int)contentView.CommandId))
-                {
-                    return;
-                }
+                // Cache the announcement — if multiple SetCursor calls happen in the same frame
+                // (e.g., SetDefaultCursor then SetCursorPositionMemory), only the last one wins.
+                bool wasAlreadyPending = _announcePending;
+                _pendingText = commandName;
+                _pendingCommandId = (int)contentView.CommandId;
+                _announcePending = true;
 
-                FFV_ScreenReaderMod.SpeakText(commandName, interrupt: true);
+                if (!wasAlreadyPending)
+                {
+                    CoroutineManager.StartManaged(DeferredAnnounce());
+                }
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in TitleMenuCommandController.SetCursor patch: {ex.Message}");
             }
         }
+
+        private static IEnumerator DeferredAnnounce()
+        {
+            // Wait one frame so all same-frame SetCursor calls can overwrite the cache
+            yield return null;
+
+            if (_announcePending)
+            {
+                _announcePending = false;
+                string text = _pendingText;
+                int commandId = _pendingCommandId;
+
+                if (!string.IsNullOrWhiteSpace(text) &&
+                    AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.TITLE_MENU_COMMAND, commandId))
+                {
+                    FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
+                }
+            }
+        }
     }
+
 }

@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using FFV_ScreenReader.Core;
 using MelonLoader;
 
 namespace FFV_ScreenReader.Utils
 {
     /// <summary>
     /// Sound channels for concurrent playback.
-    /// Each channel has its own waveOut handle and plays completely independently.
+    /// Each channel has its own SDL audio stream and plays completely independently.
     /// </summary>
     public enum SoundChannel
     {
@@ -150,6 +151,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayWallBump()
         {
+
             if (wallBumpWav == null) return;
             AudioChannel.Play(wallBumpWav, SoundChannel.WallBump, false,
                 FFV_ScreenReader.Core.FFV_ScreenReaderMod.WallBumpVolume);
@@ -160,6 +162,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayFootstep()
         {
+
             if (footstepWav == null) return;
             AudioChannel.Play(footstepWav, SoundChannel.Movement, false,
                 FFV_ScreenReader.Core.FFV_ScreenReaderMod.FootstepVolume);
@@ -170,6 +173,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayWallTone(Direction dir)
         {
+
             byte[] tone = GetOneShotTone(dir);
             if (tone == null) return;
             AudioChannel.Play(tone, SoundChannel.WallTone, false,
@@ -181,6 +185,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayWallTones(WallToneRequest[] requests)
         {
+
             if (requests == null || requests.Length == 0) return;
 
             var tonesToMix = new List<byte[]>();
@@ -214,6 +219,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayWallTonesLooped(IList<Direction> directions)
         {
+
             if (directions == null || directions.Count == 0)
             {
                 StopWallTone();
@@ -293,6 +299,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayLandingPingsLooped(IList<Direction> directions)
         {
+
             if (directions == null || directions.Count == 0)
             {
                 StopLandingPing();
@@ -315,7 +322,7 @@ namespace FFV_ScreenReader.Utils
                 return;
             }
 
-            float bv = SoundConstants.WallToneVolumeMultipliers.BASE_VOLUME;
+            float bv = SoundConstants.LandingPingVolumeMultipliers.BASE_VOLUME;
             var tonesToMix = new List<byte[]>();
             foreach (var dir in directions)
             {
@@ -380,6 +387,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayBeacon(bool isSouth, float pan, float volumeScale)
         {
+
             try
             {
                 int frequency = isSouth ? SoundConstants.Beacon.FREQUENCY_SOUTH : SoundConstants.Beacon.FREQUENCY_NORTH;
@@ -422,6 +430,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void PlayExpCounter()
         {
+
             if (expCounterWav == null) return;
             int volume = FFV_ScreenReader.Core.FFV_ScreenReaderMod.ExpCounterVolume;
             AudioChannel.Play(expCounterWav, SoundChannel.Counter, loop: true, volumePercent: volume);

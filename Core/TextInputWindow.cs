@@ -9,7 +9,7 @@ using FFV_ScreenReader.Utils;
 namespace FFV_ScreenReader.Core
 {
     /// <summary>
-    /// Modal text input dialog using Windows API focus stealing.
+    /// Modal text input dialog using SDL focus stealing.
     /// Creates an invisible window to capture keyboard input, preventing keys from reaching the game.
     /// Used for waypoint naming and other text input scenarios.
     /// </summary>
@@ -27,6 +27,9 @@ namespace FFV_ScreenReader.Core
 
         // Cursor position for navigation
         private static int cursorPosition = 0;
+
+        // All keys tracked by this dialog
+        private static ModKey[] _trackedKeys;
 
         /// <summary>
         /// Opens the text input dialog.
@@ -52,19 +55,20 @@ namespace FFV_ScreenReader.Core
             cursorPosition = inputBuffer.Length;
 
             // Build tracked key array including A-Z and 0-9 ranges
-            var trackedKeys = new List<int> {
-                WindowsFocusHelper.VK_BACK, WindowsFocusHelper.VK_RETURN, WindowsFocusHelper.VK_SHIFT, WindowsFocusHelper.VK_ESCAPE, WindowsFocusHelper.VK_SPACE,
-                WindowsFocusHelper.VK_LEFT, WindowsFocusHelper.VK_UP, WindowsFocusHelper.VK_RIGHT, WindowsFocusHelper.VK_DOWN, WindowsFocusHelper.VK_HOME, WindowsFocusHelper.VK_END,
-                WindowsFocusHelper.VK_OEM_MINUS, WindowsFocusHelper.VK_OEM_PERIOD, WindowsFocusHelper.VK_OEM_COMMA, WindowsFocusHelper.VK_OEM_7,
-                WindowsFocusHelper.VK_OEM_1, WindowsFocusHelper.VK_OEM_2, WindowsFocusHelper.VK_OEM_3, WindowsFocusHelper.VK_OEM_4, WindowsFocusHelper.VK_OEM_5, WindowsFocusHelper.VK_OEM_6, WindowsFocusHelper.VK_OEM_PLUS
+            var trackedKeys = new List<ModKey> {
+                ModKey.Backspace, ModKey.Return, ModKey.LeftShift, ModKey.RightShift, ModKey.Escape, ModKey.Space,
+                ModKey.LeftArrow, ModKey.UpArrow, ModKey.RightArrow, ModKey.DownArrow, ModKey.Home, ModKey.End,
+                ModKey.Minus, ModKey.Period, ModKey.Comma, ModKey.Quote,
+                ModKey.Semicolon, ModKey.Slash, ModKey.Backtick, ModKey.LeftBracket, ModKey.Backslash, ModKey.RightBracket, ModKey.Equals
             };
-            for (int vk = WindowsFocusHelper.VK_A; vk <= WindowsFocusHelper.VK_Z; vk++) trackedKeys.Add(vk);
-            for (int vk = WindowsFocusHelper.VK_0; vk <= WindowsFocusHelper.VK_9; vk++) trackedKeys.Add(vk);
+            for (int i = 0; i < 26; i++) trackedKeys.Add((ModKey)(0x41 + i)); // A-Z
+            for (int i = 0; i < 10; i++) trackedKeys.Add((ModKey)(0x30 + i)); // 0-9
 
-            WindowsFocusHelper.InitializeKeyStates(trackedKeys.ToArray());
+            _trackedKeys = trackedKeys.ToArray();
+            InputManager.InitializeKeyStates(_trackedKeys);
 
             // Steal focus from game
-            WindowsFocusHelper.StealFocus("FFV_TextInput");
+            InputManager.StealFocus("FFV_TextInput");
 
             // Delay prompt announcement to let NVDA finish announcing window title
             CoroutineManager.StartManaged(DelayedPromptAnnouncement(prompt, inputBuffer.ToString()));
@@ -130,7 +134,7 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
-            WindowsFocusHelper.RestoreFocus();
+            InputManager.RestoreFocus();
 
             // Clear callbacks
             onConfirmCallback = null;
@@ -146,8 +150,11 @@ namespace FFV_ScreenReader.Core
         {
             if (!IsOpen) return false;
 
+            // Poll all tracked keys
+            InputManager.Poll(_trackedKeys);
+
             // Enter - confirm
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_RETURN))
+            if (InputManager.IsKeyDown(ModKey.Return))
             {
                 string finalText = inputBuffer.ToString().Trim();
                 if (string.IsNullOrEmpty(finalText))
@@ -164,7 +171,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Escape - cancel
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_ESCAPE))
+            if (InputManager.IsKeyDown(ModKey.Escape))
             {
                 FFV_ScreenReaderMod.SpeakText("Cancelled", interrupt: true);
                 var callback = onCancelCallback;
@@ -174,7 +181,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Backspace - delete character before cursor
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_BACK))
+            if (InputManager.IsKeyDown(ModKey.Backspace))
             {
                 if (cursorPosition > 0)
                 {
@@ -187,7 +194,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Left Arrow - move cursor left
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_LEFT))
+            if (InputManager.IsKeyDown(ModKey.LeftArrow))
             {
                 if (cursorPosition > 0)
                 {
@@ -198,7 +205,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Right Arrow - move cursor right
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_RIGHT))
+            if (InputManager.IsKeyDown(ModKey.RightArrow))
             {
                 if (cursorPosition < inputBuffer.Length)
                 {
@@ -209,7 +216,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Up Arrow - read full text
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_UP))
+            if (InputManager.IsKeyDown(ModKey.UpArrow))
             {
                 string text = inputBuffer.Length > 0 ? inputBuffer.ToString() : "empty";
                 FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
@@ -217,7 +224,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Down Arrow - read full text
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_DOWN))
+            if (InputManager.IsKeyDown(ModKey.DownArrow))
             {
                 string text = inputBuffer.Length > 0 ? inputBuffer.ToString() : "empty";
                 FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
@@ -225,7 +232,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Home - move cursor to start
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_HOME))
+            if (InputManager.IsKeyDown(ModKey.Home))
             {
                 cursorPosition = 0;
                 if (inputBuffer.Length > 0)
@@ -236,28 +243,29 @@ namespace FFV_ScreenReader.Core
             }
 
             // End - move cursor to end
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_END))
+            if (InputManager.IsKeyDown(ModKey.End))
             {
                 cursorPosition = inputBuffer.Length;
                 return true;
             }
 
             // Space - silent when typing
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_SPACE))
+            if (InputManager.IsKeyDown(ModKey.Space))
             {
                 inputBuffer.Insert(cursorPosition, ' ');
                 cursorPosition++;
                 return true;
             }
 
-            bool shiftHeld = WindowsFocusHelper.IsKeyPressed(WindowsFocusHelper.VK_SHIFT);
+            bool shiftHeld = InputManager.IsKeyHeld(ModKey.LeftShift) || InputManager.IsKeyHeld(ModKey.RightShift);
 
             // Letters A-Z - silent when typing
-            for (int vk = WindowsFocusHelper.VK_A; vk <= WindowsFocusHelper.VK_Z; vk++)
+            for (int i = 0; i < 26; i++)
             {
-                if (WindowsFocusHelper.IsKeyDown(vk))
+                ModKey mk = (ModKey)(0x41 + i);
+                if (InputManager.IsKeyDown(mk))
                 {
-                    char c = (char)('a' + (vk - WindowsFocusHelper.VK_A));
+                    char c = (char)('a' + i);
                     if (shiftHeld)
                         c = char.ToUpper(c);
 
@@ -268,11 +276,12 @@ namespace FFV_ScreenReader.Core
             }
 
             // Numbers 0-9 - silent when typing
-            for (int vk = WindowsFocusHelper.VK_0; vk <= WindowsFocusHelper.VK_9; vk++)
+            for (int i = 0; i < 10; i++)
             {
-                if (WindowsFocusHelper.IsKeyDown(vk))
+                ModKey mk = (ModKey)(0x30 + i);
+                if (InputManager.IsKeyDown(mk))
                 {
-                    char c = (char)('0' + (vk - WindowsFocusHelper.VK_0));
+                    char c = (char)('0' + i);
                     inputBuffer.Insert(cursorPosition, c);
                     cursorPosition++;
                     return true;
@@ -280,7 +289,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Punctuation - all silent when typing
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_MINUS))
+            if (InputManager.IsKeyDown(ModKey.Minus))
             {
                 char c = shiftHeld ? '_' : '-';
                 inputBuffer.Insert(cursorPosition, c);
@@ -288,7 +297,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_PERIOD))
+            if (InputManager.IsKeyDown(ModKey.Period))
             {
                 char c = shiftHeld ? '>' : '.';
                 inputBuffer.Insert(cursorPosition, c);
@@ -296,7 +305,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_COMMA))
+            if (InputManager.IsKeyDown(ModKey.Comma))
             {
                 char c = shiftHeld ? '<' : ',';
                 inputBuffer.Insert(cursorPosition, c);
@@ -304,7 +313,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_7))
+            if (InputManager.IsKeyDown(ModKey.Quote))
             {
                 char c = shiftHeld ? '"' : '\'';
                 inputBuffer.Insert(cursorPosition, c);
@@ -312,7 +321,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_1))
+            if (InputManager.IsKeyDown(ModKey.Semicolon))
             {
                 char c = shiftHeld ? ':' : ';';
                 inputBuffer.Insert(cursorPosition, c);
@@ -320,7 +329,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_2))
+            if (InputManager.IsKeyDown(ModKey.Slash))
             {
                 char c = shiftHeld ? '?' : '/';
                 inputBuffer.Insert(cursorPosition, c);
@@ -328,7 +337,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_3))
+            if (InputManager.IsKeyDown(ModKey.Backtick))
             {
                 char c = shiftHeld ? '~' : '`';
                 inputBuffer.Insert(cursorPosition, c);
@@ -336,7 +345,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_4))
+            if (InputManager.IsKeyDown(ModKey.LeftBracket))
             {
                 char c = shiftHeld ? '{' : '[';
                 inputBuffer.Insert(cursorPosition, c);
@@ -344,7 +353,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_5))
+            if (InputManager.IsKeyDown(ModKey.Backslash))
             {
                 char c = shiftHeld ? '|' : '\\';
                 inputBuffer.Insert(cursorPosition, c);
@@ -352,7 +361,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_6))
+            if (InputManager.IsKeyDown(ModKey.RightBracket))
             {
                 char c = shiftHeld ? '}' : ']';
                 inputBuffer.Insert(cursorPosition, c);
@@ -360,7 +369,7 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_OEM_PLUS))
+            if (InputManager.IsKeyDown(ModKey.Equals))
             {
                 char c = shiftHeld ? '+' : '=';
                 inputBuffer.Insert(cursorPosition, c);

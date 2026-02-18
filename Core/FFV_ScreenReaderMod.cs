@@ -43,6 +43,10 @@ namespace FFV_ScreenReader.Core
         private WaypointNavigator waypointNavigator;
         private WaypointController waypointController;
 
+        // Stored delegate for scene load subscription (must be same instance for += / -=)
+        private UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene,
+            UnityEngine.SceneManagement.LoadSceneMode> _sceneLoadedDelegate;
+
         // Static instance for access from patches
         internal static FFV_ScreenReaderMod Instance { get; private set; }
 
@@ -64,7 +68,9 @@ namespace FFV_ScreenReader.Core
             LoggerInstance.Msg("FFV Screen Reader Mod loaded!");
 
             // Subscribe to scene load events for automatic component caching
-            UnityEngine.SceneManagement.SceneManager.sceneLoaded += (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene, UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
+            _sceneLoadedDelegate = (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene,
+                UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += _sceneLoadedDelegate;
 
             // Initialize preferences
             PreferencesManager.Initialize();
@@ -104,49 +110,54 @@ namespace FFV_ScreenReader.Core
             waypointNavigator = new WaypointNavigator(waypointManager);
             waypointController = new WaypointController(waypointManager, waypointNavigator);
 
+            // Initialize SDL for input (non-fatal if SDL3.dll missing)
+            InputManager.InitializeSDL();
+
             // Initialize input manager
             inputManager = new InputManager(this);
 
             // Apply manual Harmony patches for vehicle state, field ready, map transitions, and entity interactions
             var harmony = new HarmonyLib.Harmony("FFV_ScreenReader.ManualPatches");
 
-            // Set up callback for field ready event before applying patches
             MovementSpeechPatches.OnFieldReady = OnFieldReadyCallback;
             MovementSpeechPatches.ApplyPatches(harmony);
 
-            // Patch game state transitions (map changes) - event-driven, no polling
             GameStatePatches.ApplyPatches(harmony);
 
-            // Patch popup dialogs (confirmation, game over, info, job change)
+            // Initialize fade detection
+            GameStatePatches.InitializeFadeDetection();
+
             PopupPatches.ApplyPatches(harmony);
 
-            // Patch save/load menu navigation
+            // Patch save/load menu navigation (KEPT for test navigation)
             SaveLoadPatches.ApplyPatches(harmony);
 
-            // Patch battle command messages (defeat message, etc.)
             BattleCommandMessagePatches.ApplyPatches(harmony);
-
-            // Patch battle result per-character level-up detail
             BattleResultManualPatches.ApplyPatches(harmony);
-
-            // Patch character naming screen
             NamingPatches.ApplyPatches(harmony);
 
-            // Patch entity interactions for immediate entity refresh (treasure chest, dialogue end)
             TryPatchEntityInteractions(harmony);
+        }
 
+        private void UnsubscribeSceneHandler()
+        {
+            if (_sceneLoadedDelegate != null)
+                UnityEngine.SceneManagement.SceneManager.sceneLoaded -= _sceneLoadedDelegate;
         }
 
         public override void OnDeinitializeMelon()
         {
             // Unsubscribe from scene load events
-            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene, UnityEngine.SceneManagement.LoadSceneMode>)OnSceneLoaded;
+            UnsubscribeSceneHandler();
 
             // Stop audio loops
             audioLoopManager?.StopAllLoops();
 
-            // Shutdown sound player (closes waveOut handles, frees unmanaged memory)
+            // Shutdown sound player (closes SDL audio streams, frees unmanaged memory)
             SoundPlayer.Shutdown();
+
+            // Shutdown SDL input
+            InputManager.ShutdownSDL();
 
             CoroutineManager.CleanupAll();
             tolk?.Unload();
@@ -162,6 +173,15 @@ namespace FFV_ScreenReader.Core
             {
                 GameObjectCache.Refresh<Il2CppLast.Map.FieldPlayerController>();
                 LoggerInstance.Msg("[FieldReady] Refreshed FieldPlayerController");
+
+                // Skip entity scan if in Event state — when the event ends,
+                // set_FieldReady will fire again and trigger the scan.
+                if (GameStatePatches.IsInEventState)
+                {
+                    LoggerInstance.Msg("[FieldReady] In Event state — skipping entity scan");
+                    return;
+                }
+
                 LoggerInstance.Msg("[FieldReady] Triggering initial entity scan");
                 entityCache.ForceScan();
                 LoggerInstance.Msg($"[FieldReady] Entity scan complete, found {entityCache.Entities.Count} entities");
@@ -169,50 +189,6 @@ namespace FFV_ScreenReader.Core
             catch (Exception ex)
             {
                 LoggerInstance.Warning($"[FieldReady] Error during entity scan: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Patches entity interaction methods for immediate entity refresh.
-        /// Triggers rescan when treasure chests are opened or dialogue ends.
-        /// </summary>
-        private void TryPatchEntityInteractions(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                // Patch FieldTresureBox.Open() - triggers entity refresh when chest is opened
-                Type treasureBoxType = typeof(FieldTresureBox);
-                var openMethod = treasureBoxType.GetMethod("Open", BindingFlags.Public | BindingFlags.Instance);
-                var openPostfix = typeof(EntityInteractionPatches).GetMethod("TreasureBox_Open_Postfix", BindingFlags.Public | BindingFlags.Static);
-
-                if (openMethod != null && openPostfix != null)
-                {
-                    harmony.Patch(openMethod, postfix: new HarmonyMethod(openPostfix));
-                    LoggerInstance.Msg("Patched FieldTresureBox.Open for entity refresh");
-                }
-                else
-                {
-                    LoggerInstance.Warning($"FieldTresureBox.Open patch failed. Method: {openMethod != null}, Postfix: {openPostfix != null}");
-                }
-
-                // Patch MessageWindowManager.Close() - triggers entity refresh when dialogue ends
-                Type messageManagerType = typeof(MessageWindowManager);
-                var closeMethod = messageManagerType.GetMethod("Close", BindingFlags.Public | BindingFlags.Instance);
-                var closePostfix = typeof(EntityInteractionPatches).GetMethod("MessageWindow_Close_Postfix", BindingFlags.Public | BindingFlags.Static);
-
-                if (closeMethod != null && closePostfix != null)
-                {
-                    harmony.Patch(closeMethod, postfix: new HarmonyMethod(closePostfix));
-                    LoggerInstance.Msg("Patched MessageWindowManager.Close for entity refresh");
-                }
-                else
-                {
-                    LoggerInstance.Warning($"MessageWindowManager.Close patch failed. Method: {closeMethod != null}, Postfix: {closePostfix != null}");
-                }
-            }
-            catch (Exception ex)
-            {
-                LoggerInstance.Error($"Error patching entity interactions: {ex.Message}");
             }
         }
 
@@ -230,6 +206,13 @@ namespace FFV_ScreenReader.Core
             // Wait one frame for game state to fully update
             yield return null;
 
+            // Skip scan if in Event state — entities may be in flux
+            if (GameStatePatches.IsInEventState)
+            {
+                LoggerInstance.Msg("[EntityRefresh] In Event state — skipping entity scan");
+                yield break;
+            }
+
             // Rescan entities to pick up state changes (e.g., chest opened)
             entityCache.ForceScan();
             LoggerInstance.Msg("[EntityRefresh] Rescanned entities after interaction");
@@ -241,6 +224,26 @@ namespace FFV_ScreenReader.Core
         public void ForceEntityRescan()
         {
             entityCache?.ForceScan();
+        }
+
+        /// <summary>
+        /// Schedules an entity scan for next frame, after scene load settles.
+        /// </summary>
+        internal void ScheduleDeferredEntityScan()
+        {
+            CoroutineManager.StartManaged(DeferredEntityScanCoroutine());
+        }
+
+        private IEnumerator DeferredEntityScanCoroutine()
+        {
+            yield return null; // wait one frame for scene to settle
+            if (GameStatePatches.IsInEventState)
+            {
+                LoggerInstance.Msg("[EntityRefresh] In Event state — skipping deferred scan");
+                yield break;
+            }
+            entityCache.ForceScan();
+            LoggerInstance.Msg("[EntityRefresh] Deferred entity scan completed");
         }
 
         /// <summary>
@@ -264,10 +267,6 @@ namespace FFV_ScreenReader.Core
             return false;
         }
 
-        /// <summary>
-        /// Called when a new scene is loaded.
-        /// Automatically caches commonly-used Unity components to avoid expensive FindObjectOfType calls.
-        /// </summary>
         private void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
         {
             try
@@ -286,6 +285,12 @@ namespace FFV_ScreenReader.Core
                 {
                     GameObjectCache.Register(playerController);
                     LoggerInstance.Msg($"[ComponentCache] Cached FieldPlayerController: {playerController.gameObject?.name}");
+
+                    // Reset battle state when returning to field from battle
+                    if (BattleState.IsInBattle)
+                    {
+                        BattleState.Reset();
+                    }
                 }
                 else
                 {
@@ -312,11 +317,15 @@ namespace FFV_ScreenReader.Core
 
         public override void OnUpdate()
         {
-            // Handle all input (must run every frame)
+            // Silence all mod activity during events (and grace period) —
+            // eliminates IL2CPP overhead that can interfere with trigger deactivation.
+            // Dialogue reading is unaffected (driven by Harmony hooks, not OnUpdate).
+            if (GameStatePatches.IsInEventState) return;
+
             inputManager.Update();
 
-            // Poll footsteps each frame (CheckFootstep has its own enable/tile-change/cooldown guards)
-            if (audioLoopManager != null && audioLoopManager.IsFootstepsEnabled && !BattleState.IsInBattle && !DialogueTracker.IsInDialogue)
+            if (audioLoopManager != null && audioLoopManager.IsFootstepsEnabled
+                && !BattleState.IsInBattle && !DialogueTracker.IsInDialogue)
             {
                 var player = GetFieldPlayer();
                 if (player?.transform != null)
@@ -541,8 +550,10 @@ namespace FFV_ScreenReader.Core
             player.transform.localPosition = newPos;
 
             string direction = GetDirectionName(offset);
-            SpeakText($"Teleported {direction} of {entity.Name}");
-            LoggerInstance.Msg($"Teleported {direction} of {entity.Name} to position {newPos}");
+            string name = (entity is MapExitEntity || entity is TreasureChestEntity || entity is GroupEntity)
+                ? entity.DisplayName : entity.Name;
+            SpeakText($"Teleported {direction} of {name}");
+            LoggerInstance.Msg($"Teleported {direction} of {name} to position {newPos}");
         }
 
         private string GetDirectionName(Vector2 offset)
@@ -631,8 +642,6 @@ namespace FFV_ScreenReader.Core
         /// Speak text through the screen reader.
         /// Thread-safe: TolkWrapper uses locking to prevent concurrent native calls.
         /// </summary>
-        /// <param name="text">Text to speak</param>
-        /// <param name="interrupt">Whether to interrupt current speech (true for user actions, false for game events)</param>
         public static void SpeakText(string text, bool interrupt = true)
         {
             tolk?.Speak(text, interrupt);
@@ -640,10 +649,7 @@ namespace FFV_ScreenReader.Core
 
         /// <summary>
         /// Speaks text after a delay to avoid window focus announcements interrupting.
-        /// Use this for announcements that occur after dialog closes.
         /// </summary>
-        /// <param name="text">Text to speak</param>
-        /// <param name="delay">Delay in seconds before speaking (default 0.3s)</param>
         public static void SpeakTextDelayed(string text, float delay = 0.3f)
         {
             CoroutineManager.StartManaged(DelayedSpeech(text, delay));
@@ -709,6 +715,50 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
+        /// Patches entity interaction methods for immediate entity refresh.
+        /// Triggers rescan when treasure chests are opened or dialogue ends.
+        /// </summary>
+        private void TryPatchEntityInteractions(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                // Patch FieldTresureBox.Open() - triggers entity refresh when chest is opened
+                Type treasureBoxType = typeof(FieldTresureBox);
+                var openMethod = treasureBoxType.GetMethod("Open", BindingFlags.Public | BindingFlags.Instance);
+                var openPostfix = typeof(EntityInteractionPatches).GetMethod("TreasureBox_Open_Postfix", BindingFlags.Public | BindingFlags.Static);
+
+                if (openMethod != null && openPostfix != null)
+                {
+                    harmony.Patch(openMethod, postfix: new HarmonyMethod(openPostfix));
+                    LoggerInstance.Msg("Patched FieldTresureBox.Open for entity refresh");
+                }
+                else
+                {
+                    LoggerInstance.Warning($"FieldTresureBox.Open patch failed. Method: {openMethod != null}, Postfix: {openPostfix != null}");
+                }
+
+                // Patch MessageWindowManager.Close() - triggers entity refresh when dialogue ends
+                Type messageManagerType = typeof(MessageWindowManager);
+                var closeMethod = messageManagerType.GetMethod("Close", BindingFlags.Public | BindingFlags.Instance);
+                var closePostfix = typeof(EntityInteractionPatches).GetMethod("MessageWindow_Close_Postfix", BindingFlags.Public | BindingFlags.Static);
+
+                if (closeMethod != null && closePostfix != null)
+                {
+                    harmony.Patch(closeMethod, postfix: new HarmonyMethod(closePostfix));
+                    LoggerInstance.Msg("Patched MessageWindowManager.Close for entity refresh");
+                }
+                else
+                {
+                    LoggerInstance.Warning($"MessageWindowManager.Close patch failed. Method: {closeMethod != null}, Postfix: {closePostfix != null}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Error($"Error patching entity interactions: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Gets the FieldPlayer from the FieldPlayerController.
         /// </summary>
         private FieldPlayer GetFieldPlayer()
@@ -754,7 +804,8 @@ namespace FFV_ScreenReader.Core
 
         public static void MessageWindow_Close_Postfix()
         {
-            FFV_ScreenReaderMod.Instance?.ScheduleEntityRefresh();
+            if (!GameStatePatches.IsInEventState)
+                FFV_ScreenReaderMod.Instance?.ScheduleEntityRefresh();
 
             // Reset dialogue tracker (clears page data + restores navigation)
             FFV_ScreenReader.Patches.DialogueTracker.Reset();

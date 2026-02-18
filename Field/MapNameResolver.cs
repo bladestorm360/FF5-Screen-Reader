@@ -65,34 +65,6 @@ namespace FFV_ScreenReader.Field
         }
 
         /// <summary>
-        /// Parses the floor number from a MapName like "Map_30011_2" → 2
-        /// </summary>
-        private static int ParseFloorFromMapName(string mapName)
-        {
-            if (string.IsNullOrEmpty(mapName))
-                return -1;
-
-            try
-            {
-                // Expected format: "Map_12345_N" where N is the floor number
-                string[] parts = mapName.Split('_');
-                if (parts.Length >= 3)
-                {
-                    if (int.TryParse(parts[parts.Length - 1], out int floor))
-                    {
-                        return floor;
-                    }
-                }
-
-                return -1;
-            }
-            catch
-            {
-                return -1;
-            }
-        }
-
-        /// <summary>
         /// Attempts to resolve a map ID to a localized area name using Map and Area master data.
         /// </summary>
         /// <param name="mapId">The map ID</param>
@@ -151,27 +123,24 @@ namespace FFV_ScreenReader.Field
                     areaName = messageManager.GetMessage(areaNameKey, false);
                 }
 
-                // Get localized map title (e.g., "3F")
-                string mapTitleKey = map.MapTitle;
+                // Get floor title — prefer map.Floor integer over MapTitle message key
                 string mapTitle = null;
-                if (!string.IsNullOrEmpty(mapTitleKey) && mapTitleKey != "None")
+                int floor = map.Floor;
+                if (floor > 0)
                 {
-                    mapTitle = messageManager.GetMessage(mapTitleKey, false);
+                    mapTitle = $"{floor}F";
                 }
                 else
                 {
-                    // Try parsing floor number from MapName suffix (e.g., "Map_30011_2" → 2)
-                    int parsedFloor = ParseFloorFromMapName(map.MapName);
-                    if (parsedFloor > 0)
-                    {
-                        mapTitle = $"{parsedFloor}F";
-                    }
+                    string mapTitleKey = map.MapTitle;
+                    if (!string.IsNullOrEmpty(mapTitleKey) && mapTitleKey != "None")
+                        mapTitle = messageManager.GetMessage(mapTitleKey, false);
                 }
 
                 // Combine area name and map title
                 if (!string.IsNullOrEmpty(areaName) && !string.IsNullOrEmpty(mapTitle))
                 {
-                    return $"{areaName} {mapTitle}";
+                    return $"{areaName} – {mapTitle}";
                 }
                 else if (!string.IsNullOrEmpty(areaName))
                 {

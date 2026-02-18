@@ -6,7 +6,7 @@ using FFV_ScreenReader.Utils;
 namespace FFV_ScreenReader.Core
 {
     /// <summary>
-    /// Simple Yes/No confirmation dialog using Windows API focus stealing.
+    /// Simple Yes/No confirmation dialog using SDL focus stealing.
     /// Used for waypoint deletion confirmations.
     /// </summary>
     public static class ConfirmationDialog
@@ -38,12 +38,12 @@ namespace FFV_ScreenReader.Core
             selectedYes = true; // Default to Yes
 
             // Initialize key states to prevent keys from triggering immediately
-            WindowsFocusHelper.InitializeKeyStates(new[] {
-                WindowsFocusHelper.VK_RETURN, WindowsFocusHelper.VK_ESCAPE, WindowsFocusHelper.VK_LEFT, WindowsFocusHelper.VK_RIGHT, WindowsFocusHelper.VK_Y, WindowsFocusHelper.VK_N
+            InputManager.InitializeKeyStates(new[] {
+                ModKey.Return, ModKey.Escape, ModKey.LeftArrow, ModKey.RightArrow, ModKey.Y, ModKey.N
             });
 
             // Steal focus from game
-            WindowsFocusHelper.StealFocus("FFV_ConfirmDialog");
+            InputManager.StealFocus("FFV_ConfirmDialog");
 
             // Announce prompt with delay to avoid NVDA window title interruption
             CoroutineManager.StartManaged(DelayedPromptAnnouncement($"{prompt} Yes or No"));
@@ -66,7 +66,7 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
-            WindowsFocusHelper.RestoreFocus();
+            InputManager.RestoreFocus();
 
             // Clear callbacks
             onYesCallback = null;
@@ -82,7 +82,7 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
-            WindowsFocusHelper.RestoreFocus();
+            InputManager.RestoreFocus();
 
             // Clear callbacks
             onYesCallback = null;
@@ -104,8 +104,13 @@ namespace FFV_ScreenReader.Core
         {
             if (!IsOpen) return false;
 
+            // Poll tracked keys
+            InputManager.Poll(new[] {
+                ModKey.Return, ModKey.Escape, ModKey.LeftArrow, ModKey.RightArrow, ModKey.Y, ModKey.N
+            });
+
             // Y key - confirm Yes immediately
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_Y))
+            if (InputManager.IsKeyDown(ModKey.Y))
             {
                 FFV_ScreenReaderMod.SpeakText("Yes", interrupt: true);
                 var callback = onYesCallback;
@@ -115,7 +120,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // N key - confirm No immediately
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_N))
+            if (InputManager.IsKeyDown(ModKey.N))
             {
                 FFV_ScreenReaderMod.SpeakText("No", interrupt: true);
                 var callback = onNoCallback;
@@ -125,7 +130,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Escape - same as No
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_ESCAPE))
+            if (InputManager.IsKeyDown(ModKey.Escape))
             {
                 FFV_ScreenReaderMod.SpeakText("Cancelled", interrupt: true);
                 var callback = onNoCallback;
@@ -135,7 +140,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Enter - confirm current selection
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_RETURN))
+            if (InputManager.IsKeyDown(ModKey.Return))
             {
                 if (selectedYes)
                 {
@@ -155,7 +160,7 @@ namespace FFV_ScreenReader.Core
             }
 
             // Left/Right arrows - toggle selection
-            if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_LEFT) || WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_RIGHT))
+            if (InputManager.IsKeyDown(ModKey.LeftArrow) || InputManager.IsKeyDown(ModKey.RightArrow))
             {
                 selectedYes = !selectedYes;
                 string selection = selectedYes ? "Yes" : "No";

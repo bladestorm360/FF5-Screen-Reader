@@ -150,6 +150,15 @@ namespace FFV_ScreenReader.Core
 
             foreach (var entity in uniqueEntities)
             {
+                // Skip destroyed entities (Unity throws on destroyed GameObjects)
+                try
+                {
+                    if (entity?.GameEntity == null || entity.GameEntity.gameObject == null ||
+                        !entity.GameEntity.gameObject.activeInHierarchy)
+                        continue;
+                }
+                catch { continue; }
+
                 bool passesAll = true;
 
                 foreach (var filter in enabledOnAddFilters)

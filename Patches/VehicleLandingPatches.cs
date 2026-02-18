@@ -2,6 +2,7 @@ using System;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.Map;
+using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
 
 namespace FFV_ScreenReader.Patches
@@ -47,4 +48,5 @@ namespace FFV_ScreenReader.Patches
             lastLandableState = false;
         }
     }
+
 }

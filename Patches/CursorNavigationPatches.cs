@@ -39,6 +39,9 @@ namespace FFV_ScreenReader.Patches
             "command_window",
             "job",
             "ability_change",
+            "library",
+            "extralibrary",
+            "extrasound",
         };
 
         /// <summary>
@@ -57,6 +60,16 @@ namespace FFV_ScreenReader.Patches
             // check below, but some cursors (common_cursor) have parents like
             // "menu_parent -> KeyParent" that don't contain "battle".
             if (BattleState.IsInBattle)
+                return true;
+
+            // Music player has dedicated patches for song navigation.
+            // Cursor reads "01", "02" etc. from track number UI elements.
+            if (MusicPlayerStateTracker.IsInMusicPlayer)
+                return true;
+
+            // Gallery has dedicated patches for image navigation.
+            // Cursor reads "001", "002" etc. from gallery number UI elements.
+            if (GalleryStateTracker.IsInGallery)
                 return true;
 
             if (instance == null || instance.gameObject == null || instance.transform == null)

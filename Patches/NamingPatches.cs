@@ -19,8 +19,8 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class NamingPatches
     {
-        private const string DEDUP_CONTEXT = AnnouncementContexts.NAMING_SELECT;
         private static bool isPatched = false;
+        private const string DEDUP_CONTEXT = AnnouncementContexts.NAMING_SELECT;
 
         // Memory offsets from dump.cs (KeyInput versions)
         // ChangeNameController: contentList at 0x30
@@ -46,17 +46,6 @@ namespace FFV_ScreenReader.Patches
                 AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
             });
         }
-
-        /// <summary>
-        /// Clears the naming menu state.
-        /// </summary>
-        public static void ClearState()
-        {
-            IsNamingMenuActive = false;
-            AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
-        }
-
-        public static bool ShouldSuppress() => IsNamingMenuActive;
 
         /// <summary>
         /// Applies all naming screen patches using manual Harmony patching.
@@ -145,10 +134,20 @@ namespace FFV_ScreenReader.Patches
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"[Naming] Error applying patches: {ex.Message}");
-                MelonLogger.Error($"[Naming] Stack trace: {ex.StackTrace}");
+                MelonLogger.Warning($"[Naming] Error applying patches: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Clears the naming menu state.
+        /// </summary>
+        public static void ClearState()
+        {
+            IsNamingMenuActive = false;
+            AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
+        }
+
+        public static bool ShouldSuppress() => IsNamingMenuActive;
 
         /// <summary>
         /// Postfix for Open - marks naming menu as active.
@@ -175,10 +174,14 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
+                if (__instance == null) return;
+
                 AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
 
+                var controller = __instance;
+
                 // Try to announce the currently selected character
-                string characterName = GetSelectedCharacterName(__instance);
+                string characterName = GetSelectedCharacterName(controller);
                 if (!string.IsNullOrEmpty(characterName))
                 {
                     FFV_ScreenReaderMod.SpeakText($"Name: {characterName}", interrupt: true);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,12 +24,18 @@ namespace FFV_ScreenReader.Field
         public static Dictionary<FieldEntity, (int Type, string MessageId)> VehicleTypeMap { get; }
             = new Dictionary<FieldEntity, (int, string)>();
 
+        // Diagnostic one-shot flags — reset on map change
+        private static bool _shouldLogEntities = true;
+        private static bool _shouldLogSlowPathfinding = true;
+
         /// <summary>
         /// Resets the vehicle type map. Called on map transitions.
         /// </summary>
         public static void ResetVehicleTypeMap()
         {
             VehicleTypeMap.Clear();
+            _shouldLogEntities = true;
+            _shouldLogSlowPathfinding = true;
         }
 
         public static List<FieldEntity> GetAllFieldEntities()
@@ -40,6 +47,7 @@ namespace FFV_ScreenReader.Field
                 return results;
 
             var entityList = fieldMap.fieldController.entityList;
+            int entityListCount = 0;
             if (entityList != null)
             {
                 foreach (var fieldEntity in entityList)
@@ -47,13 +55,39 @@ namespace FFV_ScreenReader.Field
                     if (fieldEntity != null)
                     {
                         results.Add(fieldEntity);
+                        entityListCount++;
                     }
+                }
+            }
+            MelonLogger.Msg($"[EntityScan] entityList count: {entityListCount}");
+
+            // Log individual entity details (one-shot per map)
+            if (_shouldLogEntities)
+            {
+                _shouldLogEntities = false;
+                foreach (var fe in results)
+                {
+                    try
+                    {
+                        string name = fe.gameObject?.name ?? "null";
+                        string objType = "unknown";
+                        try
+                        {
+                            if (fe.Property != null)
+                                objType = ((MapConstants.ObjectType)fe.Property.ObjectType).ToString();
+                        }
+                        catch { }
+                        var pos = fe.transform?.localPosition ?? UnityEngine.Vector3.zero;
+                        MelonLogger.Msg($"[EntityScan] Entity: name={name}, type={objType}, pos=({pos.x:F1},{pos.y:F1})");
+                    }
+                    catch { }
                 }
             }
 
             if (fieldMap.fieldController.transportation != null)
             {
                 var transportationEntities = fieldMap.fieldController.transportation.NeedInteractiveList();
+                int transportCount = 0;
                 if (transportationEntities != null)
                 {
                     foreach (var interactiveEntity in transportationEntities)
@@ -64,9 +98,11 @@ namespace FFV_ScreenReader.Field
                         if (fieldEntity != null)
                         {
                             results.Add(fieldEntity);
+                            transportCount++;
                         }
                     }
                 }
+                MelonLogger.Msg($"[EntityScan] transportationEntities count: {transportCount}");
 
                 // Populate VehicleTypeMap from TransportationController.ModelList
                 PopulateVehicleTypeMap(fieldMap.fieldController.transportation, results);
@@ -82,6 +118,9 @@ namespace FFV_ScreenReader.Field
         private static unsafe void PopulateVehicleTypeMap(Il2CppLast.Map.TransportationController transportController, List<FieldEntity> results)
         {
             if (transportController == null) return;
+
+            var sw = Stopwatch.StartNew();
+            int entryCount = 0;
 
             try
             {
@@ -118,6 +157,8 @@ namespace FFV_ScreenReader.Field
                         int vehicleType = transportInfo.Type;
                         string messageId = transportInfo.MessageId ?? "";
 
+                        entryCount++;
+
                         // Get the FieldEntity (MapObject) for this vehicle
                         var mapObject = transportInfo.MapObject;
                         if (mapObject == null)
@@ -148,6 +189,11 @@ namespace FFV_ScreenReader.Field
             catch (Exception ex)
             {
                 MelonLogger.Warning($"[Vehicle] Error in PopulateVehicleTypeMap: {ex.Message}");
+            }
+            finally
+            {
+                sw.Stop();
+                MelonLogger.Msg($"[VehicleMap] PopulateVehicleTypeMap completed: {entryCount} entries in {sw.ElapsedMilliseconds}ms");
             }
         }
 
@@ -380,7 +426,15 @@ namespace FFV_ScreenReader.Field
 
                 bool playerCollisionState = player._IsOnCollision_k__BackingField;
 
+                // Pre-call log: if Search() hangs, last log line identifies the call
+                if (_shouldLogSlowPathfinding)
+                {
+                    _shouldLogSlowPathfinding = false;
+                    MelonLogger.Msg($"[WallTones] Search: ({startCell.x},{startCell.y},{startCell.z}) → ({destCell.x},{destCell.y},{destCell.z})");
+                }
+
                 var pathPoints = MapRouteSearcher.Search(mapHandle, startCell, destCell, playerCollisionState);
+
                 bool blocked = pathPoints == null || pathPoints.Count == 0;
 
                 return blocked;

@@ -9,7 +9,7 @@ namespace FFV_ScreenReader.Core
     /// <summary>
     /// Focus-stealing navigable window for reviewing battle result data.
     /// Follows the same pattern as TextInputWindow: steals focus, captures keys via
-    /// Windows API, and restores focus on close.
+    /// InputManager, and restores focus on close.
     /// </summary>
     public static class BattleResultNavigator
     {
@@ -25,14 +25,11 @@ namespace FFV_ScreenReader.Core
         private static int currentRow;
         private static int currentCol;
 
-        // Virtual key codes
-        private const int VK_ESCAPE = 0x1B;
-        private const int VK_UP = 0x26;
-        private const int VK_DOWN = 0x28;
-        private const int VK_LEFT = 0x25;
-        private const int VK_RIGHT = 0x27;
-        private const int VK_RETURN = 0x0D;
-        private const int VK_HOME = 0x24;
+        // Tracked keys
+        private static readonly ModKey[] TrackedKeys = {
+            ModKey.Escape, ModKey.UpArrow, ModKey.DownArrow,
+            ModKey.LeftArrow, ModKey.RightArrow, ModKey.Return, ModKey.Home
+        };
 
         /// <summary>
         /// Opens the navigator with the current result data.
@@ -70,12 +67,10 @@ namespace FFV_ScreenReader.Core
             currentCol = 0;
 
             // Initialize key states
-            WindowsFocusHelper.InitializeKeyStates(new[] {
-                VK_ESCAPE, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_HOME
-            });
+            InputManager.InitializeKeyStates(TrackedKeys);
 
             // Steal focus
-            WindowsFocusHelper.StealFocus("FFV_BattleResults");
+            InputManager.StealFocus("FFV_BattleResults");
 
             // Announce title after delay
             CoroutineManager.StartManaged(AnnounceOpenDelayed());
@@ -94,7 +89,7 @@ namespace FFV_ScreenReader.Core
             cells = null;
             title = null;
 
-            WindowsFocusHelper.RestoreFocus();
+            InputManager.RestoreFocus();
         }
 
         /// <summary>
@@ -105,37 +100,40 @@ namespace FFV_ScreenReader.Core
         {
             if (!IsOpen) return false;
 
-            if (WindowsFocusHelper.IsKeyDown(VK_ESCAPE))
+            // Poll tracked keys
+            InputManager.Poll(TrackedKeys);
+
+            if (InputManager.IsKeyDown(ModKey.Escape))
             {
                 Close();
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_UP))
+            if (InputManager.IsKeyDown(ModKey.UpArrow))
             {
                 NavigateRow(-1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_DOWN))
+            if (InputManager.IsKeyDown(ModKey.DownArrow))
             {
                 NavigateRow(1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_LEFT))
+            if (InputManager.IsKeyDown(ModKey.LeftArrow))
             {
                 NavigateCol(-1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_RIGHT))
+            if (InputManager.IsKeyDown(ModKey.RightArrow))
             {
                 NavigateCol(1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_RETURN) || WindowsFocusHelper.IsKeyDown(VK_HOME))
+            if (InputManager.IsKeyDown(ModKey.Return) || InputManager.IsKeyDown(ModKey.Home))
             {
                 AnnounceFullRow();
                 return true;
@@ -170,15 +168,6 @@ namespace FFV_ScreenReader.Core
         {
             var data = BattleResultDataStore.StatsData;
             if (data.Count == 0) return;
-
-            // Build a grid per character. For simplicity, show the first character's stats
-            // and allow row navigation to switch characters if multiple.
-            // If only 1 character, rows = stats. If multiple, rows = characters, then
-            // user navigates into each.
-
-            // Approach: flatten all characters' stats into rows.
-            // Row header = "CharName: StatCategory"
-            // Columns = Before, After, Change
 
             string beforeStr = LocalizationHelper.GetModString("before");
             string afterStr = LocalizationHelper.GetModString("after");

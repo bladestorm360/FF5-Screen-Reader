@@ -6,14 +6,15 @@ using Il2Cpp;
 using Il2CppLast.Map;
 using Il2CppLast.Entity.Field;
 using FFV_ScreenReader.Utils;
-using IMapAccessor = Il2CppLast.Map.IMapAccessor;
+using FFV_ScreenReader.Core;
 
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
     /// Patches FieldPlayer.GetOn/GetOff and FieldController.ChangeTransportation
     /// for immediate vehicle boarding/disembarking announcements.
-    /// Also hooks MainGame.set_FieldReady for entity scan on field ready.
+    /// Also hooks MainGame.set_FieldReady for entity scan on field ready
+    /// and map transition detection (replaces ChangeState hook).
     ///
     /// FF5 Vehicles:
     /// - Ship (TRANSPORT_SHIP)
@@ -45,6 +46,10 @@ namespace FFV_ScreenReader.Patches
         private static int lastTransportationId = TRANSPORT_PLAYER;
         private static int lastAnnouncedTransportId = -1;
 
+        // Track intermediate state for scripted vehicle transitions
+        private static bool wasInIntermediateState = false;
+        private static int preIntermediateTransportId = TRANSPORT_PLAYER;
+
         /// <summary>
         /// Callback to trigger entity scan when field is ready.
         /// Set by FFV_ScreenReaderMod during initialization.
@@ -65,7 +70,6 @@ namespace FFV_ScreenReader.Patches
                 TryPatchGetOn(harmony);
                 TryPatchGetOff(harmony);
                 TryPatchChangeTransportation(harmony);
-                // TryPatchClearCurrentTransport removed - causes startup crash, redundant with other hooks
                 TryPatchFieldReady(harmony);
                 isPatched = true;
             }
@@ -117,8 +121,9 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (value)
+                if (value && !GameStatePatches.IsInEventState)
                 {
+                    GameStatePatches.CheckMapTransition();
                     OnFieldReady?.Invoke();
                 }
             }
@@ -165,10 +170,6 @@ namespace FFV_ScreenReader.Patches
                 MelonLogger.Warning($"[MoveState] Error patching ChangeTransportation: {ex.Message}");
             }
         }
-
-        // Track intermediate state for scripted vehicle transitions
-        private static bool wasInIntermediateState = false;
-        private static int preIntermediateTransportId = TRANSPORT_PLAYER;
 
         public static void ChangeTransportation_Postfix(FieldController __instance, int transportationId)
         {
@@ -459,11 +460,11 @@ namespace FFV_ScreenReader.Patches
                 if (__instance == null)
                     return;
 
-                int currentMoveState = (int)__instance.moveState;
+                // Suppress move state announcements during events
+                if (GameStatePatches.IsInEventState)
+                    return;
 
-                // Track dash state for walk/run toggle (F1)
-                bool isDashing = currentMoveState == MoveStateHelper.MOVE_STATE_DUSH;
-                MoveStateHelper.SetCachedDashFlag(isDashing);
+                int currentMoveState = (int)__instance.moveState;
 
                 if (currentMoveState != lastMoveState)
                 {

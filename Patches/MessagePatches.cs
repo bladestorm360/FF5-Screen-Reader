@@ -86,6 +86,11 @@ namespace FFV_ScreenReader.Patches
         {
             if (_isInDialogue) return;
             if (BattleState.IsInBattle) return; // Don't suppress if already in battle
+            if (GameStatePatches.IsInEventState)
+            {
+                MelonLogger.Msg("[Dialogue] Start skipped (Event state)");
+                return;
+            }
 
             _isInDialogue = true;
 
@@ -101,6 +106,12 @@ namespace FFV_ScreenReader.Patches
             if (!_isInDialogue) return;
 
             _isInDialogue = false;
+
+            if (GameStatePatches.IsInEventState)
+            {
+                MelonLogger.Msg("[Dialogue] End skipped (Event state)");
+                return; // Don't restore mid-event
+            }
 
             var mod = FFV_ScreenReaderMod.Instance;
             mod?.RestoreNavigationAfterDialogue();
@@ -227,6 +238,22 @@ namespace FFV_ScreenReader.Patches
 
             lastAnnouncedPageIndex = pageIndex;
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+        }
+
+        /// <summary>
+        /// Unconditionally clears all dialogue state without calling OnDialogueEnd().
+        /// Used by the kill switch (Ctrl+F8) when disabling the mod entirely —
+        /// avoids restoring navigation that we're about to disable anyway.
+        /// </summary>
+        public static void ForceReset()
+        {
+            _isInDialogue = false;
+            currentMessageList.Clear();
+            currentPageBreaks.Clear();
+            lastAnnouncedPageIndex = -1;
+            currentSpeaker = "";
+            lastAnnouncedSpeaker = "";
+            _cachedView = null;
         }
 
         /// <summary>
@@ -407,10 +434,6 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // ============================================================
-    // Harmony Patches
-    // ============================================================
-
     /// <summary>
     /// Stores speaker name in DialogueTracker for prepending to page text.
     /// Speaker is announced as part of the page, not separately.
@@ -462,7 +485,7 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        private static IEnumerator DelayedSetMessageSpeak(string message)
+        internal static IEnumerator DelayedSetMessageSpeak(string message)
         {
             yield return null;
 
@@ -681,4 +704,5 @@ namespace FFV_ScreenReader.Patches
             }
         }
     }
+
 }

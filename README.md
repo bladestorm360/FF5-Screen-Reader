@@ -6,6 +6,7 @@ Adds NVDA output, pathfinding, sound queues and other accessibility aides to Fin
 
 ## Known Issues
 
+When reading controls, only the current page of controls will be announced. On screens that have multiple pages, the game automatically scrolls between the pages every few seconds.
 Pathfinding does not work correctly when sailing the pirate ship. If you get stuck early in the game between Tule and the wind shrine, use waypoint 1 (a docking point near the wind shrine) and waypoint 2 (A landmark after which tule becomes findable on the destination finder to get there.) This is the fix for now, waypoints.json can be updated as needed for other sticking points in progression.
 Shops have not been tested.
 Status reader is not reading commands list of the selected character.
@@ -46,6 +47,7 @@ G: Announce current Gil
 M: Announce current map.
 H: In battle, announce character hp, mp, status effects.
 I: In configuration  menu accessible from tab menu, read description of highlighted setting.  In jobs menu, read description of highlighted  job. In spell or ability menus, read description of highlighted spell or ability. In shop menus, reads description of highlighted item. In item menu when a piece of equipment is highlighted, announces which jobs can equip the item.
+Shift+i: Read controls tool-tips on screens that have them.
 
 Battle Results Screen:
 l: Read individual character exp gained, exp tnl and ABP to next job level

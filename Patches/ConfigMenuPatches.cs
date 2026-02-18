@@ -242,8 +242,8 @@ namespace FFV_ScreenReader.Patches
                         {
                             string textValue = text.text.Trim();
                             // Filter out arrow characters
-                            if (textValue != "<" && textValue != ">" && textValue != "◀" && textValue != "▶" &&
-                                textValue != "←" && textValue != "→")
+                            if (textValue != "<" && textValue != ">" && textValue != "\u25c0" && textValue != "\u25b6" &&
+                                textValue != "\u2190" && textValue != "\u2192")
                             {
                                 // Only announce if value changed
                                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_ARROW_VALUE, textValue)) return;
@@ -282,23 +282,23 @@ namespace FFV_ScreenReader.Patches
                 var view = controller.view;
                 if (view.Slider == null) return;
 
-                // Calculate percentage using proper min/max range
-                string percentage = ConfigMenuReader.GetSliderPercentage(view.Slider);
-                if (string.IsNullOrEmpty(percentage)) return;
+                // Read display value from game's sliderValueText, fallback to percentage
+                string displayValue = ConfigMenuReader.GetSliderDisplayValue(view.Slider, view.sliderValueText);
+                if (string.IsNullOrEmpty(displayValue)) return;
 
-                // Track controller and percentage separately
+                // Track controller and value separately
                 bool controllerChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_CONTROLLER, controller);
-                bool percentageChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_PERCENTAGE, percentage);
+                bool valueChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_PERCENTAGE, displayValue);
 
                 // Both unchanged - skip
-                if (!controllerChanged && !percentageChanged) return;
+                if (!controllerChanged && !valueChanged) return;
 
                 // If we moved to a different controller (different option), don't announce
                 // Let MenuTextDiscovery handle the full "Name: Value" announcement
                 if (controllerChanged) return;
 
                 // Same controller, value changed - announce just the new value
-                FFV_ScreenReaderMod.SpeakText(percentage, interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(displayValue, interrupt: true);
             }
             catch (Exception ex)
             {
@@ -335,8 +335,8 @@ namespace FFV_ScreenReader.Patches
                         if (text != null && !string.IsNullOrWhiteSpace(text.text))
                         {
                             string textValue = text.text.Trim();
-                            if (textValue != "<" && textValue != ">" && textValue != "◀" && textValue != "▶" &&
-                                textValue != "←" && textValue != "→")
+                            if (textValue != "<" && textValue != ">" && textValue != "\u25c0" && textValue != "\u25b6" &&
+                                textValue != "\u2190" && textValue != "\u2192")
                             {
                                 // Only announce if value changed
                                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_ARROW_VALUE, textValue)) return;
@@ -379,23 +379,23 @@ namespace FFV_ScreenReader.Patches
                 var slider = view.SliderTypeRoot.GetComponentInChildren<UnityEngine.UI.Slider>();
                 if (slider == null) return;
 
-                // Calculate percentage using proper min/max range
-                string percentage = ConfigMenuReader.GetSliderPercentage(slider);
-                if (string.IsNullOrEmpty(percentage)) return;
+                // Read display value from game's sliderValueText, fallback to percentage
+                string displayValue = ConfigMenuReader.GetSliderDisplayValue(slider, view.sliderValueText);
+                if (string.IsNullOrEmpty(displayValue)) return;
 
-                // Track controller and percentage separately
+                // Track controller and value separately
                 bool controllerChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_CONTROLLER, controller);
-                bool percentageChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_PERCENTAGE, percentage);
+                bool valueChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_PERCENTAGE, displayValue);
 
                 // Both unchanged - skip
-                if (!controllerChanged && !percentageChanged) return;
+                if (!controllerChanged && !valueChanged) return;
 
                 // If we moved to a different controller (different option), don't announce
                 // Let MenuTextDiscovery handle the full "Name: Value" announcement
                 if (controllerChanged) return;
 
                 // Same controller, value changed - announce just the new value
-                FFV_ScreenReaderMod.SpeakText(percentage, interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(displayValue, interrupt: true);
             }
             catch (Exception ex)
             {
@@ -403,4 +403,5 @@ namespace FFV_ScreenReader.Patches
             }
         }
     }
+
 }

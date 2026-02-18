@@ -455,4 +455,5 @@ namespace FFV_ScreenReader.Patches
             }
         }
     }
+
 }

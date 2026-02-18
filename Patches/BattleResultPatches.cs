@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.Data;
@@ -157,9 +158,9 @@ namespace FFV_ScreenReader.Patches
         /// <summary>
         /// Polls the unsafe pointer chain from ResultMenuController to detect when
         /// the EXP counting animation finishes, then stops the counter sound.
-        /// Chain: instance → +0x20 (pointController) → +0x30 (characterListController)
-        ///   → +0x20 (contentList, count at +0x18)
-        ///   → +0x30 (perormanceEndCount)
+        /// Chain: instance -> +0x20 (pointController) -> +0x30 (characterListController)
+        ///   -> +0x20 (contentList, count at +0x18)
+        ///   -> +0x30 (perormanceEndCount)
         /// Animation done when: perormanceEndCount >= contentList.Count &amp;&amp; Count > 0
         /// </summary>
         private static IEnumerator MonitorExpCounterAnimation(IntPtr instancePtr)
@@ -174,21 +175,21 @@ namespace FFV_ScreenReader.Patches
                 yield break;
             }
 
-            IntPtr pointControllerPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(instancePtr, 0x20);
+            IntPtr pointControllerPtr = Marshal.ReadIntPtr(instancePtr, 0x20);
             if (pointControllerPtr == IntPtr.Zero)
             {
                 MelonLogger.Warning("[BattleResult] MonitorExp: pointController is null");
                 yield break;
             }
 
-            IntPtr charListCtrlPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(pointControllerPtr, 0x30);
+            IntPtr charListCtrlPtr = Marshal.ReadIntPtr(pointControllerPtr, 0x30);
             if (charListCtrlPtr == IntPtr.Zero)
             {
                 MelonLogger.Warning("[BattleResult] MonitorExp: characterListController is null");
                 yield break;
             }
 
-            IntPtr contentListPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(charListCtrlPtr, 0x20);
+            IntPtr contentListPtr = Marshal.ReadIntPtr(charListCtrlPtr, 0x20);
             if (contentListPtr == IntPtr.Zero)
             {
                 MelonLogger.Warning("[BattleResult] MonitorExp: contentList is null");
@@ -196,7 +197,7 @@ namespace FFV_ScreenReader.Patches
             }
 
             // contentList.Count (List._size) at contentListPtr + 0x18
-            int contentCount = System.Runtime.InteropServices.Marshal.ReadInt32(contentListPtr, 0x18);
+            int contentCount = Marshal.ReadInt32(contentListPtr, 0x18);
             if (contentCount <= 0)
             {
                 MelonLogger.Warning($"[BattleResult] MonitorExp: contentCount={contentCount}, aborting");
@@ -212,7 +213,7 @@ namespace FFV_ScreenReader.Patches
 
                 try
                 {
-                    int endCount = System.Runtime.InteropServices.Marshal.ReadInt32(charListCtrlPtr, 0x30);
+                    int endCount = Marshal.ReadInt32(charListCtrlPtr, 0x30);
 
                     if (!loggedOnce)
                     {
@@ -229,7 +230,7 @@ namespace FFV_ScreenReader.Patches
                 }
                 catch
                 {
-                    // Pointer became invalid — bail out silently, safety nets will handle it
+                    // Pointer became invalid -- bail out silently, safety nets will handle it
                     yield break;
                 }
             }
@@ -415,9 +416,7 @@ namespace FFV_ScreenReader.Patches
     public static class BattleResultManualPatches
     {
         /// <summary>
-        /// Apply manual Harmony patches for result types that live
-        /// outside the standard Last.UI.KeyInput namespace.
-        /// Call from FFV_ScreenReaderMod.OnInitializeMelon().
+        /// Applies manual Harmony patches for types outside the standard Last.UI.KeyInput namespace.
         /// </summary>
         public static void ApplyPatches(HarmonyLib.Harmony harmony)
         {
@@ -491,7 +490,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Postfix for ResultStatusUpController.SetData —
+        /// Postfix for ResultStatusUpController.SetData --
         /// fires once per character who leveled up.
         /// __0 is the BattleResultCharacterData parameter.
         /// </summary>
@@ -516,7 +515,7 @@ namespace FFV_ScreenReader.Patches
                 Transform root = GetTransformFromInstance(__instance);
                 if (root == null)
                 {
-                    MelonLogger.Warning("[BattleResult] SetData: could not get Transform from __instance");
+                    MelonLogger.Warning("[BattleResult] SetData: could not get Transform from instance");
                     // Even without UI, try to announce from data if available
                     if (statData != null)
                     {
@@ -584,7 +583,7 @@ namespace FFV_ScreenReader.Patches
         /// <summary>
         /// Announces stat data directly (fallback when UI transform is not available).
         /// </summary>
-        private static void AnnounceFromStatData(BattleResultDataStore.CharacterStatData statData)
+        internal static void AnnounceFromStatData(BattleResultDataStore.CharacterStatData statData)
         {
             var parts = new List<string>();
             foreach (var stat in statData.Stats)
@@ -617,7 +616,7 @@ namespace FFV_ScreenReader.Patches
         /// announces per-character stat changes.
         /// Also stores stat data for the navigator.
         /// </summary>
-        private static IEnumerator AnnounceStatusUpCoroutine(Transform root, BattleResultDataStore.CharacterStatData statData)
+        internal static IEnumerator AnnounceStatusUpCoroutine(Transform root, BattleResultDataStore.CharacterStatData statData)
         {
             yield return null; // let SetData finish populating the view
 
@@ -685,7 +684,7 @@ namespace FFV_ScreenReader.Patches
                 }
                 else
                 {
-                    // Unknown text — include as-is
+                    // Unknown text -- include as-is
                     uiStatParts.Add(allTexts[i]);
                     i++;
                 }
@@ -719,4 +718,5 @@ namespace FFV_ScreenReader.Patches
             return true;
         }
     }
+
 }

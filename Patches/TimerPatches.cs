@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.UI;
@@ -13,9 +14,9 @@ namespace FFV_ScreenReader.Patches
 {
     /// <summary>
     /// Harmony patch to freeze timer countdown when requested.
-    /// Patches the Timer.Update method to skip updating elapsed time when frozen.
+    /// Applied/removed at runtime by TimerHelper to avoid a permanent trampoline on Timer.Update
+    /// which disrupts IL2CPP event processing (e.g., Pyramid 5F serpent event loop).
     /// </summary>
-    [HarmonyPatch(typeof(Timer), nameof(Timer.Update))]
     public static class Timer_Update_Patch
     {
         [HarmonyPrefix]
@@ -32,6 +33,9 @@ namespace FFV_ScreenReader.Patches
     public static class TimerHelper
     {
         private static bool timersFrozen = false;
+        private static HarmonyLib.Harmony timerHarmony;
+        private static MethodInfo originalMethod;
+        private static MethodInfo prefixMethod;
 
         /// <summary>
         /// Gets whether timers are currently frozen.
@@ -40,13 +44,30 @@ namespace FFV_ScreenReader.Patches
 
         /// <summary>
         /// Toggles the frozen state of all active timers.
-        /// Uses a Harmony patch to prevent Timer.Update from running.
+        /// Applies/removes the Harmony patch on Timer.Update at runtime so the trampoline
+        /// only exists while timers are actually frozen.
         /// </summary>
         public static void ToggleTimerFreeze()
         {
             try
             {
                 timersFrozen = !timersFrozen;
+
+                if (timersFrozen)
+                {
+                    if (timerHarmony == null)
+                    {
+                        timerHarmony = new HarmonyLib.Harmony("FFV_ScreenReader.TimerFreeze");
+                        originalMethod = typeof(Timer).GetMethod(nameof(Timer.Update));
+                        prefixMethod = typeof(Timer_Update_Patch).GetMethod(nameof(Timer_Update_Patch.Prefix),
+                            BindingFlags.Public | BindingFlags.Static);
+                    }
+                    timerHarmony.Patch(originalMethod, prefix: new HarmonyMethod(prefixMethod));
+                }
+                else
+                {
+                    timerHarmony?.Unpatch(originalMethod, prefixMethod);
+                }
 
                 string message = timersFrozen ? "Timers frozen" : "Timers resumed";
                 FFV_ScreenReaderMod.SpeakText(message, interrupt: true);

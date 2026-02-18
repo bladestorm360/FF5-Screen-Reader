@@ -3,11 +3,17 @@
 Screen-reader/accessibility mod for FF5 Remaster. MelonLoader + Harmony patches hook Il2CPP game code. Output via Tolk to NVDA.
 
 ## Critical Rules
-- **Never load** `GameAssembly.dll.c` or other large files directly — use external search tools
-- **Max 50 lines** from `GameAssembly.dll.c`/`dump.cs` unless user permits
-- **Always check logs first** before debugging
-- **Never use PowerShell or PowerShell scripts** to edit files containing non-ASCII characters — they corrupt the encoding
-- **Always update docs** after completing or debugging a feature/refactor: update `docs/plan.md` (completion status) and `docs/debug.md` (architecture if changed, new debug history entry). Update `docs/PerformanceIssues.md` if performance-related.
+
+| Rule | Requirement |
+|------|-------------|
+| 0: User Approval | STOP after presenting plans. Wait for explicit "yes/approved/proceed" before implementing. |
+| 1: No Doc Overwrites | Use Edit tool only for *.md files. Never use Write to replace documentation. |
+| 2: No Polling | Never use per-frame checks, OnUpdate, or continuous coroutines. Find the exact Harmony hook. |
+| 3: No Timers | Never use `WaitForSeconds` or hardcoded delays. Hook the precise moment instead. Exception: game's own timing systems. |
+| 4: Update Docs | After completing a feature or during debugging, update `docs/plan.md` (feature status) and `docs/debug.md` (architecture/troubleshooting). Update `docs/PerformanceIssues.md` if performance-related. |
+| 5: No PowerShell Edits | Never use PowerShell scripts to edit files containing non-ASCII characters (e.g., arrows →, Japanese text). They corrupt the encoding. Use the Edit tool instead. |
+| 6: No Large Files | Never load `GameAssembly.dll.c` or other large files directly — use Grep. Max 50 lines from `GameAssembly.dll.c`/`dump.cs` unless user permits. |
+| 7: Logs First | Always check game logs before debugging. |
 
 ## General Rules
 - **Reference FF4 mod** (`ff4/ff4-screen-reader`) — port shared patterns, only generate FF5-specific

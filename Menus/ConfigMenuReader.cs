@@ -93,6 +93,20 @@ namespace FFV_ScreenReader.Menus
         }
 
         /// <summary>
+        /// Gets the display value for a slider, preferring the game's sliderValueText
+        /// (which shows raw values like "5" for Music/SFX, "50%" for Master Volume/Brightness).
+        /// Falls back to calculating percentage from the slider range.
+        /// </summary>
+        public static string GetSliderDisplayValue(UnityEngine.UI.Slider slider, UnityEngine.UI.Text sliderValueText)
+        {
+            if (sliderValueText != null && !string.IsNullOrWhiteSpace(sliderValueText.text))
+            {
+                return sliderValueText.text.Trim();
+            }
+            return GetSliderPercentage(slider);
+        }
+
+        /// <summary>
         /// Converts a slider value to percentage based on its min/max range.
         /// </summary>
         public static string GetSliderPercentage(UnityEngine.UI.Slider slider)
@@ -133,15 +147,15 @@ namespace FFV_ScreenReader.Menus
                 }
             }
 
-            // Check slider value (for volume sliders) - always use percentage
+            // Check slider value (for volume sliders)
             if (view.SliderTypeRoot != null && view.SliderTypeRoot.activeSelf)
             {
                 if (view.Slider != null)
                 {
-                    string percentage = GetSliderPercentage(view.Slider);
-                    if (!string.IsNullOrEmpty(percentage))
+                    string sliderValue = GetSliderDisplayValue(view.Slider, view.sliderValueText);
+                    if (!string.IsNullOrEmpty(sliderValue))
                     {
-                        return percentage;
+                        return sliderValue;
                     }
                 }
             }
@@ -194,17 +208,17 @@ namespace FFV_ScreenReader.Menus
                 }
             }
 
-            // Check slider value - use percentage from slider component
+            // Check slider value
             if (view.SliderTypeRoot != null && view.SliderTypeRoot.activeSelf)
             {
                 // Try to find the slider in the slider root
                 var slider = view.SliderTypeRoot.GetComponentInChildren<UnityEngine.UI.Slider>();
                 if (slider != null)
                 {
-                    string percentage = GetSliderPercentage(slider);
-                    if (!string.IsNullOrEmpty(percentage))
+                    string sliderValue = GetSliderDisplayValue(slider, view.sliderValueText);
+                    if (!string.IsNullOrEmpty(sliderValue))
                     {
-                        return percentage;
+                        return sliderValue;
                     }
                 }
             }
@@ -270,12 +284,12 @@ namespace FFV_ScreenReader.Menus
                         string value = GetArrowChangeTextKeyInput(keyInputView);
                         if (!string.IsNullOrEmpty(value)) return value;
 
-                        // Check slider with percentage
+                        // Check slider
                         if (keyInputView.SliderTypeRoot != null && keyInputView.SliderTypeRoot.activeSelf)
                         {
                             if (keyInputView.Slider != null)
                             {
-                                value = GetSliderPercentage(keyInputView.Slider);
+                                value = GetSliderDisplayValue(keyInputView.Slider, keyInputView.sliderValueText);
                                 if (!string.IsNullOrEmpty(value)) return value;
                             }
                         }
@@ -288,13 +302,13 @@ namespace FFV_ScreenReader.Menus
                         string value = GetArrowChangeTextTouch(touchView);
                         if (!string.IsNullOrEmpty(value)) return value;
 
-                        // Check slider with percentage
+                        // Check slider
                         if (touchView.SliderTypeRoot != null && touchView.SliderTypeRoot.activeSelf)
                         {
                             var slider = touchView.SliderTypeRoot.GetComponentInChildren<UnityEngine.UI.Slider>();
                             if (slider != null)
                             {
-                                value = GetSliderPercentage(slider);
+                                value = GetSliderDisplayValue(slider, touchView.sliderValueText);
                                 if (!string.IsNullOrEmpty(value)) return value;
                             }
                         }

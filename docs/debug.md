@@ -3,8 +3,8 @@
 ## Mod Architecture
 
 ### Core (`Core/`)
-- `FFV_ScreenReaderMod` — Entry point, SpeakText(), SpeakTextDelayed(), entity refresh, scene transitions
-- `InputManager` — Keybinding dispatch via KeyBindingRegistry. F1/F3/F5/F8/I/V inline
+- `FFV_ScreenReaderMod` — Entry point, SpeakText(), SpeakTextDelayed(), entity refresh, scene transitions, IsAccessibilityEnabled + ToggleAccessibility() (Ctrl+F8 kill switch: disable stops all coroutines, resets all state trackers, clears audio; enable reinitializes preferences, recaches game objects, rescans entities, announces map)
+- `InputManager` — Keybinding dispatch via KeyBindingRegistry. F1/F3/F5/F8/I/V/Shift+I inline. Ctrl+F8 accessibility toggle (raw key check, works when mod disabled). Dual input: SDL (mod windows) / GetAsyncKeyState (game). Focus gating via `IsGameProcessForeground()` — Win32 `GetForegroundWindow()`+PID match on Windows, `Application.isFocused` fallback on other platforms
 - `ModMenu` — Audio-only settings menu (F8), Windows API focus control
 - `EntityCache` — Caches field entities; grouping via IGroupingStrategy
 - `EntityNavigator` — Entity cycling with timing-aware filters (OnAdd/OnCycle)
@@ -31,12 +31,15 @@
 - `MovementSoundPatches` — Footstep audio
 - `ShopPatches` — Shop menus + ShopMenuTracker + equipment command bar
 - `PopupPatches` — All popup types (common, game over, info, job change, change name)
-- `GameStatePatches` — BattleState, map transitions
+- `GameStatePatches` — BattleState, map transitions, IsInEventState (cached via ChangeState hook)
 - `TitleMenuPatches` — Title screen
 - `DashFlagPatches` — Walk/run state for F1
 - `MainMenuPatches` — In-game main menu + state cleanup
 - `SaveLoadPatches` — Save/load menus + confirmation popups
 - `NamingPatches` — Name entry screen
+- `BestiaryPatches` — Bestiary (Picture Book) accessibility: state tracking, list nav, detail stats, formations, maps
+- `MusicPlayerPatches` — Music Player (Extra Sound) accessibility: state tracking, song list nav, Play All/Arrangement toggle
+- `GalleryPatches` — Gallery (Extra Gallery) accessibility: state tracking, list nav, image open/return
 
 ### Field (`Field/`)
 - `NavigableEntity` — Entity wrapper (TreasureChestEntity overrides FormatDescription)
@@ -47,11 +50,14 @@
 ### Menus (`Menus/`)
 - `MenuTextDiscovery` — Generic UI hierarchy text discovery
 - `SaveSlotReader`, `StatusDetailsReader`, `CharacterSelectionReader`, `ConfigMenuReader`
+- `BestiaryReader` — Data extraction/speech formatting for bestiary entries, stats, formations, maps
+- `BestiaryNavigationReader` — Virtual buffer navigation for bestiary detail stats (arrow keys, group jump)
+- `MusicPlayerReader` — Data extraction/speech formatting for music player song entries
 
 ### Utils (`Utils/`)
 - `TolkWrapper` — NVDA interface
 - `CoroutineManager` — Managed coroutines, self-cleanup, max 20, StartUntracked/StopManaged
-- `SoundPlayer` — waveOut playback (6 channels, looping, LRU tone cache, 16-bit)
+- `SoundPlayer` — SDL3 audio playback (6 streams on 1 device, callback-driven looping, gain-based volume)
 - `ToneGenerator` — Tone generation + WriteWavHeader
 - `GameConstants` — Audio, tile size, direction vectors, map IDs
 - `GameObjectCache` — Cached lookups (Get/Refresh pattern)
@@ -61,7 +67,7 @@
 - `BattleResultDataStore` — Static data store for navigator (points + stats)
 - `BattleUnitHelper`, `CharacterStatusHelper`, `SelectContentHelper`
 - `EntityTranslator` — JSON-based Japanese→English name translation (4-tier lookup) + nested `EntityDump` (key 0)
-- `WindowsFocusHelper` — VK constants, focus management
+- `VKConstants` (in ConfirmationDialog/TextInputWindow) — VK constant definitions for Win32 key input
 
 ## Key Game Namespaces
 
@@ -84,6 +90,19 @@
 - **CharacterParameterBase** (342439): CurrentHP/MP, BaseMaxHp/Mp
 - **PlayerCharacterParameter** (343918): ConfirmedMaxHp/Mp/ConditionList
 
+### Music Player Classes (Il2CppLast.*)
+- **SubSceneManagerExtraSound** (Last.Management): State machine — Init=0, View=1, GotoTitle=2. `ChangeState(State)` triggers transitions.
+- **ExtraSoundController** (Last.UI.KeyInput): Main controller with `listController`, `toggleController` (Touch.ToggleController), `loopKeys` (PlaybackOn=0, PlaybackOff=1). `ChangeKeyHelpPlaybackIcon(LoopKeys)` fires on Play All toggle.
+- **ExtraSoundListController** (Last.UI.KeyInput): Song list management with `currentContent` (set-only), `mainController`. `SwitchOriginalArrangeList()` toggles arrangement/original. `set_CurrentContent(ExtraSoundListContentController)` fires on cursor movement.
+- **ExtraSoundListContentController** (Last.UI.KeyInput): Individual song item with `ContentInfo` (ExtraSoundListContentInfo), `Index`.
+- **ExtraSoundListContentInfo** (Last.UI.KeyInput): Data class with `musicName` (string), `playTime` (int), `bgmId` (int).
+- **ToggleController** (Last.UI.Touch): Arrangement toggle with `ToggleState` bool (true=Arrangement, false=Original).
+
+### Gallery Classes (Il2CppLast.*)
+- **SubSceneManagerExtraGallery** (Last.Management): State machine — Init=0, View=1, Details=2, GotoTitle=3. `ChangeState(State)` triggers transitions.
+- **GalleryContentListController** (Last.UI.KeyInput, 9266): Individual gallery item with `contentData` at 0x18 (GalleryListCotentData). `SetFocus(bool)` fires on cursor movement.
+- **GalleryListCotentData** (Last.OutGame.Gallery, 6406): Data class with `number` (int, 0x10), `name` (string, 0x18), `isFocus` (bool, 0x20).
+
 ### Controllers (Il2CppSerial.FF5.UI.KeyInput.*)
 - **AbilityContentListController** (285082): Patched via `SetCursor(Cursor,bool,WithinRangeType,bool)` — SelectContent has ambiguous overloads
 - **AbilityCommandController** (284786): `SelectContent(int)` — command slots
@@ -104,6 +123,44 @@
 ---
 
 ## Debug History
+
+### Bestiary (Picture Book) Accessibility (2026-02-13)
+**Feature**: Full screen reader support for the bestiary/encyclopedia (Title > Extra > Picture Book).
+
+**Architecture**:
+- `SubSceneManagerExtraLibrary.ChangeState` — central state tracker (List=1, Field=2, Dungeon=3, Info=4, ArTop=5, ArBattle=6)
+- `LibraryMenuController.Show` (KeyInput) — fires when list cursor moves, announces entry
+- `LibraryInfoController.SetData` (KeyInput) — fires when detail view opens, builds stat buffer from `LibraryInfoContent` UI elements
+- `ExtraLibraryInfo.OnNextPageButton`/`OnPreviousPageButton` — page turns rebuild stat buffer
+- `ExtraLibraryInfo.OnChangedMonster` — monster switching in detail view
+- `ArBattleTopController` — formation data via Traverse (monsterPartyList, selectMonsterPartyIndex)
+
+**Key classes**: `BestiaryStateTracker`, `BestiaryNavigationTracker`, `BestiaryReader`, `BestiaryNavigationReader`
+
+**Stat buffer**: Dynamically built from active UI elements (`LibraryInfoContent.monsterDataTable`, `statusTable`, `optionTable`, `hierarchyTable`). Items group reads from `Monster` master data instead of UI (game uses icons without text). Only includes entries whose GameObjects are activeInHierarchy — ensures parity with sighted player.
+
+**Monster name resolution** (for formations): `MasterManager.Instance.GetList<Monster>()` → dictionary lookup by ID → `Monster.MesIdName` → `MessageManager.GetMessage()`.
+
+**Item name resolution**: `MonsterData.MonsterMaster` → `StealContentId1-4`/`DropContentId1-8` → `MasterManager.GetList<Content>()` → `Content.MesIdName` → `LocalizationHelper.GetGameMessage()`.
+
+**Minimap (list view overlay)**: `LibraryMenuController.selectState` field (0=MonsterList, 1=EnlargedMap) at offset 0x44, `selectMapIndex` at offset 0x50, both accessed via direct IL2CPP properties (Traverse fails on IL2CPP nested enums). Caches entry name on open. Announces "Minimap open: [map name]" / "Minimap closed. [cached entry name]" on state transitions, and just "[map name]" on habitat cycling.
+
+**Full map (list view → map → list, state 1→2→1)**: State 2 (Field). `ExtraLibraryField.NextMap()`/`PreviousMap()` hooked for habitat cycling. Map index tracked manually in `BestiaryStateTracker.FullMapIndex` (reset to 0 on state 2 entry). **Caching**: `CurrentMonsterData` (IL2CPP reference) becomes stale after scene transition (list scene unloads, GC collects MonsterData during 2-frame yield). Entry name and habitat names are cached as plain C# strings in `BestiaryStateTracker.CachedEntryName`/`CachedHabitatNames` BEFORE the `AnnounceMapView` coroutine starts. Announces "Map open: [cached habitat]" on entry, "[cached habitat]" on cycle, "Map closed. [cached entry]" on return to list (state 1 with previousState==2).
+
+**Bug fix** (2026-02-14): Initial entry not announced on bestiary open. `Show` and `OnContentSelected` don't fire during initial list population — only on user cursor movement. Fix: `AnnounceListOpen()` queries `FindObjectOfType<LibraryMenuListController_KeyInput>().GetCurrentContent()` directly after 3 yield frames (1 before summary + 2 after), bypassing cache timing issues. Removed UpdateView patch (Patch 2c) and cache-restore dance in ChangeState — no longer needed.
+
+**Bug fix** (2026-02-14): Map announcements missing habitat/entry names. Full map said "Map open" with no habitat, cycling was silent, close had no entry re-announcement. Minimap close also missing entry name. **Root cause**: `CurrentMonsterData` (IL2CPP object reference) becomes stale after scene transition — list scene unloads when full map loads, GC collects `MonsterData` during 2-frame yield in `AnnounceMapView`. **Fix**: Cache entry name and all habitat names as plain C# strings (`BestiaryStateTracker.CachedEntryName`/`CachedHabitatNames`) BEFORE starting coroutines. Minimap caches entry name on open (selectState→1), uses it on close (selectState→0). Full map caches both before `AnnounceMapView`, uses cached data in coroutine, cycle helper, and return-to-list handler. Also fixed incorrect state transition assumption: full map returns to list (state 1→2→1), not detail (4→2→4) — removed wrong "Map closed" from case 4.
+
+**Bug fixes** (2026-02-13):
+1. **Shift+I key help**: Reads active `KeyIconView` objects (button labels + action text). Global binding.
+2. **Minimap toggle silent**: Tracked `selectState` in Patch 6 (UpdateController). Announces "Map shown"/"Map hidden" on Right/Left key in list view.
+3. **Items show "None"**: `dropTable` UI uses icons without text. Replaced with master data lookup: `MonsterData.MonsterMaster` → `StealContentId1-4`/`DropContentId1-8` → `Content.MesIdName`.
+
+**Screenshot corrections** (2026-02-13): Fixed 4 mismatches vs game display:
+1. Unencountered entries: "Unknown" → "???" (game shows "???")
+2. Header: "Picture Book" → "Bestiary" (game header says "Bestiary")
+3. `GetParamValueText`: Expanded from 2 to 7 text fields (`valueText`, `multipliedValueText`, `parameterValueText`, `percentText`, `persentValueText`, `defaultValueText`, `multipliedText`). Private IL2CPP fields accessed via lowercase names. Fallback changed from "???" to empty string.
+4. `ReadParamValueArray` fallback: "???" → empty string (consistent with GetParamValueText).
 
 ### Spell List — SetCursor Workaround (2024-12-28)
 **Problem**: Main menu spell list silent. AbilityContentListController.SelectContent has ambiguous overloads; all Harmony patch attempts failed (ambiguous match, crash on set_SelectedIndex).
@@ -201,7 +258,7 @@ Replaced standalone PathfindingFilter with IEntityFilter interface + FilterTimin
 OnMapTransition() forced on-foot while game still had player on Boko. Fix: check `player.moveState` before forcing; if still vehicle, defer to ChangeMoveState_Patch.
 
 ### Code Cleanup (2026-02-11)
-VK constant dedup (ConfirmationDialog, TextInputWindow → WindowsFocusHelper). SelectContentHelper.TryGetItem adopted at 11 sites across 6 files. Dead code removal.
+VK constant dedup (ConfirmationDialog, TextInputWindow). SelectContentHelper.TryGetItem adopted at 11 sites across 6 files. Dead code removal.
 
 ### Per-Phase Battle Results (2026-02-11)
 Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up, in Serial.FF5.UI.Touch namespace — manual FindType patch), ShowGetAbilitysInit/ShowLevelUpAbilitysInit (abilities via UI text), ShowGetItemsInit (items via GetContentDataList). Status-up: 1-frame delay, heuristic (category, before, after) triple detection. Battle action dedup: object-based identity instead of string.
@@ -254,3 +311,97 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 ### Naming Popup Enhancements (2026-02-12)
 1. **CommonPopup initial button**: Read `selectCursor` at offset 0x68, get button text via ReadButtonFromCommandList. Wrapped in try/catch. Result: "Bartz. Use this name? Yes"
 2. **ChangeNamePopup hint**: Append `LocalizationHelper.GetModString("default_name_hint")` (12 languages). Result: "Enter a name for Bartz. Press Enter for default name"
+
+### Key Help Pagination Fix (2026-02-14)
+**Problem**: Shift+I (`AnnounceKeyHelp`) only read the currently-visible page of controls from `KeyHelpController`. The game paginates controls across multiple pages (cycling on a timer), so pressing Shift+I gave random partial results depending on which page was showing.
+
+**Solution**: Added `ReadAllKeyHelpItems()` which reads the `pageList` field (offset 0x30) directly via unsafe pointers. This is `List<List<KeyHelpIconData>>` containing ALL pages. Each `KeyHelpIconData` has `MessageId` (0x10), `MessageId2` (0x18), and `Keys` (0x20, `Key[]` value-type array). Message IDs are resolved via `LocalizationHelper.GetGameMessage()`. Key enum values are mapped to display names via `GetKeyDisplayName()`. Falls back to the original `GetComponentsInChildren<KeyIconView>` approach if unsafe read fails.
+
+**Key detail**: `Key[]` is a value-type array (4 bytes per element), not a reference array (8 bytes). Data starts at array offset 0x20.
+
+### Music Player Duration Fix (2026-02-14)
+**Problem**: All song durations showed "0:00". `LookupDuration()` correctly returned `entry.Time` (e.g., 153 for "Main Theme of Final Fantasy V" = 2:33), but `FormatPlayTime()` divided by 1000 assuming milliseconds. Integer division `153 / 1000 = 0`.
+
+**Fix**: `SoundPlayerList.Time` is in seconds, not milliseconds. Removed the `/ 1000` division in `FormatPlayTime()`. Also cleaned up one-shot diagnostic logging (`_loggedDiagnostics`, `shouldLog`) that was no longer needed.
+
+**Lesson**: `SoundPlayerList.Time` returns seconds. The IL2CPP dump annotation `playTime` on `ExtraSoundListContentInfo` is misleading — it's not milliseconds.
+
+### Save Complete Popup Announcement (2026-02-13)
+**Problem**: "Save Complete" popup text never spoken after Quick Save or Normal Save. Only "Close" button was read.
+
+**Root cause**: Completion text lives on `savePopup` (0x38), not `commonPopup` (0x28). The original `DelayedSaveCompleteRead` coroutine read from `commonPopup` and got nothing. Meanwhile, `SavePopup.UpdateCommand` fires on the completion popup (reuses same `SavePopup` instance), but `lastPopupButtonIndex` was still set from the confirmation dialog — so the "first call" path (which reads title+message via `DelayedSavePopupRead`) was skipped, and only the button text ("Close") was announced.
+
+**Solution**: Reset `lastPopupButtonIndex = -1` in both `InterruptionInitComplite_Postfix` (Quick Save) and `SaveWindowCompleteInit_Postfix` (Normal Save). This causes the next `SavePopup.UpdateCommand` call to treat it as a fresh popup, triggering `DelayedSavePopupRead` which reads title+message from the `savePopup`'s own text fields (0x38/0x40). Removed the old `DelayedSaveCompleteRead` calls that read from the wrong popup.
+
+**Lesson**: When a popup reuses the same `SavePopup` instance for different screens (confirmation → completion), the dedup index must be reset at each transition so the first-call path re-triggers.
+
+### Global Hotkey Focus Gating (2026-02-14 → 2026-02-15)
+**Problem**: Mod hotkeys (G, M, H, brackets, etc.) fired when the game window was not focused, interfering with other applications. `GetAsyncKeyState` reads global keyboard state, so without a focus guard hotkeys leak outside the game.
+
+**v1 attempt**: Win32 `GetForegroundWindow()` + `GetWindowThreadProcessId()` PID matching. Code was correctly placed but PID matching didn't work reliably — likely due to Unity/MelonLoader/Il2CPP window management at the time.
+
+**v2 attempt**: `Application.isFocused` (static property). Worked for normal alt-tabbing but failed during startup — Unity reports focused even when the window isn't.
+
+**v3 attempt**: `Application.focusChanged` event → `_gameFocused` bool (defaults to false). Failed because `focusChanged` fires with `true` during Unity startup even if the user has alt-tabbed out, setting `_gameFocused = true` immediately and making the guard useless.
+
+**v4 solution (final)**: Platform-aware `IsGameProcessForeground()` method replaces the `_gameFocused` bool. On Windows, uses `GetForegroundWindow()` + `GetWindowThreadProcessId()` to check if our process owns the foreground window at call time — always fresh, no Unity dependency. On other platforms, falls back to `Application.isFocused`. Called inline at each poll site (at most once per frame). Static `_ownProcessId` cached once at class load.
+
+Three gating locations in InputManager (all in the `else` branch, i.e., non-SDL/GetAsyncKeyState path):
+1. `Poll()` — early return if unfocused
+2. `InitializeKeyStates()` — treat all keys as unpressed if unfocused
+3. `PollRegisteredKeys()` — early return if unfocused
+
+SDL path (mod menu, text input, confirmation dialogs) is unaffected — those windows use SDL focus management and run in the same process (same PID → `IsGameProcessForeground()` returns true).
+
+**Why v4 works where v1 failed**: v1 used PID matching alongside a `_gameFocused` bool and `Application.focusChanged`, creating race conditions. v4 uses PID matching as the sole mechanism with no cached state — `GetForegroundWindow()` queries the OS directly each frame. Startup safety: before the game window exists, foreground belongs to another app → different PID → false.
+
+**Cross-platform notes**: `_isWindows` is checked via `RuntimeInformation.IsOSPlatform(OSPlatform.Windows)` at class load. Non-Windows platforms fall back to `Application.isFocused`, which is the best available option. If Linux/macOS support is added, platform-specific equivalents could be added (e.g., X11 `XGetInputFocus`, macOS `NSWorkspace.frontmostApplication`). The `_ownProcessId` field is only populated on Windows (set to 0 otherwise).
+
+**Cleanup**: Removed `_gameFocused` field, `SetGameFocused()` method, `Application.focusChanged` subscription/unsubscription, and `OnApplicationFocusChanged` handler.
+
+**Lesson**: Unity's focus tracking (`Application.isFocused`, `Application.focusChanged`) cannot be trusted during startup. For reliable focus detection on Windows, query the OS directly via `GetForegroundWindow()` at poll time with no cached state.
+
+### Title Menu SetCursor Coalesce Fix (2026-02-15)
+**Problem**: Backing out of Music Player or Gallery to the extras menu briefly announced "Bestiary" (index 0) before the correct remembered item. The game fires `SetDefaultCursor(0)` then `SetCursorPositionMemory(remembered_index)` in the same frame, and the postfix announced both immediately.
+
+**Solution**: One-frame coalesce in `TitleMenuCommandController_SetCursor_Patch`. Static fields cache pending announcement (`_pendingText`, `_pendingCommandId`, `_announcePending`). Postfix caches data and starts a `DeferredAnnounce()` coroutine only if one isn't already pending. Coroutine does `yield return null` then announces the last cached value (with dedup check). Multiple same-frame SetCursor calls overwrite the cache — only the last one is spoken.
+
+**Behavior**: Double SetCursor (init): first caches "Bestiary", second overwrites with correct item, coroutine announces correct item next frame. Single SetCursor (navigation): ~16ms delay, imperceptible. Rapid navigation: only last position per frame announced.
+
+### SDL3 Volume Rebalancing (2026-02-15)
+**Problem**: After migrating audio from WaveOut to SDL3, relative volume balance was off. Footsteps too loud, wall bumps too quiet, wall tones/beacons/landing pings needed a small boost. Landing pings shared `WallToneVolumeMultipliers.BASE_VOLUME` with wall tones despite being a separate sound type.
+
+**Changes** (in `SoundConstants.cs`):
+- Footstep.VOLUME: 0.338f → 0.237f (-30%)
+- WallBump.VOLUME: 0.506f → 0.759f (+50%)
+- WallToneVolumeMultipliers.BASE_VOLUME: 0.12f → 0.132f (+10%)
+- Beacon.MIN_VOLUME: 0.10f → 0.11f (+10%)
+- Beacon.MAX_VOLUME: 0.50f → 0.55f (+10%)
+- New `LandingPingVolumeMultipliers` class with `BASE_VOLUME = 0.132f` (+10%)
+
+**Architecture change**: Landing pings now have their own `LandingPingVolumeMultipliers.BASE_VOLUME` constant, decoupled from wall tones. They still share the directional multipliers (NORTH/SOUTH/EAST/WEST) since those represent the same perceptual balance. `SoundPlayer.PlayLandingPingsLooped()` updated to use the new constant.
+
+### Gallery Back-Button Duplicate Speech Fix (2026-02-15)
+**Problem**: Pressing back from image view to the gallery list spoke the focused entry twice.
+
+**Root cause**: Two redundant speech paths. `ChangeState` (state 2→1) launched `AnnounceGalleryReturn()` coroutine which spoke the entry, then `SetFocusContent` fired and spoke it again via `AnnouncementDeduplicator.AnnounceIfNew`. The coroutine also reset the deduplicator before speaking, so the subsequent `SetFocusContent` call wasn't suppressed.
+
+**Fix**: Replaced the coroutine launch + `SuppressContentChange` flag with a single `AnnouncementDeduplicator.Reset(GALLERY_LIST_ENTRY)` call. This clears the dedup cache (since the entry was already announced before opening the image) and lets `SetFocusContent` handle the announcement naturally — exactly once. Deleted the `AnnounceGalleryReturn()` coroutine entirely.
+
+### Pyramid 5F Event Loop Diagnostic Cleanup (2026-02-17)
+**Context**: The Pyramid 5F event loop bug (rapid STATE_PLAYER/STATE_EVENT oscillation) was caused by a permanent Harmony trampoline on `Timer.Update` interfering with IL2CPP native event processing. The fix (dynamic patch apply/remove at runtime) lives in `TimerPatches.cs`. The investigation left ~470 lines of diagnostic code and a grace period mechanism in `GameStatePatches.cs`.
+
+**Removed** (GameStatePatches.cs 782→311 lines):
+- Grace period fields (`_lastEventExitTime`, `EVENT_GRACE_PERIOD`) and `IsInGracePeriod` property
+- 15 diagnostic fields + `lastStateValue` (dead after diagnostic removal)
+- 10 diagnostic Harmony hook registrations (FootEvent.RequestTriggerAction, EventProcedure.SetFlag, FootEvent.PreExcute/Excute, EventTriggerEntity.IsTriggerEnable/TriggerActivate/Suspend, FieldMapProvisionInformation.AddFootEventEntity/RemoveFootEventEntity, FootMonitoring.OnActionTriggerEvent)
+- 14 diagnostic methods (all `[EventDiag]` hooks and helpers)
+- 3 unused `using` directives + `UnityEngine` (no longer needed without `Time.time`)
+- `RequestTriggerAction_Prefix` (grace period suppression — no longer needed)
+
+**Simplified**:
+- `IsInEventState`: was grace-period-aware getter, now `=> _cachedIsInEvent`
+- `ChangeState_Postfix`: removed diagnostic logging, cycle counting, NPC position dumps
+- `ResetState()`: single field reset
+
+**Also**: InputManager.cs Ctrl+K keybinding log prefix changed from `[DIAG]` to `[Input]` (kept as intentional last-resort entity rescan).

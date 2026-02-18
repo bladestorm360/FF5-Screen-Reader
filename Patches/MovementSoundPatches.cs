@@ -35,8 +35,8 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Suppress wall bumps during battle or dialogue
-                if (BattleState.IsInBattle || DialogueTracker.IsInDialogue)
+                // Suppress wall bumps during battle, dialogue, or events
+                if (BattleState.IsInBattle || DialogueTracker.IsInDialogue || GameStatePatches.IsInEventState)
                     return;
 
                 float currentTime = Time.time;

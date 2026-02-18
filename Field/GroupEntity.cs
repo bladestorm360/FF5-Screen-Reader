@@ -66,7 +66,7 @@ namespace FFV_ScreenReader.Field
         
         public override Vector3 Position => GetRepresentative()?.Position ?? Vector3.zero;
         
-        public override string Name => GetRepresentative()?.Name ?? "Unknown Group";
+        public override string Name => GetRepresentative()?.DisplayName ?? "Unknown Group";
         
         public override EntityCategory Category => cachedCategory ?? EntityCategory.All;
 
@@ -80,7 +80,7 @@ namespace FFV_ScreenReader.Field
             if (rep == null)
                 return "Empty Group";
             
-            string baseName = rep.Name;
+            string baseName = rep.DisplayName;
 
             if (members.Count > 1)
             {

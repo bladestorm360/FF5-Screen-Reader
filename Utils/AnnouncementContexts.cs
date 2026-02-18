@@ -76,5 +76,18 @@ namespace FFV_ScreenReader.Utils
 
         // Title menu
         public const string TITLE_MENU_COMMAND = "TitleMenu.Command";
+
+        // Bestiary
+        public const string BESTIARY_LIST_ENTRY = "Bestiary.ListEntry";
+        public const string BESTIARY_DETAIL_STAT = "Bestiary.DetailStat";
+        public const string BESTIARY_FORMATION = "Bestiary.Formation";
+        public const string BESTIARY_MAP = "Bestiary.Map";
+        public const string BESTIARY_STATE = "Bestiary.State";
+
+        // Music Player
+        public const string MUSIC_LIST_ENTRY = "MusicPlayer.ListEntry";
+
+        // Gallery
+        public const string GALLERY_LIST_ENTRY = "Gallery.ListEntry";
     }
 }

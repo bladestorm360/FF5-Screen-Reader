@@ -65,6 +65,7 @@ namespace FFV_ScreenReader.Patches
     /// <summary>
     /// Patches for popup dialogs - handles ALL popup reading (message + buttons).
     /// Uses TryCast for IL2CPP-safe type detection.
+    /// Uses manual Harmony patching for all hooks.
     /// </summary>
     public static class PopupPatches
     {
@@ -442,12 +443,10 @@ namespace FFV_ScreenReader.Patches
 
         #endregion
 
-        #region GameOver Load Popup Patches
+        #region GameOver Load Popup Methods
 
-        /// <summary>
-        /// Patch GameOverLoadPopup.UpdateCommand for Yes/No button navigation
-        /// and GameOverPopupController.InitSaveLoadPopup to announce the popup message.
-        /// </summary>
+        private static int lastGameOverLoadIndex = -1;
+
         private static void TryPatchGameOverLoadPopup(HarmonyLib.Harmony harmony)
         {
             try
@@ -487,8 +486,6 @@ namespace FFV_ScreenReader.Patches
                 MelonLogger.Warning($"[Popup] Error patching GameOverLoadPopup: {ex.Message}");
             }
         }
-
-        private static int lastGameOverLoadIndex = -1;
 
         public static void GameOverLoadPopup_UpdateCommand_Postfix(KeyInputGameOverLoadPopup __instance)
         {
@@ -581,4 +578,5 @@ namespace FFV_ScreenReader.Patches
 
         #endregion
     }
+
 }

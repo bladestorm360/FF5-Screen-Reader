@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 
 namespace FFV_ScreenReader.Core
 {
@@ -24,7 +23,8 @@ namespace FFV_ScreenReader.Core
         Field,         // Only on field map (not in battle/dialogue)
         Battle,        // Only in battle
         BattleResult,  // Only on battle results screen (EXP/stat display)
-        Status         // Only on status screen
+        Status,        // Only on status screen
+        Bestiary       // Only in bestiary detail view
     }
 
     /// <summary>
@@ -32,13 +32,13 @@ namespace FFV_ScreenReader.Core
     /// </summary>
     public struct KeyBinding
     {
-        public KeyCode Key;
+        public ModKey Key;
         public KeyModifier Modifier;
         public KeyContext Context;
         public Action Action;
         public string Description;
 
-        public KeyBinding(KeyCode key, KeyModifier modifier, KeyContext context, Action action, string description)
+        public KeyBinding(ModKey key, KeyModifier modifier, KeyContext context, Action action, string description)
         {
             Key = key;
             Modifier = modifier;

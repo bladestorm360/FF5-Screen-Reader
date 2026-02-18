@@ -3,11 +3,10 @@ using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
 using FFV_ScreenReader.Core;
-using FFV_ScreenReader.Utils;
 using FFV_ScreenReader.Field;
+using FFV_ScreenReader.Utils;
 using SubSceneManagerMainGame = Il2CppLast.Management.SubSceneManagerMainGame;
-using UserDataManager = Il2CppLast.Management.UserDataManager;
-using FieldNavigationHelper = FFV_ScreenReader.Field.FieldNavigationHelper;
+using GameSceneManager = Il2CppLast.Management.SceneManager;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -24,6 +23,15 @@ namespace FFV_ScreenReader.Patches
         /// True while in battle. Checked by InputManager to block navigation keys.
         /// </summary>
         public static bool IsInBattle => _isInBattle;
+
+        /// <summary>
+        /// Unconditionally clears battle state without restoring navigation.
+        /// </summary>
+        public static void ForceReset()
+        {
+            _isInBattle = false;
+            ActiveBattleCharacterTracker.CurrentActiveCharacter = null;
+        }
 
         /// <summary>
         /// Called when battle starts. Stores current navigation settings and suppresses them.
@@ -61,17 +69,21 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Patches for game state transitions (field, battle, menu, etc.).
-    /// Hooks SubSceneManagerMainGame.ChangeState for event-driven map transition
-    /// instead of per-frame polling.
-    /// Also provides fade detection via cached reflection on FadeManager.
+    /// Provides game state queries, map transition detection, and ChangeState hook.
+    /// Hooks SubSceneManagerMainGame.ChangeState for event-driven map transition detection.
+    /// IsInEventState reads directly from the game's state machine (no hook needed).
+    /// Fade detection via cached reflection on FadeManager.
     /// </summary>
     public static class GameStatePatches
     {
-        // Field states that indicate player is on the field map
+        // Field states from SubSceneManagerMainGame.State enum
         private const int STATE_CHANGE_MAP = 1;
         private const int STATE_FIELD_READY = 2;
         private const int STATE_PLAYER = 3;
+        private const int STATE_EVENT = 12;
+
+        // Cached event state
+        private static bool _cachedIsInEvent = false;
 
         // Fade detection via cached reflection
         private static bool fadeInitialized = false;
@@ -79,8 +91,78 @@ namespace FFV_ScreenReader.Patches
         private static MethodInfo isFadeFinishMethod;
 
         /// <summary>
+        /// Manually patches SubSceneManagerMainGame.ChangeState with a postfix.
+        /// Called from FFV_ScreenReaderMod initialization.
+        /// </summary>
+        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                // 1. ChangeState postfix — state tracking + map transitions
+                var changeStateMethod = AccessTools.Method(
+                    typeof(SubSceneManagerMainGame),
+                    "ChangeState",
+                    new Type[] { typeof(SubSceneManagerMainGame.State) }
+                );
+
+                if (changeStateMethod != null)
+                {
+                    var postfix = AccessTools.Method(typeof(GameStatePatches), nameof(ChangeState_Postfix));
+                    harmony.Patch(changeStateMethod, postfix: new HarmonyMethod(postfix));
+                    MelonLogger.Msg("[GameState] Patched SubSceneManagerMainGame.ChangeState");
+                }
+                else
+                {
+                    MelonLogger.Warning("[GameState] Could not find SubSceneManagerMainGame.ChangeState method");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"[GameState] Error applying patches: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Postfix for SubSceneManagerMainGame.ChangeState.
+        /// Fires on every state transition — handles map transitions and battle state clearing.
+        /// </summary>
+        public static void ChangeState_Postfix(SubSceneManagerMainGame.State state)
+        {
+            try
+            {
+                int stateValue = (int)state;
+
+                // Track event state for IsInEventState property
+                if (stateValue == STATE_EVENT)
+                    _cachedIsInEvent = true;
+                else if (_cachedIsInEvent)
+                    _cachedIsInEvent = false;
+
+                // Field states: check map transitions and clear battle state
+                if (stateValue == STATE_FIELD_READY || stateValue == STATE_PLAYER || stateValue == STATE_CHANGE_MAP)
+                {
+                    if (BattleState.IsInBattle)
+                    {
+                        BattleState.Reset();
+                    }
+                    CheckMapTransition();
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[GameState] Error in ChangeState_Postfix: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// True while the game is in Event state (state 12).
+        /// Cached via ChangeState_Postfix — no IL2CPP calls.
+        /// </summary>
+        public static bool IsInEventState => _cachedIsInEvent;
+
+        /// <summary>
         /// True while the screen is fading (fade not finished).
-        /// Checked by wall tone loop to suppress tones during transitions.
         /// </summary>
         public static bool IsScreenFading
         {
@@ -99,39 +181,47 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        /// <summary>
+        /// Checks if the map has changed and announces the new map name.
+        /// Called from ChangeState_Postfix on field state transitions, and from
+        /// MovementSpeechPatches.FieldReady_Postfix as a backup.
+        /// </summary>
+        public static void CheckMapTransition()
         {
             try
             {
-                var changeStateMethod = AccessTools.Method(
-                    typeof(SubSceneManagerMainGame),
-                    "ChangeState",
-                    new Type[] { typeof(SubSceneManagerMainGame.State) }
-                );
+                var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
+                if (userDataManager == null) return;
 
-                if (changeStateMethod != null)
+                int currentMapId = userDataManager.CurrentMapId;
+
+                int lastMapId = AnnouncementDeduplicator.GetLastIndex(AnnouncementContexts.GAME_STATE_MAP_ID);
+                bool isFirstRun = (lastMapId == -1);
+                bool mapChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.GAME_STATE_MAP_ID, currentMapId);
+
+                if (!isFirstRun && mapChanged)
                 {
-                    var postfix = AccessTools.Method(typeof(GameStatePatches), nameof(ChangeState_Postfix));
-                    harmony.Patch(changeStateMethod, postfix: new HarmonyMethod(postfix));
-                }
-                else
-                {
-                    MelonLogger.Warning("[GameState] Could not find SubSceneManagerMainGame.ChangeState method");
+                    string mapName = MapNameResolver.GetCurrentMapName();
+                    FFV_ScreenReaderMod.SpeakText($"Entering {mapName}", interrupt: false);
+
+                    bool isWorldMap = GameConstants.IsWorldMap(currentMapId);
+                    MoveStateHelper.OnMapTransition(isWorldMap);
+                    FieldNavigationHelper.ResetVehicleTypeMap();
+
+                    // Schedule entity scan after a frame to let scene finish loading
+                    FFV_ScreenReaderMod.Instance?.ScheduleDeferredEntityScan();
                 }
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"[GameState] Error applying patches: {ex.Message}");
+                MelonLogger.Warning($"[GameState] Error in CheckMapTransition: {ex.Message}");
             }
-
-            InitializeFadeDetection();
         }
 
         /// <summary>
         /// Initializes cached reflection for FadeManager polling.
-        /// Scans assemblies for FadeManager type and caches Instance property and IsFadeFinish method.
         /// </summary>
-        private static void InitializeFadeDetection()
+        public static void InitializeFadeDetection()
         {
             if (fadeInitialized) return;
 
@@ -144,7 +234,7 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                fadeInstanceProperty = AccessTools.Property(fadeManagerType, "Instance");
+                fadeInstanceProperty = HarmonyLib.AccessTools.Property(fadeManagerType, "Instance");
                 if (fadeInstanceProperty == null)
                 {
                     fadeInstanceProperty = fadeManagerType.BaseType?.GetProperty("Instance",
@@ -157,7 +247,7 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                isFadeFinishMethod = AccessTools.Method(fadeManagerType, "IsFadeFinish");
+                isFadeFinishMethod = HarmonyLib.AccessTools.Method(fadeManagerType, "IsFadeFinish");
                 if (isFadeFinishMethod == null)
                 {
                     MelonLogger.Warning("[GameState] IsFadeFinish method not found — fade detection disabled");
@@ -172,9 +262,6 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        /// <summary>
-        /// Find the FadeManager type via assembly scanning.
-        /// </summary>
         private static Type FindFadeManagerType()
         {
             string[] typeNames = new[]
@@ -197,7 +284,6 @@ namespace FFV_ScreenReader.Patches
                 catch { }
             }
 
-            // Broader search: look for any type named FadeManager
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 try
@@ -214,63 +300,12 @@ namespace FFV_ScreenReader.Patches
             return null;
         }
 
-        public static void ChangeState_Postfix(SubSceneManagerMainGame.State state)
+        /// <summary>
+        /// Resets internal state.
+        /// </summary>
+        public static void ResetState()
         {
-            try
-            {
-                int stateValue = (int)state;
-
-                if (stateValue == STATE_FIELD_READY || stateValue == STATE_PLAYER || stateValue == STATE_CHANGE_MAP)
-                {
-                    CheckMapTransition();
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[GameState] Error in ChangeState_Postfix: {ex.Message}");
-            }
-        }
-
-        private static void CheckMapTransition()
-        {
-            try
-            {
-                var userDataManager = UserDataManager.Instance();
-                if (userDataManager == null)
-                    return;
-
-                // Reset battle state when returning to field map
-                if (BattleState.IsInBattle)
-                {
-                    BattleState.Reset();
-                }
-
-                int currentMapId = userDataManager.CurrentMapId;
-                int lastMapId = AnnouncementDeduplicator.GetLastIndex(AnnouncementContexts.GAME_STATE_MAP_ID);
-                bool isFirstRun = (lastMapId == -1);
-                bool mapChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.GAME_STATE_MAP_ID, currentMapId);
-
-                if (!isFirstRun && mapChanged)
-                {
-                    // Map has changed - announce new map
-                    string mapName = MapNameResolver.GetCurrentMapName();
-                    FFV_ScreenReaderMod.SpeakText($"Entering {mapName}", interrupt: false);
-
-                    // Check if entering interior map - switch to on-foot state
-                    bool isWorldMap = FFV_ScreenReaderMod.Instance?.IsCurrentMapWorldMap() ?? false;
-                    MoveStateHelper.OnMapTransition(isWorldMap);
-
-                    // Reset vehicle type map before entity rescan
-                    FieldNavigationHelper.ResetVehicleTypeMap();
-
-                    // Force entity rescan to clear stale entities from previous map
-                    FFV_ScreenReaderMod.Instance?.ForceEntityRescan();
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[GameState] Error in CheckMapTransition: {ex.Message}");
-            }
+            _cachedIsInEvent = false;
         }
     }
 }

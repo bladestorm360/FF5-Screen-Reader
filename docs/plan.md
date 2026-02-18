@@ -17,6 +17,16 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Other**: Dialogue/message auto-read, timer (T key), F1 walk/run, F3 encounters, F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
 
+**Bestiary (Picture Book)**: Full screen reader support for the enemy encyclopedia. List navigation with entry number/name, detail view with navigable stat buffer (arrow keys, Shift for group jump, Ctrl for top/bottom), formation announcements, map/habitat name reading, page turn support, monster switching in detail view. Shift+I reads control tooltips. Minimap open/close/cycle with habitat names. Full map open/close/cycle with habitat names. Items read from master data (UI uses icons only).
+
+**Music Player (Extra Sound)**: Screen reader support for the music player extras screen. Song list navigation with track number, name, and duration. Play All toggle (on/off) and Arrangement/Original toggle announcements. Automatic first-song announcement on entry. State cleanup on exit.
+
+**Gallery (Extra Gallery)**: Screen reader support for the image gallery extras screen. List navigation with item number and name. "Image open" announcement on detail view. Automatic item re-announcement when returning from detail view. State cleanup on exit.
+
+### Known Limitations
+- **Key help (Shift+I)**: Reads only the currently displayed page of controls. Menus with paginated controls (e.g., Music Player with 2 pages) will only read the visible page. This is a limitation of reading live UI state — the off-screen page's controllers aren't populated with current toggle state.
+- **Menu entry announcement timing**: When entering or returning to a menu, the focused item is announced slightly before cursor control is active (~1 frame). No game-side input-readiness hook exists to defer further without polling (Rule 2) or timers (Rule 3).
+
 ## Completion Status
 
 | Feature | Status |
@@ -24,9 +34,9 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | All menus (cursor, item, equip, job, ability, config, shop, save, title) | Done |
 | Battle (commands, targets, messages, results, abilities) | Done |
 | Field navigation (entities, filters, grouping, waypoints) | Done |
-| Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done |
+| Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done (SDL3 volume rebalanced) |
 | Vehicles (state announcements, landing detection, entity tracking) | Done |
-| Popups (common, game over, save/load, naming, info, job change) | Done |
+| Popups (common, game over, save/load, naming, info, job change, save complete) | Done |
 | Speech/dialogue (auto-read, redundancy fixes, delayed announcements) | Done |
 | Deep refactoring (PreferencesManager, AudioLoopManager, ToneGenerator, KeyBindingRegistry, etc.) | Done |
 | Entity filter refactor (IEntityFilter, FilterTiming, IGroupingStrategy) | Done |
@@ -39,6 +49,11 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Entity name translator (JSON-based, EntityDump key 0) | Done |
 | Battle targeting status effects (Poison, Blind, etc.) | Done |
 | Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
+| Bestiary (Picture Book) accessibility | Done |
+| Music Player (Extra Sound) accessibility | Done (duration fix applied) |
+| Gallery (Extra Gallery) accessibility | Done |
+| Event loop freeze fix (Pyramid 5F) | Done (diagnostic code + grace period removed; fix lives in TimerPatches dynamic patch) |
+| Global accessibility toggle (Ctrl+F8) | Done (complete kill switch: coroutine cleanup, full state reset, reinit on re-enable) |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

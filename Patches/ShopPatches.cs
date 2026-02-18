@@ -1,11 +1,12 @@
+using System;
+using System.Collections;
+using System.Reflection;
 using HarmonyLib;
+using MelonLoader;
 using Il2CppLast.UI;
 using Il2CppLast.UI.KeyInput;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
-using System.Collections;
-using MelonLoader;
-using System;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -115,7 +116,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         [HarmonyPatch(typeof(ShopCommandMenuController), nameof(ShopCommandMenuController.SetCursor))]
         [HarmonyPostfix]
-        private static void AfterShopCommandSetCursor(ShopCommandMenuController __instance, int index)
+        internal static void AfterShopCommandSetCursor(ShopCommandMenuController __instance, int index)
         {
             try
             {
@@ -147,7 +148,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         [HarmonyPatch(typeof(ShopListItemContentController), nameof(ShopListItemContentController.SetFocus))]
         [HarmonyPostfix]
-        private static void AfterShopItemSetFocus(ShopListItemContentController __instance, bool isFocus)
+        internal static void AfterShopItemSetFocus(ShopListItemContentController __instance, bool isFocus)
         {
             try
             {
@@ -179,7 +180,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         [HarmonyPatch(typeof(ShopInfoController), nameof(ShopInfoController.SetDescription))]
         [HarmonyPostfix]
-        private static void AfterSetDescription(ShopInfoController __instance, string value)
+        internal static void AfterSetDescription(ShopInfoController __instance, string value)
         {
             try
             {
@@ -207,14 +208,14 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         [HarmonyPatch(typeof(ShopTradeWindowController), nameof(ShopTradeWindowController.AddCount))]
         [HarmonyPostfix]
-        private static void AfterAddCount(ShopTradeWindowController __instance)
+        internal static void AfterAddCount(ShopTradeWindowController __instance)
         {
             AnnounceTradeWindowQuantity(__instance);
         }
 
         [HarmonyPatch(typeof(ShopTradeWindowController), nameof(ShopTradeWindowController.TakeCount))]
         [HarmonyPostfix]
-        private static void AfterTakeCount(ShopTradeWindowController __instance)
+        internal static void AfterTakeCount(ShopTradeWindowController __instance)
         {
             AnnounceTradeWindowQuantity(__instance);
         }
@@ -251,7 +252,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         [HarmonyPatch(typeof(EquipmentCommandController), nameof(EquipmentCommandController.SetFocus))]
         [HarmonyPostfix]
-        private static void AfterEquipmentCommandSetFocus(EquipmentCommandController __instance, EquipmentCommandId id, bool isFocus)
+        internal static void AfterEquipmentCommandSetFocus(EquipmentCommandController __instance, EquipmentCommandId id, bool isFocus)
         {
             if (!isFocus) return;
 
@@ -271,7 +272,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         [HarmonyPatch(typeof(EquipmentCommandView), nameof(EquipmentCommandView.SetFocus))]
         [HarmonyPostfix]
-        private static void AfterEquipmentCommandViewSetFocus(EquipmentCommandView __instance, bool isFocus)
+        internal static void AfterEquipmentCommandViewSetFocus(EquipmentCommandView __instance, bool isFocus)
         {
             try
             {
@@ -291,19 +292,19 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        private static IEnumerator DelayedAnnounceShopCommand(string commandText)
+        internal static IEnumerator DelayedAnnounceShopCommand(string commandText)
         {
             yield return null; // Wait one frame for UI to update
             FFV_ScreenReaderMod.SpeakText($"{commandText}");
         }
 
-        private static IEnumerator DelayedAnnounceShopItem(string itemText)
+        internal static IEnumerator DelayedAnnounceShopItem(string itemText)
         {
             yield return null; // Wait one frame for UI to update
             FFV_ScreenReaderMod.SpeakText($"{itemText}");
         }
 
-        private static IEnumerator DelayedAnnounceQuantity(string quantityText)
+        internal static IEnumerator DelayedAnnounceQuantity(string quantityText)
         {
             yield return null; // Wait one frame for UI to update
             FFV_ScreenReaderMod.SpeakText($"{quantityText}");
@@ -319,16 +320,17 @@ namespace FFV_ScreenReader.Patches
     {
         [HarmonyPatch(typeof(ShopController), nameof(ShopController.Show))]
         [HarmonyPostfix]
-        private static void AfterShopShow()
+        public static void AfterShopShow()
         {
             ShopMenuTracker.IsInShopSession = true;
         }
 
         [HarmonyPatch(typeof(ShopController), nameof(ShopController.Close))]
         [HarmonyPostfix]
-        private static void AfterShopClose()
+        public static void AfterShopClose()
         {
             ShopMenuTracker.IsInShopSession = false;
         }
     }
+
 }

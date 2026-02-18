@@ -420,4 +420,5 @@ namespace FFV_ScreenReader.Patches
             ItemUseTracker.IsItemUseActive = false;
         }
     }
+
 }

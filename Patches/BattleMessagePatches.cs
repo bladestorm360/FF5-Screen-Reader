@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.Message;
@@ -18,7 +19,6 @@ using BattleCommandMessageController_KeyInput = Il2CppLast.UI.KeyInput.BattleCom
 using BattleCommandMessageController_Touch = Il2CppLast.UI.Touch.BattleCommandMessageController;
 using BattlePlayerData = Il2Cpp.BattlePlayerData;
 using Il2CppLast.Data.User;
-using System.Reflection;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -423,15 +423,15 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Manual patches for BattleCommandMessageController to announce defeat messages.
-    /// Uses runtime type lookup for IL2CPP compatibility.
+    /// Announces defeat messages via BattleCommandMessageController.
+    /// Uses manual Harmony patching since the types are in non-standard IL2CPP namespaces.
     /// </summary>
     public static class BattleCommandMessagePatches
     {
         private static string lastBattleCommandMessage = "";
 
         /// <summary>
-        /// Apply manual patches for battle command messages (defeat message, etc.)
+        /// Applies manual Harmony patches for BattleCommandMessageController methods.
         /// </summary>
         public static void ApplyPatches(HarmonyLib.Harmony harmony)
         {
@@ -571,4 +571,5 @@ namespace FFV_ScreenReader.Patches
             lastBattleCommandMessage = "";
         }
     }
+
 }

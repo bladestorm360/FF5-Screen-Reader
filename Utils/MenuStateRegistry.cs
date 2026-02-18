@@ -29,6 +29,12 @@ namespace FFV_ScreenReader.Utils
         public const string BATTLE_TARGET = "BattleTarget";
         public const string CONFIG_MENU = "ConfigMenu";
         public const string MAIN_MENU = "MainMenu";
+        public const string BESTIARY_LIST = "BestiaryList";
+        public const string BESTIARY_DETAIL = "BestiaryDetail";
+        public const string BESTIARY_FORMATION = "BestiaryFormation";
+        public const string BESTIARY_MAP = "BestiaryMap";
+        public const string MUSIC_PLAYER = "MusicPlayer";
+        public const string GALLERY = "Gallery";
 
         // Central state storage
         private static readonly Dictionary<string, bool> _states = new Dictionary<string, bool>();

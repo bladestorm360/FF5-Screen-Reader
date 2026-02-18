@@ -158,6 +158,7 @@ namespace FFV_ScreenReader.Core
 
         private void StartWallToneLoop()
         {
+
             if (!enableWallTones) return;
             if (wallToneCoroutine != null) return;
             wallToneCoroutine = WallToneLoop();
@@ -177,6 +178,7 @@ namespace FFV_ScreenReader.Core
 
         private void StartBeaconLoop()
         {
+
             if (!enableAudioBeacons) return;
             if (beaconCoroutine != null) return;
             beaconCoroutine = BeaconLoop();
@@ -194,6 +196,7 @@ namespace FFV_ScreenReader.Core
 
         private void StartLandingPingLoop()
         {
+
             if (!enableLandingPings) return;
             if (landingPingCoroutine != null) return;
             landingPingCoroutine = LandingPingLoop();
@@ -221,6 +224,18 @@ namespace FFV_ScreenReader.Core
             StopLandingPingLoop();
         }
 
+        /// <summary>
+        /// Restarts loops that are currently enabled. Called when re-enabling accessibility
+        /// to resume loops that were stopped by the toggle. Enable flags persist through
+        /// the disable/enable cycle since we only stop coroutines, not clear flags.
+        /// </summary>
+        public void RestartEnabledLoops()
+        {
+            if (enableWallTones) StartWallToneLoop();
+            if (enableAudioBeacons) StartBeaconLoop();
+            if (enableLandingPings) StartLandingPingLoop();
+        }
+
         #endregion
 
         #region Coroutines
@@ -231,7 +246,7 @@ namespace FFV_ScreenReader.Core
 
             while (enableAudioBeacons)
             {
-                if (BattleState.IsInBattle)
+                if (BattleState.IsInBattle || GameStatePatches.IsInEventState)
                 {
                     yield return null;
                     continue;
@@ -293,7 +308,7 @@ namespace FFV_ScreenReader.Core
 
             while (enableWallTones)
             {
-                if (BattleState.IsInBattle)
+                if (BattleState.IsInBattle || GameStatePatches.IsInEventState)
                 {
                     if (SoundPlayer.IsWallTonePlaying())
                         SoundPlayer.StopWallTone();
@@ -352,6 +367,7 @@ namespace FFV_ScreenReader.Core
                     }
 
                     var walls = FieldNavigationHelper.GetNearbyWallsWithDistance(player);
+
                     var mapExitPositions = entityCache?.GetMapExitPositions();
                     Vector3 playerPos = player.transform.localPosition;
 
@@ -392,7 +408,7 @@ namespace FFV_ScreenReader.Core
 
             while (enableLandingPings)
             {
-                if (BattleState.IsInBattle)
+                if (BattleState.IsInBattle || GameStatePatches.IsInEventState)
                 {
                     if (SoundPlayer.IsLandingPingPlaying())
                         SoundPlayer.StopLandingPing();
@@ -557,6 +573,19 @@ namespace FFV_ScreenReader.Core
         }
 
         #endregion
+
+        /// <summary>
+        /// Clears stale internal state (dialogue snapshot, coroutine references) so
+        /// re-enable via Ctrl+F8 starts clean. Called by the kill switch.
+        /// </summary>
+        public void ForceResetInternalState()
+        {
+            _hasStoredDialogueState = false;
+            // Clear coroutine references — CoroutineManager.CleanupAll() already stopped them
+            wallToneCoroutine = null;
+            beaconCoroutine = null;
+            landingPingCoroutine = null;
+        }
 
         #region Helpers
 

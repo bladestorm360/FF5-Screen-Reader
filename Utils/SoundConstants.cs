@@ -36,7 +36,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static class WallToneVolumeMultipliers
         {
-            public const float BASE_VOLUME = 0.12f;
+            public const float BASE_VOLUME = 0.132f;
             public const float NORTH = 1.00f;
             public const float SOUTH = 0.70f;
             public const float EAST = 0.85f;
@@ -61,7 +61,7 @@ namespace FFV_ScreenReader.Utils
         {
             public const int FREQUENCY = 27;
             public const int DURATION_MS = 60;
-            public const float VOLUME = 0.506f;
+            public const float VOLUME = 0.759f;
         }
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace FFV_ScreenReader.Utils
         {
             public const int FREQUENCY = 500;
             public const int DURATION_MS = 25;
-            public const float VOLUME = 0.338f;
+            public const float VOLUME = 0.237f;
         }
 
         /// <summary>
@@ -82,8 +82,8 @@ namespace FFV_ScreenReader.Utils
             public const int FREQUENCY_NORTH = 400;
             public const int FREQUENCY_SOUTH = 280;
             public const int DURATION_MS = 60;
-            public const float MIN_VOLUME = 0.10f;
-            public const float MAX_VOLUME = 0.50f;
+            public const float MIN_VOLUME = 0.11f;
+            public const float MAX_VOLUME = 0.55f;
         }
 
         /// <summary>
@@ -95,6 +95,14 @@ namespace FFV_ScreenReader.Utils
             public const int SOUTH = 440;
             public const int EAST = 550;
             public const int WEST = 520;
+        }
+
+        /// <summary>
+        /// Landing ping volume multipliers (separate from wall tones).
+        /// </summary>
+        public static class LandingPingVolumeMultipliers
+        {
+            public const float BASE_VOLUME = 0.132f;
         }
 
         /// <summary>
@@ -126,17 +134,5 @@ namespace FFV_ScreenReader.Utils
             public const float VOLUME = 0.15f;
         }
 
-        /// <summary>
-        /// waveOut API flag constants.
-        /// </summary>
-        public static class WaveFlags
-        {
-            public const uint WHDR_DONE = 0x01;
-            public const uint WHDR_PREPARED = 0x02;
-            public const uint WHDR_BEGINLOOP = 0x04;
-            public const uint WHDR_ENDLOOP = 0x08;
-            public const int WAVE_MAPPER = -1;
-            public const int CALLBACK_NULL = 0;
-        }
     }
 }
