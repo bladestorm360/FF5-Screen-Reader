@@ -8,7 +8,7 @@ namespace FFV_ScreenReader.Utils
 {
     /// <summary>
     /// Sound channels for concurrent playback.
-    /// Each channel has its own SDL audio stream and plays completely independently.
+    /// Each channel has its own waveOut handle and plays completely independently.
     /// </summary>
     public enum SoundChannel
     {

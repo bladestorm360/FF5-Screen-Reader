@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace FFV_ScreenReader.Core
 {
@@ -9,14 +10,14 @@ namespace FFV_ScreenReader.Core
     /// </summary>
     public class KeyBindingRegistry
     {
-        // Bindings grouped by ModKey for fast lookup
-        private readonly Dictionary<ModKey, List<KeyBinding>> _bindings = new Dictionary<ModKey, List<KeyBinding>>();
+        // Bindings grouped by KeyCode for fast lookup
+        private readonly Dictionary<KeyCode, List<KeyBinding>> _bindings = new Dictionary<KeyCode, List<KeyBinding>>();
 
         /// <summary>
         /// Register a keybinding. Most-specific modifier should be registered first
         /// (CtrlShift before Ctrl before Shift before None).
         /// </summary>
-        public void Register(ModKey key, KeyModifier modifier, KeyContext context, Action action, string description)
+        public void Register(KeyCode key, KeyModifier modifier, KeyContext context, Action action, string description)
         {
             if (!_bindings.TryGetValue(key, out var list))
             {
@@ -29,7 +30,7 @@ namespace FFV_ScreenReader.Core
         /// <summary>
         /// Register a keybinding with no modifier.
         /// </summary>
-        public void Register(ModKey key, KeyContext context, Action action, string description)
+        public void Register(KeyCode key, KeyContext context, Action action, string description)
         {
             Register(key, KeyModifier.None, context, action, description);
         }
@@ -38,7 +39,7 @@ namespace FFV_ScreenReader.Core
         /// Try to execute a matching binding for a pressed key.
         /// Returns true if a binding was found and executed.
         /// </summary>
-        public bool TryExecute(ModKey key, KeyModifier currentModifiers, KeyContext activeContext)
+        public bool TryExecute(KeyCode key, KeyModifier currentModifiers, KeyContext activeContext)
         {
             if (!_bindings.TryGetValue(key, out var list))
                 return false;
@@ -84,6 +85,6 @@ namespace FFV_ScreenReader.Core
         /// <summary>
         /// Gets all registered key codes for dispatch loop.
         /// </summary>
-        public IEnumerable<ModKey> RegisteredKeys => _bindings.Keys;
+        public IEnumerable<KeyCode> RegisteredKeys => _bindings.Keys;
     }
 }

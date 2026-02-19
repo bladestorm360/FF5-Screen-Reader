@@ -110,9 +110,6 @@ namespace FFV_ScreenReader.Core
             waypointNavigator = new WaypointNavigator(waypointManager);
             waypointController = new WaypointController(waypointManager, waypointNavigator);
 
-            // Initialize SDL for input (non-fatal if SDL3.dll missing)
-            InputManager.InitializeSDL();
-
             // Initialize input manager
             inputManager = new InputManager(this);
 
@@ -153,11 +150,8 @@ namespace FFV_ScreenReader.Core
             // Stop audio loops
             audioLoopManager?.StopAllLoops();
 
-            // Shutdown sound player (closes SDL audio streams, frees unmanaged memory)
+            // Shutdown sound player (closes waveOut devices, frees unmanaged memory)
             SoundPlayer.Shutdown();
-
-            // Shutdown SDL input
-            InputManager.ShutdownSDL();
 
             CoroutineManager.CleanupAll();
             tolk?.Unload();

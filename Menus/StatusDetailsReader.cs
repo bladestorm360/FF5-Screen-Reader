@@ -456,8 +456,22 @@ namespace FFV_ScreenReader.Menus
         {
             try
             {
-                if (data?.OwnedJob == null) return "N/A";
-                return $"Job Level: {data.OwnedJob.Level}";
+                // Read from UI text field — data-based OwnedJob.Level returns wrong values
+                var tracker = StatusNavigationTracker.Instance;
+                if (tracker?.ActiveController?.view != null)
+                {
+                    var detailsView = tracker.ActiveController.view;
+                    if (detailsView.JobLevelText != null)
+                    {
+                        string levelText = detailsView.JobLevelText.text?.Trim();
+                        if (!string.IsNullOrWhiteSpace(levelText))
+                        {
+                            return $"Job Level: {levelText}";
+                        }
+                    }
+                }
+
+                return "N/A";
             }
             catch (Exception ex)
             {

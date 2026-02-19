@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
 using MelonLoader;
 using FFV_ScreenReader.Utils;
 
@@ -139,11 +140,15 @@ namespace FFV_ScreenReader.Core
 
         #endregion
 
-        // Tracked keys for this menu
-        private static readonly ModKey[] TrackedKeys = {
-            ModKey.Escape, ModKey.F8, ModKey.UpArrow, ModKey.DownArrow,
-            ModKey.LeftArrow, ModKey.RightArrow, ModKey.Return, ModKey.Space
-        };
+        // Virtual key codes for navigation
+        private const int VK_ESCAPE = 0x1B;
+        private const int VK_F8 = 0x77;
+        private const int VK_UP = 0x26;
+        private const int VK_DOWN = 0x28;
+        private const int VK_LEFT = 0x25;
+        private const int VK_RIGHT = 0x27;
+        private const int VK_RETURN = 0x0D;
+        private const int VK_SPACE = 0x20;
 
         /// <summary>
         /// Initializes the mod menu with all menu items.
@@ -234,7 +239,9 @@ namespace FFV_ScreenReader.Core
                 currentIndex = 1;
 
             // Initialize key states to current pressed state to prevent keys that opened the menu from triggering actions
-            InputManager.InitializeKeyStates(TrackedKeys);
+            WindowsFocusHelper.InitializeKeyStates(new[] {
+                VK_ESCAPE, VK_F8, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_SPACE
+            });
 
             StealGameFocus();
 
@@ -269,7 +276,8 @@ namespace FFV_ScreenReader.Core
 
         /// <summary>
         /// Handles input when the mod menu is open.
-        /// Uses InputManager for input detection.
+        /// Uses Windows GetAsyncKeyState API for input detection, which works
+        /// even when the game window doesn't have focus.
         /// Returns true if input was consumed (menu is open).
         /// </summary>
         public static bool HandleInput()
@@ -277,46 +285,43 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return false;
             if (items == null || items.Count == 0) return false;
 
-            // Poll tracked keys
-            InputManager.Poll(TrackedKeys);
-
             // Escape or F8 to close
-            if (InputManager.IsKeyDown(ModKey.Escape) || InputManager.IsKeyDown(ModKey.F8))
+            if (WindowsFocusHelper.IsKeyDown(VK_ESCAPE) || WindowsFocusHelper.IsKeyDown(VK_F8))
             {
                 Close();
                 return true;
             }
 
             // Up arrow - navigate to previous item
-            if (InputManager.IsKeyDown(ModKey.UpArrow))
+            if (WindowsFocusHelper.IsKeyDown(VK_UP))
             {
                 NavigatePrevious();
                 return true;
             }
 
             // Down arrow - navigate to next item
-            if (InputManager.IsKeyDown(ModKey.DownArrow))
+            if (WindowsFocusHelper.IsKeyDown(VK_DOWN))
             {
                 NavigateNext();
                 return true;
             }
 
             // Left arrow - decrease value
-            if (InputManager.IsKeyDown(ModKey.LeftArrow))
+            if (WindowsFocusHelper.IsKeyDown(VK_LEFT))
             {
                 AdjustCurrentItem(-1);
                 return true;
             }
 
             // Right arrow - increase value
-            if (InputManager.IsKeyDown(ModKey.RightArrow))
+            if (WindowsFocusHelper.IsKeyDown(VK_RIGHT))
             {
                 AdjustCurrentItem(1);
                 return true;
             }
 
             // Enter or Space - toggle/activate
-            if (InputManager.IsKeyDown(ModKey.Return) || InputManager.IsKeyDown(ModKey.Space))
+            if (WindowsFocusHelper.IsKeyDown(VK_RETURN) || WindowsFocusHelper.IsKeyDown(VK_SPACE))
             {
                 ToggleCurrentItem();
                 return true;
@@ -411,7 +416,7 @@ namespace FFV_ScreenReader.Core
         {
             try
             {
-                InputManager.StealFocus("FFV_ModMenu");
+                WindowsFocusHelper.StealFocus("FFV_ModMenu");
             }
             catch (Exception ex)
             {
@@ -423,7 +428,7 @@ namespace FFV_ScreenReader.Core
         {
             try
             {
-                InputManager.RestoreFocus();
+                WindowsFocusHelper.RestoreFocus();
             }
             catch (Exception ex)
             {

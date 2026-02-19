@@ -21,8 +21,6 @@ if %DEPLOY_ERROR% NEQ 0 (
     exit /b %DEPLOY_ERROR%
 )
 
-copy /Y "D:\Games\Dev\sdl\SDL3.dll" "d:\Games\SteamLibrary\steamapps\common\FINAL FANTASY V PR\Mods\" >> build_log.txt 2>&1
-
 echo. >> build_log.txt
 echo Mod deployed successfully! >> build_log.txt
 echo Done.

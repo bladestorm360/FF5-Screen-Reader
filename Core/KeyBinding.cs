@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 namespace FFV_ScreenReader.Core
 {
@@ -32,13 +33,13 @@ namespace FFV_ScreenReader.Core
     /// </summary>
     public struct KeyBinding
     {
-        public ModKey Key;
+        public KeyCode Key;
         public KeyModifier Modifier;
         public KeyContext Context;
         public Action Action;
         public string Description;
 
-        public KeyBinding(ModKey key, KeyModifier modifier, KeyContext context, Action action, string description)
+        public KeyBinding(KeyCode key, KeyModifier modifier, KeyContext context, Action action, string description)
         {
             Key = key;
             Modifier = modifier;

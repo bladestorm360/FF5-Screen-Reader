@@ -206,26 +206,34 @@ namespace FFV_ScreenReader.Patches
                 string jobName = messageManager.GetMessage(job.MesIdName);
                 if (string.IsNullOrWhiteSpace(jobName)) return;
 
-                // Get job level from owned job data
-                string levelText = "";
-                var ownedJobDataList = targetCharacter.OwnedJobDataList;
-                if (ownedJobDataList != null)
-                {
-                    foreach (var ownedJob in ownedJobDataList)
-                    {
-                        if (ownedJob != null && ownedJob.Id == job.Id)
-                        {
-                            levelText = ownedJob.Level.ToString();
-                            break;
-                        }
-                    }
-                }
+                // Read level, mastered status, and ABP from UI text fields
+                // (data-based OwnedJob.Level returns wrong values for level 0 jobs)
+                var view = __instance.view;
+                if (view == null) return;
 
-                // Build announcement
+                string levelText = view.InfoSkillLevelValueText?.text?.Trim() ?? "";
+                bool isMastered = view.InfoJobLevelMasterText?.gameObject?.activeInHierarchy == true;
+
+                // Build announcement: "{name} Lv. {N}: ABP: {X}/{Y}" or "{name} Lv. {N}: Mastered!"
                 string announcement = jobName;
                 if (!string.IsNullOrWhiteSpace(levelText))
                 {
-                    announcement += $", level {levelText}";
+                    announcement += $" Lv. {levelText}:";
+
+                    if (isMastered)
+                    {
+                        announcement += " Mastered!";
+                    }
+                    else
+                    {
+                        // Read ABP from private UI fields (unhollowed as public by Il2CppInterop)
+                        string currentAbp = view.infoJobLevelDetailsValue?.text?.Trim();
+                        string maxAbp = view.infoJobLevelDetailsMaxValue?.text?.Trim();
+                        if (!string.IsNullOrWhiteSpace(currentAbp) && !string.IsNullOrWhiteSpace(maxAbp))
+                        {
+                            announcement += $" ABP: {currentAbp}/{maxAbp}";
+                        }
+                    }
                 }
 
                 // Skip duplicate announcements

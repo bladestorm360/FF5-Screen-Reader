@@ -34,7 +34,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | All menus (cursor, item, equip, job, ability, config, shop, save, title) | Done |
 | Battle (commands, targets, messages, results, abilities) | Done |
 | Field navigation (entities, filters, grouping, waypoints) | Done |
-| Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done (SDL3 volume rebalanced) |
+| Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done (WaveOut backend, volume rebalanced) |
 | Vehicles (state announcements, landing detection, entity tracking) | Done |
 | Popups (common, game over, save/load, naming, info, job change, save complete) | Done |
 | Speech/dialogue (auto-read, redundancy fixes, delayed announcements) | Done |
@@ -54,6 +54,11 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Gallery (Extra Gallery) accessibility | Done |
 | Event loop freeze fix (Pyramid 5F) | Done (diagnostic code + grace period removed; fix lives in TimerPatches dynamic patch) |
 | Global accessibility toggle (Ctrl+F8) | Done (complete kill switch: coroutine cleanup, full state reset, reinit on re-enable) |
+| Battle text dual-wield suppression | Done (ally same-name + direct attack = skip second swing) |
+| SDL3 input/audio migration | Reverted (caused dialogue/battle interference; restored WaveOut + Unity Input) |
+| Controller/gamepad support | Reverted (incomplete, dependent on SDL3) |
+| Job menu UI-based level/ABP/mastered reading | Done (replaces data-based OwnedJob.Level which returned wrong values) |
+| Status screen UI-based job level reading | Done (same level 0 fix) |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

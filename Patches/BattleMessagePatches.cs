@@ -85,6 +85,8 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(ParameterActFunctionManagment), nameof(ParameterActFunctionManagment.CreateActFunction))]
     public static class ParameterActFunctionManagment_CreateActFunction_Patch
     {
+        private static string _lastSpokenActorName;
+
         [HarmonyPostfix]
         public static void Postfix(BattleActData battleActData)
         {
@@ -132,6 +134,18 @@ namespace FFV_ScreenReader.Patches
                     {
                         announcement = $"{actorName} attacks";
                     }
+
+                    // Ally dual-wield suppression: same ally name + direct attack = redundant second swing
+                    string lowerAction = actionName?.ToLower();
+                    bool isDirectAttack = string.IsNullOrEmpty(actionName)
+                        || lowerAction == "attack" || lowerAction == "fight";
+                    bool isAlly = battleActData.AttackUnitData?.TryCast<Il2Cpp.BattlePlayerData>() != null;
+
+                    if (isAlly && isDirectAttack && actorName == _lastSpokenActorName)
+                        return;
+
+                    _lastSpokenActorName = actorName;
+
                     FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
                 }
             }

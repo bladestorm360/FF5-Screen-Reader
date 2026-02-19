@@ -4,7 +4,7 @@
 
 ### Core (`Core/`)
 - `FFV_ScreenReaderMod` — Entry point, SpeakText(), SpeakTextDelayed(), entity refresh, scene transitions, IsAccessibilityEnabled + ToggleAccessibility() (Ctrl+F8 kill switch: disable stops all coroutines, resets all state trackers, clears audio; enable reinitializes preferences, recaches game objects, rescans entities, announces map)
-- `InputManager` — Keybinding dispatch via KeyBindingRegistry. F1/F3/F5/F8/I/V/Shift+I inline. Ctrl+F8 accessibility toggle (raw key check, works when mod disabled). Dual input: SDL (mod windows) / GetAsyncKeyState (game). Focus gating via `IsGameProcessForeground()` — Win32 `GetForegroundWindow()`+PID match on Windows, `Application.isFocused` fallback on other platforms
+- `InputManager` — Keybinding dispatch via KeyBindingRegistry. F1/F3/F5/F8/I/V/Shift+I inline. Unity `Input.GetKeyDown`/`Input.GetKey` for game input. KeyContext-based dispatch (Global, Field, Battle, BattleResult, Status, Bestiary)
 - `ModMenu` — Audio-only settings menu (F8), Windows API focus control
 - `EntityCache` — Caches field entities; grouping via IGroupingStrategy
 - `EntityNavigator` — Entity cycling with timing-aware filters (OnAdd/OnCycle)
@@ -57,7 +57,7 @@
 ### Utils (`Utils/`)
 - `TolkWrapper` — NVDA interface
 - `CoroutineManager` — Managed coroutines, self-cleanup, max 20, StartUntracked/StopManaged
-- `SoundPlayer` — SDL3 audio playback (6 streams on 1 device, callback-driven looping, gain-based volume)
+- `SoundPlayer` — WaveOut audio playback (5 channels, P/Invoke winmm, hardware looping)
 - `ToneGenerator` — Tone generation + WriteWavHeader
 - `GameConstants` — Audio, tile size, direction vectors, map IDs
 - `GameObjectCache` — Cached lookups (Get/Refresh pattern)
@@ -67,6 +67,8 @@
 - `BattleResultDataStore` — Static data store for navigator (points + stats)
 - `BattleUnitHelper`, `CharacterStatusHelper`, `SelectContentHelper`
 - `EntityTranslator` — JSON-based Japanese→English name translation (4-tier lookup) + nested `EntityDump` (key 0)
+- `AudioChannel` — WaveOut backend (winmm P/Invoke, per-channel waveOut handles)
+- `WindowsFocusHelper` — Win32 focus stealing for mod windows
 - `VKConstants` (in ConfirmationDialog/TextInputWindow) — VK constant definitions for Win32 key input
 
 ## Key Game Namespaces
@@ -336,30 +338,11 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 **Lesson**: When a popup reuses the same `SavePopup` instance for different screens (confirmation → completion), the dedup index must be reset at each transition so the first-call path re-triggers.
 
 ### Global Hotkey Focus Gating (2026-02-14 → 2026-02-15)
-**Problem**: Mod hotkeys (G, M, H, brackets, etc.) fired when the game window was not focused, interfering with other applications. `GetAsyncKeyState` reads global keyboard state, so without a focus guard hotkeys leak outside the game.
+**Problem**: Mod hotkeys (G, M, H, brackets, etc.) fired when the game window was not focused when using `GetAsyncKeyState`.
 
-**v1 attempt**: Win32 `GetForegroundWindow()` + `GetWindowThreadProcessId()` PID matching. Code was correctly placed but PID matching didn't work reliably — likely due to Unity/MelonLoader/Il2CPP window management at the time.
+**Solution (reverted)**: Was solved via SDL3 input migration. After reverting to Unity `Input.GetKeyDown`/`Input.GetKey`, this is no longer an issue — Unity input only fires when the game window is focused.
 
-**v2 attempt**: `Application.isFocused` (static property). Worked for normal alt-tabbing but failed during startup — Unity reports focused even when the window isn't.
-
-**v3 attempt**: `Application.focusChanged` event → `_gameFocused` bool (defaults to false). Failed because `focusChanged` fires with `true` during Unity startup even if the user has alt-tabbed out, setting `_gameFocused = true` immediately and making the guard useless.
-
-**v4 solution (final)**: Platform-aware `IsGameProcessForeground()` method replaces the `_gameFocused` bool. On Windows, uses `GetForegroundWindow()` + `GetWindowThreadProcessId()` to check if our process owns the foreground window at call time — always fresh, no Unity dependency. On other platforms, falls back to `Application.isFocused`. Called inline at each poll site (at most once per frame). Static `_ownProcessId` cached once at class load.
-
-Three gating locations in InputManager (all in the `else` branch, i.e., non-SDL/GetAsyncKeyState path):
-1. `Poll()` — early return if unfocused
-2. `InitializeKeyStates()` — treat all keys as unpressed if unfocused
-3. `PollRegisteredKeys()` — early return if unfocused
-
-SDL path (mod menu, text input, confirmation dialogs) is unaffected — those windows use SDL focus management and run in the same process (same PID → `IsGameProcessForeground()` returns true).
-
-**Why v4 works where v1 failed**: v1 used PID matching alongside a `_gameFocused` bool and `Application.focusChanged`, creating race conditions. v4 uses PID matching as the sole mechanism with no cached state — `GetForegroundWindow()` queries the OS directly each frame. Startup safety: before the game window exists, foreground belongs to another app → different PID → false.
-
-**Cross-platform notes**: `_isWindows` is checked via `RuntimeInformation.IsOSPlatform(OSPlatform.Windows)` at class load. Non-Windows platforms fall back to `Application.isFocused`, which is the best available option. If Linux/macOS support is added, platform-specific equivalents could be added (e.g., X11 `XGetInputFocus`, macOS `NSWorkspace.frontmostApplication`). The `_ownProcessId` field is only populated on Windows (set to 0 otherwise).
-
-**Cleanup**: Removed `_gameFocused` field, `SetGameFocused()` method, `Application.focusChanged` subscription/unsubscription, and `OnApplicationFocusChanged` handler.
-
-**Lesson**: Unity's focus tracking (`Application.isFocused`, `Application.focusChanged`) cannot be trusted during startup. For reliable focus detection on Windows, query the OS directly via `GetForegroundWindow()` at poll time with no cached state.
+**Lesson**: Unity's `Input.GetKeyDown`/`Input.GetKey` inherently respects window focus, unlike `GetAsyncKeyState`.
 
 ### Title Menu SetCursor Coalesce Fix (2026-02-15)
 **Problem**: Backing out of Music Player or Gallery to the extras menu briefly announced "Bestiary" (index 0) before the correct remembered item. The game fires `SetDefaultCursor(0)` then `SetCursorPositionMemory(remembered_index)` in the same frame, and the postfix announced both immediately.
@@ -368,8 +351,8 @@ SDL path (mod menu, text input, confirmation dialogs) is unaffected — those wi
 
 **Behavior**: Double SetCursor (init): first caches "Bestiary", second overwrites with correct item, coroutine announces correct item next frame. Single SetCursor (navigation): ~16ms delay, imperceptible. Rapid navigation: only last position per frame announced.
 
-### SDL3 Volume Rebalancing (2026-02-15)
-**Problem**: After migrating audio from WaveOut to SDL3, relative volume balance was off. Footsteps too loud, wall bumps too quiet, wall tones/beacons/landing pings needed a small boost. Landing pings shared `WallToneVolumeMultipliers.BASE_VOLUME` with wall tones despite being a separate sound type.
+### Volume Rebalancing (2026-02-15)
+**Problem**: Relative volume balance was off. Footsteps too loud, wall bumps too quiet, wall tones/beacons/landing pings needed a small boost. Landing pings shared `WallToneVolumeMultipliers.BASE_VOLUME` with wall tones despite being a separate sound type.
 
 **Changes** (in `SoundConstants.cs`):
 - Footstep.VOLUME: 0.338f → 0.237f (-30%)
@@ -405,3 +388,12 @@ SDL path (mod menu, text input, confirmation dialogs) is unaffected — those wi
 - `ResetState()`: single field reset
 
 **Also**: InputManager.cs Ctrl+K keybinding log prefix changed from `[DIAG]` to `[Input]` (kept as intentional last-resort entity rescan).
+
+### Job Menu "Mastered!" Always Announced (2026-02-19)
+**Problem**: Every job in the job menu announced "Mastered!" regardless of actual mastery status.
+
+**Root cause**: `view.InfoJobLevelMasterText.text` always contains "Mastered!" — the game controls visibility via `gameObject.activeInHierarchy`, not by clearing the text. The mod read `.text` directly, so the string was always non-empty.
+
+**Fix** (JobAbilityPatches.cs ~line 215): Replaced `string masterText = view.InfoJobLevelMasterText?.text?.Trim() ?? ""` with `bool isMastered = view.InfoJobLevelMasterText?.gameObject?.activeInHierarchy == true`. Changed the branch from `!string.IsNullOrWhiteSpace(masterText)` to `if (isMastered)`.
+
+**Lesson**: Game UI elements often have persistent text content and use GameObject visibility (`activeInHierarchy`) to show/hide. Always check visibility, not text content, for conditional UI labels.

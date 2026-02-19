@@ -134,5 +134,18 @@ namespace FFV_ScreenReader.Utils
             public const float VOLUME = 0.15f;
         }
 
+        /// <summary>
+        /// waveOut API flag constants.
+        /// </summary>
+        public static class WaveFlags
+        {
+            public const uint WHDR_DONE = 0x01;
+            public const uint WHDR_PREPARED = 0x02;
+            public const uint WHDR_BEGINLOOP = 0x04;
+            public const uint WHDR_ENDLOOP = 0x08;
+            public const int WAVE_MAPPER = -1;
+            public const int CALLBACK_NULL = 0;
+        }
+
     }
 }
