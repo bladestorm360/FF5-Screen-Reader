@@ -54,10 +54,6 @@ namespace FFV_ScreenReader.Core
             registry.Register(KeyCode.UpArrow, KeyModifier.Shift, KeyContext.Status, StatusNavigationReader.JumpToPreviousGroup, "Jump to previous stat group");
             registry.Register(KeyCode.UpArrow, KeyModifier.None, KeyContext.Status, StatusNavigationReader.NavigatePrevious, "Previous stat");
 
-            // Status screen: bulk stat reading
-            registry.Register(KeyCode.LeftBracket, KeyContext.Status, () => FFV_ScreenReaderMod.SpeakText(StatusDetailsReader.ReadPhysicalStats()), "Read physical stats");
-            registry.Register(KeyCode.RightBracket, KeyContext.Status, () => FFV_ScreenReaderMod.SpeakText(StatusDetailsReader.ReadMagicalStats()), "Read magical stats");
-
             // --- Bestiary detail: arrow key navigation ---
             registry.Register(KeyCode.DownArrow, KeyModifier.Ctrl, KeyContext.Bestiary, BestiaryNavigationReader.JumpToBottom, "Jump to bottom bestiary stat");
             registry.Register(KeyCode.DownArrow, KeyModifier.Shift, KeyContext.Bestiary, BestiaryNavigationReader.JumpToNextGroup, "Jump to next bestiary group");
@@ -121,6 +117,7 @@ namespace FFV_ScreenReader.Core
             registry.Register(KeyCode.T, KeyModifier.None, KeyContext.Global, () => Patches.TimerHelper.AnnounceActiveTimers(), "Announce active timers");
 
             registry.Register(KeyCode.V, KeyContext.Global, HandleMovementStateKey, "Announce vehicle state");
+            registry.Register(KeyCode.I, KeyModifier.Shift, KeyContext.Global, KeyHelpReader.AnnounceKeyHelp, "Read control tooltips");
             registry.Register(KeyCode.I, KeyContext.Global, HandleItemInfoKey, "Item details");
 
             // --- Field-only toggles (blocked in battle with feedback) ---

@@ -20,6 +20,11 @@ namespace FFV_ScreenReader.Patches
         private static float lastBumpTime = 0f;
         private const float BUMP_COOLDOWN = 0.3f; // 300ms
 
+        // Collision deduplication: require multiple hits at same tile before bumping
+        private static Vector2Int lastCollisionTile = Vector2Int.zero;
+        private static int collisionCountAtPosition = 0;
+        private const int MIN_COLLISIONS_TO_BUMP = 2;
+
         // Footstep tracking
         private static Vector2Int lastTilePosition = Vector2Int.zero;
         private static bool tileTrackingInitialized = false;
@@ -37,6 +42,26 @@ namespace FFV_ScreenReader.Patches
             {
                 // Suppress wall bumps during battle, dialogue, or events
                 if (BattleState.IsInBattle || DialogueTracker.IsInDialogue || GameStatePatches.IsInEventState)
+                    return;
+
+                // Get player tile position (same conversion as CheckFootstep)
+                var pos = playerEntity.transform.localPosition;
+                Vector2Int currentTile = new Vector2Int(
+                    Mathf.FloorToInt(pos.x / GameConstants.TILE_SIZE),
+                    Mathf.FloorToInt(pos.y / GameConstants.TILE_SIZE)
+                );
+
+                // Track consecutive collisions at the same tile
+                if (currentTile == lastCollisionTile)
+                    collisionCountAtPosition++;
+                else
+                {
+                    lastCollisionTile = currentTile;
+                    collisionCountAtPosition = 1;
+                }
+
+                // Require multiple collisions at the same position to filter transient hits
+                if (collisionCountAtPosition < MIN_COLLISIONS_TO_BUMP)
                     return;
 
                 float currentTime = Time.time;
@@ -101,6 +126,8 @@ namespace FFV_ScreenReader.Patches
             lastTilePosition = Vector2Int.zero;
             tileTrackingInitialized = false;
             lastFootstepTime = 0f;
+            lastCollisionTile = Vector2Int.zero;
+            collisionCountAtPosition = 0;
         }
     }
 }

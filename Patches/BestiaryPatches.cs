@@ -201,7 +201,7 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        private static IEnumerator AnnounceListOpen()
+        internal static IEnumerator AnnounceListOpen()
         {
             yield return null;
 
@@ -823,6 +823,150 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"[Bestiary] Error announcing map cycle: {ex.Message}");
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Config menu bestiary state handler
+    // Maps SubSceneManagerMainGame states 17/18 to BestiaryStateTracker states
+    // so all existing bestiary patches (list nav, detail view, page turns) work.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    internal static class ConfigBestiaryStateHandler
+    {
+        private static int _previousState = -1;
+
+        /// <summary>
+        /// True while we're in the config menu bestiary (states 17 or 18).
+        /// Used by GameStatePatches to detect exit.
+        /// </summary>
+        public static bool WasInConfigBestiary { get; private set; } = false;
+
+        public static void HandleStateChange(int mainGameState)
+        {
+            try
+            {
+                int previousBestiaryState = BestiaryStateTracker.CurrentState;
+
+                if (mainGameState == 17) // MenuLibraryUi = list
+                {
+                    WasInConfigBestiary = true;
+                    BestiaryStateTracker.CurrentState = 1; // Map to extras List state
+
+                    // Clear and set menu state
+                    MenuStateRegistry.Reset(
+                        MenuStateRegistry.BESTIARY_LIST,
+                        MenuStateRegistry.BESTIARY_DETAIL);
+                    MenuStateRegistry.SetActive(MenuStateRegistry.BESTIARY_LIST, true);
+
+                    if (previousBestiaryState <= 0) // Entering from outside
+                    {
+                        BestiaryNavigationTracker.Instance.Reset();
+                        BestiaryStateTracker.SuppressNextListEntry = true;
+                        CoroutineManager.StartManaged(
+                            SubSceneManagerExtraLibrary_ChangeState_Patch.AnnounceListOpen());
+                    }
+                    else if (previousBestiaryState == 4) // Returning from detail
+                    {
+                        BestiaryNavigationTracker.Instance.Reset();
+                        AnnouncementDeduplicator.Reset(AnnouncementContexts.BESTIARY_LIST_ENTRY);
+
+                        // Re-announce current entry
+                        var listController = UnityEngine.Object.FindObjectOfType<LibraryMenuListController_KeyInput>();
+                        if (listController != null)
+                        {
+                            var data = listController.GetCurrentContent();
+                            if (data != null)
+                            {
+                                BestiaryNavigationTracker.Instance.CurrentMonsterData = data;
+                                if (data.pictureBookData != null)
+                                {
+                                    string entry = BestiaryReader.ReadListEntry(data.pictureBookData);
+                                    if (!string.IsNullOrEmpty(entry))
+                                        FFV_ScreenReaderMod.SpeakText(entry, true);
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (mainGameState == 18) // MenuLibraryInfo = detail
+                {
+                    WasInConfigBestiary = true;
+                    BestiaryStateTracker.CurrentState = 4; // Map to extras Info state
+
+                    MenuStateRegistry.Reset(
+                        MenuStateRegistry.BESTIARY_LIST,
+                        MenuStateRegistry.BESTIARY_DETAIL);
+                    MenuStateRegistry.SetActive(MenuStateRegistry.BESTIARY_DETAIL, true);
+                    // Detail announcement handled by existing SetData patch
+                }
+
+                _previousState = mainGameState;
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Bestiary] Error in ConfigBestiaryStateHandler: {ex.Message}");
+            }
+        }
+
+        public static void HandleExit()
+        {
+            try
+            {
+                WasInConfigBestiary = false;
+                _previousState = -1;
+                BestiaryStateTracker.ClearState();
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Bestiary] Error in ConfigBestiaryStateHandler exit: {ex.Message}");
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Patch 9: Monster switching in config menu detail view
+    // MenuExtraLibraryInfo.OnChangedMonster has a different RVA than
+    // ExtraLibraryInfo.OnChangedMonster, so needs its own patch.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HarmonyPatch(typeof(Il2CppLast.Scene.MenuExtraLibraryInfo), "OnChangedMonster", new Type[] { typeof(MonsterData) })]
+    public static class MenuExtraLibraryInfo_OnChangedMonster_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(MonsterData data)
+        {
+            try
+            {
+                if (data == null || !BestiaryStateTracker.IsInDetail) return;
+
+                BestiaryNavigationTracker.Instance.CurrentMonsterData = data;
+
+                CoroutineManager.StartManaged(DelayedMonsterChangeAnnouncement(data));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Bestiary] Error in config OnChangedMonster patch: {ex.Message}");
+            }
+        }
+
+        private static IEnumerator DelayedMonsterChangeAnnouncement(MonsterData data)
+        {
+            yield return null;
+            yield return null;
+
+            try
+            {
+                var pbData = data.pictureBookData;
+                string name = pbData != null && pbData.IsRelease ? pbData.MonsterName : "Unknown";
+                FFV_ScreenReaderMod.SpeakText($"{name}. Details", true);
+
+                LibraryInfoController_SetData_Patch.BuildAndInitializeStatBuffer();
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Bestiary] Error in config monster change announcement: {ex.Message}");
             }
         }
     }

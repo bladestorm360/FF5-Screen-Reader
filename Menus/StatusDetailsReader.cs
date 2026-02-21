@@ -21,18 +21,6 @@ namespace FFV_ScreenReader.Menus
     /// </summary>
     public static class StatusDetailsReader
     {
-        private static OwnedCharacterData currentCharacterData = null;
-
-        public static void SetCurrentCharacterData(OwnedCharacterData data)
-        {
-            currentCharacterData = data;
-        }
-
-        public static void ClearCurrentCharacterData()
-        {
-            currentCharacterData = null;
-        }
-
         /// <summary>
         /// Read all character status information from the status details view.
         /// Returns a formatted string with all relevant information.
@@ -100,12 +88,12 @@ namespace FFV_ScreenReader.Menus
 
                     if (!string.IsNullOrWhiteSpace(exp))
                     {
-                        parts.Add($"Experience: {exp}");
+                        parts.Add($"EXP: {exp}");
                     }
 
                     if (!string.IsNullOrWhiteSpace(nextExp))
                     {
-                        parts.Add($"Next Level: {nextExp}");
+                        parts.Add($"Next: {nextExp}");
                     }
                 }
                 catch (Exception ex)
@@ -117,77 +105,6 @@ namespace FFV_ScreenReader.Menus
             return parts.Count > 0 ? string.Join(". ", parts) : null;
         }
 
-        /// <summary>
-        /// Read physical combat stats (Strength, Stamina, Defense, Evade).
-        /// </summary>
-        public static string ReadPhysicalStats()
-        {
-            if (currentCharacterData == null || currentCharacterData.parameter == null)
-            {
-                return "No character data available";
-            }
-
-            try
-            {
-                var param = currentCharacterData.parameter;
-                var parts = new List<string>();
-
-                int strength = param.ConfirmedPower();
-                parts.Add($"Strength: {strength}");
-
-                int stamina = param.ConfirmedVitality();
-                parts.Add($"Stamina: {stamina}");
-
-                int defense = param.ConfirmedDefense();
-                parts.Add($"Defense: {defense}");
-
-                int evade = param.ConfirmedDefenseCount();
-                parts.Add($"Evade: {evade}");
-
-                return string.Join(". ", parts);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error($"Error reading physical stats: {ex.Message}");
-                return $"Error reading physical stats: {ex.Message}";
-            }
-        }
-
-        /// <summary>
-        /// Read magical combat stats (Magic, Spirit, Magic Defense, Magic Evade).
-        /// </summary>
-        public static string ReadMagicalStats()
-        {
-            if (currentCharacterData == null || currentCharacterData.parameter == null)
-            {
-                return "No character data available";
-            }
-
-            try
-            {
-                var param = currentCharacterData.parameter;
-                var parts = new List<string>();
-
-                int magic = param.ConfirmedMagic();
-                parts.Add($"Magic: {magic}");
-
-                int spirit = param.ConfirmedSpirit();
-                parts.Add($"Spirit: {spirit}");
-
-                int magicDefense = param.ConfirmedAbilityDefense();
-                parts.Add($"Magic Defense: {magicDefense}");
-
-                int magicEvade = param.ConfirmedAbilityEvasionRate();
-                parts.Add($"Magic Evade: {magicEvade}");
-
-                return string.Join(". ", parts);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error($"Error reading magical stats: {ex.Message}");
-                return $"Error reading magical stats: {ex.Message}";
-            }
-        }
     }
 
     /// <summary>
@@ -195,7 +112,7 @@ namespace FFV_ScreenReader.Menus
     /// </summary>
     public enum StatGroup
     {
-        CharacterInfo,  // Job Name, Character Level, Job Level, Experience, ABP
+        CharacterInfo,  // Job Name, Character Level, Job Level, EXP, Next, ABP
         Vitals,         // HP, MP
         Attributes,     // Strength, Agility, Stamina, Magic
         CombatStats,    // Attack, Defense, Evasion, Magic Defense
@@ -225,7 +142,7 @@ namespace FFV_ScreenReader.Menus
     public static class StatusNavigationReader
     {
         private static List<StatusStatDefinition> statList = null;
-        private static readonly int[] GroupStartIndices = new int[] { 0, 5, 7, 11, 15 };
+        private static readonly int[] GroupStartIndices = new int[] { 0, 6, 8, 12, 16 };
 
         /// <summary>
         /// Initialize the stat list with all 19 visible stats in UI order
@@ -236,30 +153,31 @@ namespace FFV_ScreenReader.Menus
 
             statList = new List<StatusStatDefinition>();
 
-            // Character Info Group (indices 0-4)
+            // Character Info Group (indices 0-5)
             statList.Add(new StatusStatDefinition("Job", StatGroup.CharacterInfo, ReadJobName));
             statList.Add(new StatusStatDefinition("Character Level", StatGroup.CharacterInfo, ReadCharacterLevel));
             statList.Add(new StatusStatDefinition("Job Level", StatGroup.CharacterInfo, ReadJobLevel));
-            statList.Add(new StatusStatDefinition("Experience", StatGroup.CharacterInfo, ReadExperience));
+            statList.Add(new StatusStatDefinition("EXP", StatGroup.CharacterInfo, ReadEXP));
+            statList.Add(new StatusStatDefinition("Next", StatGroup.CharacterInfo, ReadNextEXP));
             statList.Add(new StatusStatDefinition("ABP", StatGroup.CharacterInfo, ReadABP));
 
-            // Vitals Group (indices 5-6)
+            // Vitals Group (indices 6-7)
             statList.Add(new StatusStatDefinition("HP", StatGroup.Vitals, ReadHP));
             statList.Add(new StatusStatDefinition("MP", StatGroup.Vitals, ReadMP));
 
-            // Attributes Group (indices 7-10)
+            // Attributes Group (indices 8-11)
             statList.Add(new StatusStatDefinition("Strength", StatGroup.Attributes, ReadStrength));
             statList.Add(new StatusStatDefinition("Agility", StatGroup.Attributes, ReadAgility));
             statList.Add(new StatusStatDefinition("Stamina", StatGroup.Attributes, ReadStamina));
             statList.Add(new StatusStatDefinition("Magic", StatGroup.Attributes, ReadMagic));
 
-            // Combat Stats Group (indices 11-14)
+            // Combat Stats Group (indices 12-15)
             statList.Add(new StatusStatDefinition("Attack", StatGroup.CombatStats, ReadAttack));
             statList.Add(new StatusStatDefinition("Defense", StatGroup.CombatStats, ReadDefense));
             statList.Add(new StatusStatDefinition("Evasion", StatGroup.CombatStats, ReadEvasion));
             statList.Add(new StatusStatDefinition("Magic Defense", StatGroup.CombatStats, ReadMagicDefense));
 
-            // Progression Group (indices 15-16)
+            // Progression Group (indices 16-17)
             statList.Add(new StatusStatDefinition("Jobs", StatGroup.Progression, ReadJobs));
             statList.Add(new StatusStatDefinition("Abilities", StatGroup.Progression, ReadAbilities));
         }
@@ -326,7 +244,7 @@ namespace FFV_ScreenReader.Menus
             }
 
             tracker.CurrentStatIndex = nextGroupIndex;
-            ReadCurrentStat();
+            ReadCurrentStatWithGroup();
         }
 
         /// <summary>
@@ -359,7 +277,7 @@ namespace FFV_ScreenReader.Menus
             }
 
             tracker.CurrentStatIndex = prevGroupIndex;
-            ReadCurrentStat();
+            ReadCurrentStatWithGroup();
         }
 
         /// <summary>
@@ -386,6 +304,63 @@ namespace FFV_ScreenReader.Menus
 
             tracker.CurrentStatIndex = statList.Count - 1;
             ReadCurrentStat();
+        }
+
+        /// <summary>
+        /// Get a human-readable display name for a stat group
+        /// </summary>
+        private static string GetGroupDisplayName(StatGroup group)
+        {
+            switch (group)
+            {
+                case StatGroup.CharacterInfo: return "Character Info";
+                case StatGroup.Vitals: return "Vitals";
+                case StatGroup.Attributes: return "Attributes";
+                case StatGroup.CombatStats: return "Combat Stats";
+                case StatGroup.Progression: return "Progression";
+                default: return group.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Read the current stat with the group name prepended (used when jumping between groups)
+        /// </summary>
+        public static void ReadCurrentStatWithGroup()
+        {
+            var tracker = StatusNavigationTracker.Instance;
+            if (!tracker.ValidateState())
+            {
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("Navigation not available");
+                return;
+            }
+
+            if (statList == null) InitializeStatList();
+
+            int index = tracker.CurrentStatIndex;
+            if (index < 0 || index >= statList.Count)
+            {
+                MelonLogger.Warning($"Invalid stat index: {index}");
+                return;
+            }
+
+            if (tracker.CurrentCharacterData == null)
+            {
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("No character data");
+                return;
+            }
+
+            try
+            {
+                var stat = statList[index];
+                string value = stat.Reader(tracker.CurrentCharacterData);
+                string groupName = GetGroupDisplayName(stat.Group);
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText($"{groupName}. {value}", true);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error reading stat at index {index}: {ex.Message}");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("Error reading stat");
+            }
         }
 
         /// <summary>
@@ -545,37 +520,56 @@ namespace FFV_ScreenReader.Menus
             }
         }
 
-        private static string ReadExperience(OwnedCharacterData data)
+        private static string ReadEXP(OwnedCharacterData data)
         {
             try
             {
                 if (data == null) return "N/A";
 
-                // Read experience from UI text components
                 var tracker = StatusNavigationTracker.Instance;
                 if (tracker?.ActiveController?.view != null)
                 {
                     var detailsView = tracker.ActiveController.view;
-                    if (detailsView.ExpText != null && detailsView.NextExpText != null)
+                    if (detailsView.ExpText != null)
                     {
-                        string currentExpText = detailsView.ExpText.text;
-                        string nextExpText = detailsView.NextExpText.text;
-
-                        if (!string.IsNullOrWhiteSpace(currentExpText) && !string.IsNullOrWhiteSpace(nextExpText))
-                        {
-                            return $"Experience: {currentExpText} / {nextExpText} to next level";
-                        }
+                        string expText = detailsView.ExpText.text;
+                        if (!string.IsNullOrWhiteSpace(expText))
+                            return $"EXP: {expText}";
                     }
                 }
 
-                // Fallback if UI text not available
-                int currentExp = data.CurrentExp;
-                int nextExp = data.GetNextExp();
-                return $"Experience: {currentExp} / {nextExp} to next level";
+                return $"EXP: {data.CurrentExp}";
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error reading Experience: {ex.Message}");
+                MelonLogger.Warning($"Error reading EXP: {ex.Message}");
+                return "N/A";
+            }
+        }
+
+        private static string ReadNextEXP(OwnedCharacterData data)
+        {
+            try
+            {
+                if (data == null) return "N/A";
+
+                var tracker = StatusNavigationTracker.Instance;
+                if (tracker?.ActiveController?.view != null)
+                {
+                    var detailsView = tracker.ActiveController.view;
+                    if (detailsView.NextExpText != null)
+                    {
+                        string nextExpText = detailsView.NextExpText.text;
+                        if (!string.IsNullOrWhiteSpace(nextExpText))
+                            return $"Next: {nextExpText}";
+                    }
+                }
+
+                return $"Next: {data.GetNextExp()}";
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error reading Next EXP: {ex.Message}");
                 return "N/A";
             }
         }

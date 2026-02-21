@@ -82,6 +82,10 @@ namespace FFV_ScreenReader.Patches
         private const int STATE_PLAYER = 3;
         private const int STATE_EVENT = 12;
 
+        // Config menu bestiary states (SubSceneManagerMainGame.State)
+        private const int STATE_MENU_LIBRARY_UI = 17;
+        private const int STATE_MENU_LIBRARY_INFO = 18;
+
         // Cached event state
         private static bool _cachedIsInEvent = false;
 
@@ -148,6 +152,12 @@ namespace FFV_ScreenReader.Patches
                     }
                     CheckMapTransition();
                 }
+
+                // Config menu bestiary states
+                if (stateValue == STATE_MENU_LIBRARY_UI || stateValue == STATE_MENU_LIBRARY_INFO)
+                    ConfigBestiaryStateHandler.HandleStateChange(stateValue);
+                else if (ConfigBestiaryStateHandler.WasInConfigBestiary)
+                    ConfigBestiaryStateHandler.HandleExit();
             }
             catch (Exception ex)
             {

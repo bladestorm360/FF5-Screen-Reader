@@ -31,13 +31,13 @@
 - `MovementSoundPatches` — Footstep audio
 - `ShopPatches` — Shop menus + ShopMenuTracker + equipment command bar
 - `PopupPatches` — All popup types (common, game over, info, job change, change name)
-- `GameStatePatches` — BattleState, map transitions, IsInEventState (cached via ChangeState hook)
+- `GameStatePatches` — BattleState, map transitions, IsInEventState (cached via ChangeState hook), config menu bestiary detection (states 17/18)
 - `TitleMenuPatches` — Title screen
 - `DashFlagPatches` — Walk/run state for F1
 - `MainMenuPatches` — In-game main menu + state cleanup
 - `SaveLoadPatches` — Save/load menus + confirmation popups
 - `NamingPatches` — Name entry screen
-- `BestiaryPatches` — Bestiary (Picture Book) accessibility: state tracking, list nav, detail stats, formations, maps
+- `BestiaryPatches` — Bestiary (Picture Book) accessibility: state tracking, list nav, detail stats, formations, maps, config menu bestiary (ConfigBestiaryStateHandler)
 - `MusicPlayerPatches` — Music Player (Extra Sound) accessibility: state tracking, song list nav, Play All/Arrangement toggle
 - `GalleryPatches` — Gallery (Extra Gallery) accessibility: state tracking, list nav, image open/return
 
@@ -53,6 +53,7 @@
 - `BestiaryReader` — Data extraction/speech formatting for bestiary entries, stats, formations, maps
 - `BestiaryNavigationReader` — Virtual buffer navigation for bestiary detail stats (arrow keys, group jump)
 - `MusicPlayerReader` — Data extraction/speech formatting for music player song entries
+- `KeyHelpReader` — Shift+I key help tooltip reader (GameObjectCache + unsafe view pointer + Text components)
 
 ### Utils (`Utils/`)
 - `TolkWrapper` — NVDA interface
@@ -314,12 +315,19 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 1. **CommonPopup initial button**: Read `selectCursor` at offset 0x68, get button text via ReadButtonFromCommandList. Wrapped in try/catch. Result: "Bartz. Use this name? Yes"
 2. **ChangeNamePopup hint**: Append `LocalizationHelper.GetModString("default_name_hint")` (12 languages). Result: "Enter a name for Bartz. Press Enter for default name"
 
-### Key Help Pagination Fix (2026-02-14)
-**Problem**: Shift+I (`AnnounceKeyHelp`) only read the currently-visible page of controls from `KeyHelpController`. The game paginates controls across multiple pages (cycling on a timer), so pressing Shift+I gave random partial results depending on which page was showing.
+### Key Help IL2CPP Cast Constraint Fix (2026-02-20)
+**Problem**: Shift+I (`AnnounceKeyHelp`) crashed with `Il2CppObjectBase.Cast: type argument 'T' violates the constraint of type parameter 'T'` when `KeyHelpController` instances were active.
 
-**Solution**: Added `ReadAllKeyHelpItems()` which reads the `pageList` field (offset 0x30) directly via unsafe pointers. This is `List<List<KeyHelpIconData>>` containing ALL pages. Each `KeyHelpIconData` has `MessageId` (0x10), `MessageId2` (0x18), and `Keys` (0x20, `Key[]` value-type array). Message IDs are resolved via `LocalizationHelper.GetGameMessage()`. Key enum values are mapped to display names via `GetKeyDisplayName()`. Falls back to the original `GetComponentsInChildren<KeyIconView>` approach if unsafe read fails.
+**Root cause**: `FindObjectsOfType<KeyHelpController>()` (plural) and `GetComponentsInChildren<KeyIconController>()` return IL2CPP arrays whose element indexers invoke `Cast<T>()`, which fails for game-specific types (`KeyHelpController`, `KeyIconController`, `KeyIconView`).
 
-**Key detail**: `Key[]` is a value-type array (4 bytes per element), not a reference array (8 bytes). Data starts at array offset 0x20.
+**Solution**: Rewrote `KeyHelpReader.cs` to avoid all Cast-triggering array access on game-specific types:
+1. `GameObjectCache.Get/Refresh<KeyHelpController>()` — single typed instance, no array indexer (same pattern as `AnnounceConfigTooltip`)
+2. Unsafe pointer read at offset 0x18 for private `view` field (`KeyHelpView`) — no public accessor
+3. `view.ContentsParent` (public property) → `transform` → iterate children by index
+4. `activeInHierarchy` check on each child — game deactivates entries on other pages, so this filters to visible page only
+5. `GetComponentsInChildren<Text>(false)` per active child — `Text` is standard Unity type, no Cast issues (same pattern as `KeyboardGamepadReader.cs:74`)
+
+**Lesson**: IL2CPP `Cast<T>()` fails for certain game-specific types when accessed via array indexers (`FindObjectsOfType<T>()[i]`, `GetComponentsInChildren<T>()[j]`). Avoid by using singular `FindObjectOfType<T>()` (via `GameObjectCache`), transform hierarchy navigation, and only calling `GetComponentsInChildren` on standard Unity types like `Text`.
 
 ### Music Player Duration Fix (2026-02-14)
 **Problem**: All song durations showed "0:00". `LookupDuration()` correctly returned `entry.Time` (e.g., 153 for "Main Theme of Final Fantasy V" = 2:33), but `FormatPlayTime()` divided by 1000 assuming milliseconds. Integer division `153 / 1000 = 0`.
@@ -397,3 +405,24 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 **Fix** (JobAbilityPatches.cs ~line 215): Replaced `string masterText = view.InfoJobLevelMasterText?.text?.Trim() ?? ""` with `bool isMastered = view.InfoJobLevelMasterText?.gameObject?.activeInHierarchy == true`. Changed the branch from `!string.IsNullOrWhiteSpace(masterText)` to `if (isMastered)`.
 
 **Lesson**: Game UI elements often have persistent text content and use GameObject visibility (`activeInHierarchy`) to show/hide. Always check visibility, not text content, for conditional UI labels.
+
+### Config Menu Bestiary Support (2026-02-20)
+**Problem**: Bestiary worked from extras menu (title screen) but not from config menu (in-game). The config menu uses `SubSceneManagerMainGame.ChangeState` with states 17 (MenuLibraryUi = list) and 18 (MenuLibraryInfo = detail), not `SubSceneManagerExtraLibrary.ChangeState`. Both paths share the same UI controllers (`LibraryMenuController_KeyInput`, `LibraryInfoController_KeyInput`), so existing patches on those controllers already fired — they just bailed because `BestiaryStateTracker.CurrentState` was never set.
+
+**Solution**: `ConfigBestiaryStateHandler` (new internal static class in `BestiaryPatches.cs`) maps MainGame states 17→1 (list) and 18→4 (detail) in `BestiaryStateTracker`. Called from `GameStatePatches.ChangeState_Postfix` which already hooks `SubSceneManagerMainGame.ChangeState`. On entry (state 17, previousState ≤ 0): resets tracker, suppresses initial entry, reuses `AnnounceListOpen()` (changed to `internal static`). On return from detail (state 17, previousState = 4): re-announces current entry. On exit (state changes away from 17/18): calls `ClearState()`. `WasInConfigBestiary` flag prevents false exit triggers during normal gameplay.
+
+**Additional patch**: `MenuExtraLibraryInfo_OnChangedMonster_Patch` — config menu's `MenuExtraLibraryInfo.OnChangedMonster(MonsterData)` has a different RVA (0x3CFBA0) than `ExtraLibraryInfo.OnChangedMonster` (0x5C1FE0), so needs its own HarmonyPatch. Same logic as existing extras patch.
+
+**No changes needed** to: `BestiaryReader`, `BestiaryNavigationReader`, `InputManager`, page turn patches (same RVA, shared), minimap/UpdateController patch, full map/formation patches (config menu doesn't have these).
+
+**Lesson**: When two menu paths share the same UI controllers but use different state machines, the existing controller patches will fire for both — they just need the state tracker to be set. Map the new state machine's values to the existing tracker states rather than creating parallel tracking.
+
+### Status Navigator Group Heading Announcements (2026-02-20)
+**Feature**: Shift+Up/Down group jumps now prepend the group name (e.g. "Vitals. HP: 450 / 450") so the user knows which group they've landed in. Normal arrow key navigation is unchanged.
+
+**Implementation** (StatusDetailsReader.cs):
+- `GetGroupDisplayName(StatGroup)` — maps enum to human-readable string (CharacterInfo→"Character Info", Vitals→"Vitals", Attributes→"Attributes", CombatStats→"Combat Stats", Progression→"Progression")
+- `ReadCurrentStatWithGroup()` — same flow as `ReadCurrentStat()` but formats as `"{groupName}. {statValue}"`
+- `JumpToNextGroup()` and `JumpToPreviousGroup()` — changed from `ReadCurrentStat()` to `ReadCurrentStatWithGroup()`
+
+**Pattern**: Ported from `BestiaryNavigationReader` which already prepends group names on Shift+arrow jumps.

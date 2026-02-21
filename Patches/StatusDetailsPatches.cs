@@ -72,7 +72,6 @@ namespace FFV_ScreenReader.Patches
     /// <summary>
     /// Controller-based patches for the character status menu.
     /// Announces character names when navigating the selection list and status details when viewing.
-    /// Provides hotkeys for detailed stat announcements ([=physical, ]=magical).
     /// Ported from FF6 screen reader.
     /// </summary>
 
@@ -229,9 +228,6 @@ namespace FFV_ScreenReader.Patches
                         tracker.ActiveController = controller;
                         tracker.CurrentCharacterData = characterData;
 
-                        // Also set for existing stat reading methods
-                        StatusDetailsReader.SetCurrentCharacterData(characterData);
-
                         // Initialize the stat list
                         StatusNavigationReader.InitializeStatList();
                     }
@@ -267,14 +263,8 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Clear character data when leaving status screen
-                StatusDetailsReader.ClearCurrentCharacterData();
-
-                // Reset navigation state
+                // Reset navigation state — InitDisplay will re-initialize for new character
                 StatusNavigationTracker.Instance.Reset();
-
-                // Clear user-opened flag
-                StatusMenuTracker.IsUserOpened = false;
             }
             catch (Exception ex)
             {
