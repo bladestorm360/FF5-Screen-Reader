@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MelonLoader;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -43,7 +44,7 @@ namespace FFV_ScreenReader.Core
                 this.toggle = toggle;
             }
 
-            public override string GetValueString() => getter() ? "On" : "Off";
+            public override string GetValueString() => getter() ? T("On") : T("Off");
             public override void Adjust(int delta) => toggle();
             public override void Toggle() => toggle();
         }
@@ -159,68 +160,68 @@ namespace FFV_ScreenReader.Core
             items = new List<MenuItem>
             {
                 // Audio Feedback section
-                new SectionHeader("Audio Feedback"),
-                new ToggleItem("Wall Tones",
+                new SectionHeader(T("Audio Feedback")),
+                new ToggleItem(T("Wall Tones"),
                     () => FFV_ScreenReaderMod.WallTonesEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleWallTones()),
-                new ToggleItem("Footsteps",
+                new ToggleItem(T("Footsteps"),
                     () => FFV_ScreenReaderMod.FootstepsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleFootsteps()),
-                new ToggleItem("Audio Beacons",
+                new ToggleItem(T("Audio Beacons"),
                     () => FFV_ScreenReaderMod.AudioBeaconsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleAudioBeacons()),
-                new ToggleItem("Landing Pings",
+                new ToggleItem(T("Landing Pings"),
                     () => FFV_ScreenReaderMod.LandingPingsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleLandingPings()),
 
                 // Volume Controls section
-                new SectionHeader("Volume Controls"),
-                new VolumeItem("Wall Bump Volume",
+                new SectionHeader(T("Volume Controls")),
+                new VolumeItem(T("Wall Bump Volume"),
                     () => FFV_ScreenReaderMod.WallBumpVolume,
                     FFV_ScreenReaderMod.SetWallBumpVolume),
-                new VolumeItem("Footstep Volume",
+                new VolumeItem(T("Footstep Volume"),
                     () => FFV_ScreenReaderMod.FootstepVolume,
                     FFV_ScreenReaderMod.SetFootstepVolume),
-                new VolumeItem("Wall Tone Volume",
+                new VolumeItem(T("Wall Tone Volume"),
                     () => FFV_ScreenReaderMod.WallToneVolume,
                     FFV_ScreenReaderMod.SetWallToneVolume),
-                new VolumeItem("Beacon Volume",
+                new VolumeItem(T("Beacon Volume"),
                     () => FFV_ScreenReaderMod.BeaconVolume,
                     FFV_ScreenReaderMod.SetBeaconVolume),
-                new VolumeItem("Landing Ping Volume",
+                new VolumeItem(T("Landing Ping Volume"),
                     () => FFV_ScreenReaderMod.LandingPingVolume,
                     FFV_ScreenReaderMod.SetLandingPingVolume),
 
                 // Navigation Filters section
-                new SectionHeader("Navigation Filters"),
-                new ToggleItem("Pathfinding Filter",
+                new SectionHeader(T("Navigation Filters")),
+                new ToggleItem(T("Pathfinding Filter"),
                     () => FFV_ScreenReaderMod.PathfindingFilterEnabled,
                     () => FFV_ScreenReaderMod.Instance?.TogglePathfindingFilter()),
-                new ToggleItem("Map Exit Filter",
+                new ToggleItem(T("Map Exit Filter"),
                     () => FFV_ScreenReaderMod.MapExitFilterEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleMapExitFilter()),
-                new ToggleItem("Layer Transition Filter",
+                new ToggleItem(T("Layer Transition Filter"),
                     () => FFV_ScreenReaderMod.ToLayerFilterEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleToLayerFilter()),
 
                 // Battle Results section
-                new SectionHeader("Battle Results"),
-                new ToggleItem("EXP Counter Sound",
+                new SectionHeader(T("Battle Results")),
+                new ToggleItem(T("EXP Counter Sound"),
                     () => FFV_ScreenReaderMod.ExpCounterEnabled,
                     FFV_ScreenReaderMod.ToggleExpCounter),
-                new VolumeItem("EXP Counter Volume",
+                new VolumeItem(T("EXP Counter Volume"),
                     () => FFV_ScreenReaderMod.ExpCounterVolume,
                     FFV_ScreenReaderMod.SetExpCounterVolume),
 
                 // Battle Settings section
-                new SectionHeader("Battle Settings"),
-                new EnumItem("Enemy HP Display",
-                    new[] { "Numbers", "Percentage", "Hidden" },
+                new SectionHeader(T("Battle Settings")),
+                new EnumItem(T("Enemy HP Display"),
+                    new[] { T("Numbers"), T("Percentage"), T("Hidden") },
                     () => FFV_ScreenReaderMod.EnemyHPDisplay,
                     FFV_ScreenReaderMod.SetEnemyHPDisplay),
 
                 // Close Menu action
-                new ActionItem("Close Menu", Close)
+                new ActionItem(T("Close Menu"), Close)
             };
         }
 

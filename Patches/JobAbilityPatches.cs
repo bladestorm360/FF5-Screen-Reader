@@ -14,6 +14,7 @@ using Il2CppSerial.FF5.UI.KeyInput;
 using Il2CppSerial.Template.UI;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using GameCursor = Il2CppLast.UI.Cursor;
 
 namespace FFV_ScreenReader.Patches
@@ -750,7 +751,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(announcement))
                 {
-                    announcement = "No description available";
+                    announcement = T("No description available");
                 }
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
@@ -782,7 +783,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    FFV_ScreenReaderMod.SpeakText("No description available");
+                    FFV_ScreenReaderMod.SpeakText(T("No description available"));
                     return;
                 }
 
@@ -815,7 +816,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    FFV_ScreenReaderMod.SpeakText("No description available");
+                    FFV_ScreenReaderMod.SpeakText(T("No description available"));
                     return;
                 }
 
@@ -848,7 +849,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    FFV_ScreenReaderMod.SpeakText("No description available");
+                    FFV_ScreenReaderMod.SpeakText(T("No description available"));
                     return;
                 }
 

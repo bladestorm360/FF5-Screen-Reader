@@ -2,6 +2,7 @@ using System;
 using Il2CppLast.Map;
 using Il2CppLast.Entity.Field;
 using MelonLoader;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Utils
 {
@@ -138,7 +139,7 @@ namespace FFV_ScreenReader.Utils
 
                 Patches.MovementSpeechPatches.SyncToOnFoot();
 
-                Core.FFV_ScreenReaderMod.SpeakText("On foot", interrupt: false);
+                Core.FFV_ScreenReaderMod.SpeakText(T("On foot"), interrupt: false);
                 return true;
             }
             return false;

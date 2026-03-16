@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -46,7 +47,7 @@ namespace FFV_ScreenReader.Core
             WindowsFocusHelper.StealFocus("FFV_ConfirmDialog");
 
             // Announce prompt with delay to avoid NVDA window title interruption
-            CoroutineManager.StartManaged(DelayedPromptAnnouncement($"{prompt} Yes or No"));
+            CoroutineManager.StartManaged(DelayedPromptAnnouncement($"{prompt} {T("Yes or No")}"));
         }
 
         /// <summary>
@@ -107,7 +108,7 @@ namespace FFV_ScreenReader.Core
             // Y key - confirm Yes immediately
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_Y))
             {
-                FFV_ScreenReaderMod.SpeakText("Yes", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("Yes"), interrupt: true);
                 var callback = onYesCallback;
                 Close();
                 callback?.Invoke();
@@ -117,7 +118,7 @@ namespace FFV_ScreenReader.Core
             // N key - confirm No immediately
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_N))
             {
-                FFV_ScreenReaderMod.SpeakText("No", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("No"), interrupt: true);
                 var callback = onNoCallback;
                 Close();
                 callback?.Invoke();
@@ -127,7 +128,7 @@ namespace FFV_ScreenReader.Core
             // Escape - same as No
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_ESCAPE))
             {
-                FFV_ScreenReaderMod.SpeakText("Cancelled", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("Cancelled"), interrupt: true);
                 var callback = onNoCallback;
                 Close();
                 callback?.Invoke();
@@ -139,14 +140,14 @@ namespace FFV_ScreenReader.Core
             {
                 if (selectedYes)
                 {
-                    FFV_ScreenReaderMod.SpeakText("Yes", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Yes"), interrupt: true);
                     var callback = onYesCallback;
                     Close();
                     callback?.Invoke();
                 }
                 else
                 {
-                    FFV_ScreenReaderMod.SpeakText("No", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("No"), interrupt: true);
                     var callback = onNoCallback;
                     Close();
                     callback?.Invoke();
@@ -158,7 +159,7 @@ namespace FFV_ScreenReader.Core
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_LEFT) || WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_RIGHT))
             {
                 selectedYes = !selectedYes;
-                string selection = selectedYes ? "Yes" : "No";
+                string selection = selectedYes ? T("Yes") : T("No");
                 FFV_ScreenReaderMod.SpeakText(selection, interrupt: true);
                 return true;
             }

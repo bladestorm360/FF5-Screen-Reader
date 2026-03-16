@@ -4,6 +4,7 @@ using FFV_ScreenReader.Utils;
 using Il2CppLast.Management;
 using MelonLoader;
 using UnityEngine;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -48,7 +49,7 @@ namespace FFV_ScreenReader.Core
             var waypoint = waypointNavigator.CycleNext();
             if (waypoint == null)
             {
-                FFV_ScreenReaderMod.SpeakText("No waypoints");
+                FFV_ScreenReaderMod.SpeakText(T("No waypoints"));
                 return;
             }
 
@@ -63,7 +64,7 @@ namespace FFV_ScreenReader.Core
             var waypoint = waypointNavigator.CyclePrevious();
             if (waypoint == null)
             {
-                FFV_ScreenReaderMod.SpeakText("No waypoints");
+                FFV_ScreenReaderMod.SpeakText(T("No waypoints"));
                 return;
             }
 
@@ -89,14 +90,14 @@ namespace FFV_ScreenReader.Core
             var waypoint = waypointNavigator.SelectedWaypoint;
             if (waypoint == null)
             {
-                FFV_ScreenReaderMod.SpeakText("No waypoint selected");
+                FFV_ScreenReaderMod.SpeakText(T("No waypoint selected"));
                 return;
             }
 
             var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
             if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
             {
-                FFV_ScreenReaderMod.SpeakText("Not in field");
+                FFV_ScreenReaderMod.SpeakText(T("Not in field"));
                 return;
             }
 
@@ -111,12 +112,12 @@ namespace FFV_ScreenReader.Core
 
             if (pathInfo.Success)
             {
-                FFV_ScreenReaderMod.SpeakText($"Path to {waypoint.WaypointName}: {pathInfo.Description}");
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("Path to {0}: {1}"), waypoint.WaypointName, pathInfo.Description));
             }
             else
             {
                 string description = waypoint.FormatDescription(playerPos);
-                FFV_ScreenReaderMod.SpeakText($"No path to {waypoint.WaypointName}. {description}");
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("No path to {0}. {1}"), waypoint.WaypointName, description));
             }
         }
 
@@ -125,7 +126,7 @@ namespace FFV_ScreenReader.Core
             var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
             if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
             {
-                FFV_ScreenReaderMod.SpeakText("Not in field");
+                FFV_ScreenReaderMod.SpeakText(T("Not in field"));
                 return;
             }
 
@@ -137,7 +138,7 @@ namespace FFV_ScreenReader.Core
                 category = WaypointCategory.Miscellaneous;
 
             TextInputWindow.Open(
-                "Enter waypoint name",
+                T("Enter waypoint name"),
                 "",
                 (name) =>
                 {
@@ -145,11 +146,11 @@ namespace FFV_ScreenReader.Core
                     waypointNavigator.RefreshList(mapId);
 
                     string categoryName = WaypointEntity.GetCategoryDisplayName(category);
-                    FFV_ScreenReaderMod.SpeakTextDelayed($"Added {name} as {categoryName}");
+                    FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Added {0} as {1}"), name, categoryName));
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed("Waypoint creation cancelled");
+                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Waypoint creation cancelled"));
                 }
             );
         }
@@ -159,7 +160,7 @@ namespace FFV_ScreenReader.Core
             var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
             if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
             {
-                FFV_ScreenReaderMod.SpeakText("Not in field");
+                FFV_ScreenReaderMod.SpeakText(T("Not in field"));
                 return;
             }
 
@@ -176,7 +177,7 @@ namespace FFV_ScreenReader.Core
             waypointNavigator.RefreshList(mapId);
 
             string categoryName = WaypointEntity.GetCategoryDisplayName(category);
-            FFV_ScreenReaderMod.SpeakText($"Added {name} as {categoryName}");
+            FFV_ScreenReaderMod.SpeakText(string.Format(T("Added {0} as {1}"), name, categoryName));
         }
 
         public void RenameCurrentWaypoint()
@@ -184,7 +185,7 @@ namespace FFV_ScreenReader.Core
             var waypoint = waypointNavigator.SelectedWaypoint;
             if (waypoint == null)
             {
-                FFV_ScreenReaderMod.SpeakText("No waypoint selected");
+                FFV_ScreenReaderMod.SpeakText(T("No waypoint selected"));
                 return;
             }
 
@@ -193,23 +194,23 @@ namespace FFV_ScreenReader.Core
             string mapId = GetCurrentMapIdString();
 
             TextInputWindow.Open(
-                "Rename waypoint",
+                T("Rename waypoint"),
                 currentName,
                 (newName) =>
                 {
                     if (waypointManager.RenameWaypoint(waypointId, newName))
                     {
                         waypointNavigator.RefreshList(mapId);
-                        FFV_ScreenReaderMod.SpeakTextDelayed($"Renamed to {newName}");
+                        FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Renamed to {0}"), newName));
                     }
                     else
                     {
-                        FFV_ScreenReaderMod.SpeakTextDelayed("Rename failed");
+                        FFV_ScreenReaderMod.SpeakTextDelayed(T("Rename failed"));
                     }
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed("Rename cancelled");
+                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Rename cancelled"));
                 }
             );
         }
@@ -219,7 +220,7 @@ namespace FFV_ScreenReader.Core
             var waypoint = waypointNavigator.SelectedWaypoint;
             if (waypoint == null)
             {
-                FFV_ScreenReaderMod.SpeakText("No waypoint selected");
+                FFV_ScreenReaderMod.SpeakText(T("No waypoint selected"));
                 return;
             }
 
@@ -227,7 +228,7 @@ namespace FFV_ScreenReader.Core
             string waypointId = waypoint.WaypointId;
 
             ConfirmationDialog.Open(
-                $"Delete {name}?",
+                string.Format(T("Delete {0}?"), name),
                 () =>
                 {
                     waypointManager.RemoveWaypoint(waypointId);
@@ -236,11 +237,11 @@ namespace FFV_ScreenReader.Core
                     waypointNavigator.RefreshList(mapId);
                     waypointNavigator.ClearSelection();
 
-                    FFV_ScreenReaderMod.SpeakTextDelayed($"Removed {name}");
+                    FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Removed {0}"), name));
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed("Cancelled");
+                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Cancelled"));
                 }
             );
         }
@@ -252,32 +253,32 @@ namespace FFV_ScreenReader.Core
 
             if (count == 0)
             {
-                FFV_ScreenReaderMod.SpeakText("No waypoints to clear");
+                FFV_ScreenReaderMod.SpeakText(T("No waypoints to clear"));
                 return;
             }
 
             ConfirmationDialog.Open(
-                $"Delete all {count} waypoints?",
+                string.Format(T("Delete all {0} waypoints?"), count),
                 () =>
                 {
                     ConfirmationDialog.Open(
-                        "Are you absolutely sure?",
+                        T("Are you absolutely sure?"),
                         () =>
                         {
                             int cleared = waypointManager.ClearMapWaypoints(mapId);
                             waypointNavigator.RefreshList(mapId);
                             waypointNavigator.ClearSelection();
-                            FFV_ScreenReaderMod.SpeakTextDelayed($"Cleared {cleared} waypoints");
+                            FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Cleared {0} waypoints"), cleared));
                         },
                         () =>
                         {
-                            FFV_ScreenReaderMod.SpeakTextDelayed("Cancelled");
+                            FFV_ScreenReaderMod.SpeakTextDelayed(T("Cancelled"));
                         }
                     );
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed("Cancelled");
+                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Cancelled"));
                 }
             );
         }

@@ -1,0 +1,932 @@
+{
+  "On": {
+    "en": "On", "ja": "オン", "fr": "Activé", "it": "Attivato",
+    "de": "Ein", "es": "Activado", "ko": "켜짐", "zht": "開啟",
+    "zhc": "开启", "ru": "Вкл", "th": "เปิด", "pt": "Ligado"
+  },
+  "Off": {
+    "en": "Off", "ja": "オフ", "fr": "Désactivé", "it": "Disattivato",
+    "de": "Aus", "es": "Desactivado", "ko": "꺼짐", "zht": "關閉",
+    "zhc": "关闭", "ru": "Выкл", "th": "ปิด", "pt": "Desligado"
+  },
+  "on": {
+    "en": "on", "ja": "オン", "fr": "activé", "it": "attivato",
+    "de": "ein", "es": "activado", "ko": "켜짐", "zht": "開啟",
+    "zhc": "开启", "ru": "вкл", "th": "เปิด", "pt": "ligado"
+  },
+  "off": {
+    "en": "off", "ja": "オフ", "fr": "désactivé", "it": "disattivato",
+    "de": "aus", "es": "desactivado", "ko": "꺼짐", "zht": "關閉",
+    "zhc": "关闭", "ru": "выкл", "th": "ปิด", "pt": "desligado"
+  },
+  "Unknown": {
+    "en": "Unknown", "ja": "不明", "fr": "Inconnu", "it": "Sconosciuto",
+    "de": "Unbekannt", "es": "Desconocido", "ko": "알 수 없음", "zht": "未知",
+    "zhc": "未知", "ru": "Неизвестно", "th": "ไม่ทราบ", "pt": "Desconhecido"
+  },
+  "Audio Feedback": {
+    "en": "Audio Feedback", "ja": "音声フィードバック", "fr": "Retour audio", "it": "Feedback audio",
+    "de": "Audio-Feedback", "es": "Retroalimentación de audio", "ko": "오디오 피드백", "zht": "音訊回饋",
+    "zhc": "音频反馈", "ru": "Звуковая обратная связь", "th": "เสียงตอบกลับ", "pt": "Feedback de áudio"
+  },
+  "Wall Tones": {
+    "en": "Wall Tones", "ja": "壁トーン", "fr": "Sons de mur", "it": "Toni muro",
+    "de": "Wandtöne", "es": "Tonos de pared", "ko": "벽 소리", "zht": "牆壁音效",
+    "zhc": "墙壁音效", "ru": "Звуки стен", "th": "เสียงกำแพง", "pt": "Sons de parede"
+  },
+  "Footsteps": {
+    "en": "Footsteps", "ja": "足音", "fr": "Pas", "it": "Passi",
+    "de": "Schritte", "es": "Pasos", "ko": "발소리", "zht": "腳步聲",
+    "zhc": "脚步声", "ru": "Шаги", "th": "เสียงฝีเท้า", "pt": "Passos"
+  },
+  "Audio Beacons": {
+    "en": "Audio Beacons", "ja": "音声ビーコン", "fr": "Balises audio", "it": "Segnali audio",
+    "de": "Audio-Signale", "es": "Balizas de audio", "ko": "오디오 비콘", "zht": "音訊信標",
+    "zhc": "音频信标", "ru": "Звуковые маяки", "th": "สัญญาณเสียง", "pt": "Sinais de áudio"
+  },
+  "Landing Pings": {
+    "en": "Landing Pings", "ja": "着陸ピング", "fr": "Pings d'atterrissage", "it": "Ping di atterraggio",
+    "de": "Landepings", "es": "Pings de aterrizaje", "ko": "착륙 핑", "zht": "降落提示音",
+    "zhc": "降落提示音", "ru": "Сигналы посадки", "th": "เสียงลงจอด", "pt": "Pings de pouso"
+  },
+  "Volume Controls": {
+    "en": "Volume Controls", "ja": "音量コントロール", "fr": "Contrôles de volume", "it": "Controlli volume",
+    "de": "Lautstärkeregler", "es": "Controles de volumen", "ko": "볼륨 조절", "zht": "音量控制",
+    "zhc": "音量控制", "ru": "Регулировка громкости", "th": "ควบคุมระดับเสียง", "pt": "Controles de volume"
+  },
+  "Wall Bump Volume": {
+    "en": "Wall Bump Volume", "ja": "壁衝突音量", "fr": "Volume collision mur", "it": "Volume urto muro",
+    "de": "Wandstoß-Lautstärke", "es": "Volumen de golpe de pared", "ko": "벽 충돌 볼륨", "zht": "撞牆音量",
+    "zhc": "撞墙音量", "ru": "Громкость столкновения со стеной", "th": "ระดับเสียงชนกำแพง", "pt": "Volume de colisão com parede"
+  },
+  "Footstep Volume": {
+    "en": "Footstep Volume", "ja": "足音音量", "fr": "Volume des pas", "it": "Volume passi",
+    "de": "Schrittlautstärke", "es": "Volumen de pasos", "ko": "발소리 볼륨", "zht": "腳步聲音量",
+    "zhc": "脚步声音量", "ru": "Громкость шагов", "th": "ระดับเสียงฝีเท้า", "pt": "Volume dos passos"
+  },
+  "Wall Tone Volume": {
+    "en": "Wall Tone Volume", "ja": "壁トーン音量", "fr": "Volume sons de mur", "it": "Volume toni muro",
+    "de": "Wandton-Lautstärke", "es": "Volumen de tonos de pared", "ko": "벽 소리 볼륨", "zht": "牆壁音效音量",
+    "zhc": "墙壁音效音量", "ru": "Громкость звуков стен", "th": "ระดับเสียงกำแพง", "pt": "Volume dos sons de parede"
+  },
+  "Beacon Volume": {
+    "en": "Beacon Volume", "ja": "ビーコン音量", "fr": "Volume balise", "it": "Volume segnale",
+    "de": "Signallautstärke", "es": "Volumen de baliza", "ko": "비콘 볼륨", "zht": "信標音量",
+    "zhc": "信标音量", "ru": "Громкость маяка", "th": "ระดับเสียงสัญญาณ", "pt": "Volume do sinal"
+  },
+  "Landing Ping Volume": {
+    "en": "Landing Ping Volume", "ja": "着陸ピング音量", "fr": "Volume ping d'atterrissage", "it": "Volume ping di atterraggio",
+    "de": "Landeping-Lautstärke", "es": "Volumen de ping de aterrizaje", "ko": "착륙 핑 볼륨", "zht": "降落提示音音量",
+    "zhc": "降落提示音音量", "ru": "Громкость сигнала посадки", "th": "ระดับเสียงลงจอด", "pt": "Volume do ping de pouso"
+  },
+  "Navigation Filters": {
+    "en": "Navigation Filters", "ja": "ナビゲーションフィルター", "fr": "Filtres de navigation", "it": "Filtri di navigazione",
+    "de": "Navigationsfilter", "es": "Filtros de navegación", "ko": "내비게이션 필터", "zht": "導航篩選器",
+    "zhc": "导航筛选器", "ru": "Фильтры навигации", "th": "ตัวกรองการนำทาง", "pt": "Filtros de navegação"
+  },
+  "Pathfinding Filter": {
+    "en": "Pathfinding Filter", "ja": "経路探索フィルター", "fr": "Filtre de recherche de chemin", "it": "Filtro percorso",
+    "de": "Pfadfindungsfilter", "es": "Filtro de búsqueda de ruta", "ko": "경로 탐색 필터", "zht": "尋路篩選器",
+    "zhc": "寻路筛选器", "ru": "Фильтр поиска пути", "th": "ตัวกรองการค้นหาเส้นทาง", "pt": "Filtro de busca de caminho"
+  },
+  "Map Exit Filter": {
+    "en": "Map Exit Filter", "ja": "マップ出口フィルター", "fr": "Filtre sortie de carte", "it": "Filtro uscita mappa",
+    "de": "Kartenausgangsfilter", "es": "Filtro de salida de mapa", "ko": "맵 출구 필터", "zht": "地圖出口篩選器",
+    "zhc": "地图出口筛选器", "ru": "Фильтр выходов карты", "th": "ตัวกรองทางออกแผนที่", "pt": "Filtro de saída do mapa"
+  },
+  "Layer Transition Filter": {
+    "en": "Layer Transition Filter", "ja": "レイヤー遷移フィルター", "fr": "Filtre transition de couche", "it": "Filtro transizione livello",
+    "de": "Ebenenübergangsfilter", "es": "Filtro de transición de capa", "ko": "레이어 전환 필터", "zht": "圖層轉換篩選器",
+    "zhc": "图层转换筛选器", "ru": "Фильтр перехода слоёв", "th": "ตัวกรองการเปลี่ยนชั้น", "pt": "Filtro de transição de camada"
+  },
+  "Battle Results": {
+    "en": "Battle Results", "ja": "戦闘結果", "fr": "Résultats de combat", "it": "Risultati battaglia",
+    "de": "Kampfergebnisse", "es": "Resultados de batalla", "ko": "전투 결과", "zht": "戰鬥結果",
+    "zhc": "战斗结果", "ru": "Результаты боя", "th": "ผลการต่อสู้", "pt": "Resultados de batalha"
+  },
+  "EXP Counter Sound": {
+    "en": "EXP Counter Sound", "ja": "経験値カウンター音", "fr": "Son compteur EXP", "it": "Suono contatore EXP",
+    "de": "EXP-Zähler-Ton", "es": "Sonido del contador de EXP", "ko": "경험치 카운터 소리", "zht": "經驗值計數器音效",
+    "zhc": "经验值计数器音效", "ru": "Звук счётчика опыта", "th": "เสียงตัวนับค่าประสบการณ์", "pt": "Som do contador de EXP"
+  },
+  "EXP Counter Volume": {
+    "en": "EXP Counter Volume", "ja": "経験値カウンター音量", "fr": "Volume compteur EXP", "it": "Volume contatore EXP",
+    "de": "EXP-Zähler-Lautstärke", "es": "Volumen del contador de EXP", "ko": "경험치 카운터 볼륨", "zht": "經驗值計數器音量",
+    "zhc": "经验值计数器音量", "ru": "Громкость счётчика опыта", "th": "ระดับเสียงตัวนับค่าประสบการณ์", "pt": "Volume do contador de EXP"
+  },
+  "Battle Settings": {
+    "en": "Battle Settings", "ja": "戦闘設定", "fr": "Paramètres de combat", "it": "Impostazioni battaglia",
+    "de": "Kampfeinstellungen", "es": "Configuración de batalla", "ko": "전투 설정", "zht": "戰鬥設定",
+    "zhc": "战斗设置", "ru": "Настройки боя", "th": "ตั้งค่าการต่อสู้", "pt": "Configurações de batalha"
+  },
+  "Enemy HP Display": {
+    "en": "Enemy HP Display", "ja": "敵HP表示", "fr": "Affichage PV ennemi", "it": "Visualizzazione HP nemico",
+    "de": "Gegner-HP-Anzeige", "es": "Pantalla de HP enemigo", "ko": "적 HP 표시", "zht": "敵人HP顯示",
+    "zhc": "敌人HP显示", "ru": "Отображение HP врага", "th": "แสดง HP ศัตรู", "pt": "Exibição de HP do inimigo"
+  },
+  "Numbers": {
+    "en": "Numbers", "ja": "数値", "fr": "Nombres", "it": "Numeri",
+    "de": "Zahlen", "es": "Números", "ko": "숫자", "zht": "數值",
+    "zhc": "数值", "ru": "Числа", "th": "ตัวเลข", "pt": "Números"
+  },
+  "Percentage": {
+    "en": "Percentage", "ja": "パーセント", "fr": "Pourcentage", "it": "Percentuale",
+    "de": "Prozentsatz", "es": "Porcentaje", "ko": "퍼센트", "zht": "百分比",
+    "zhc": "百分比", "ru": "Процент", "th": "เปอร์เซ็นต์", "pt": "Porcentagem"
+  },
+  "Hidden": {
+    "en": "Hidden", "ja": "非表示", "fr": "Masqué", "it": "Nascosto",
+    "de": "Versteckt", "es": "Oculto", "ko": "숨김", "zht": "隱藏",
+    "zhc": "隐藏", "ru": "Скрыто", "th": "ซ่อน", "pt": "Oculto"
+  },
+  "Close Menu": {
+    "en": "Close Menu", "ja": "メニューを閉じる", "fr": "Fermer le menu", "it": "Chiudi menu",
+    "de": "Menü schließen", "es": "Cerrar menú", "ko": "메뉴 닫기", "zht": "關閉選單",
+    "zhc": "关闭菜单", "ru": "Закрыть меню", "th": "ปิดเมนู", "pt": "Fechar menu"
+  },
+  "Mod menu": {
+    "en": "Mod menu", "ja": "Modメニュー", "fr": "Menu mod", "it": "Menu mod",
+    "de": "Mod-Menü", "es": "Menú de mod", "ko": "모드 메뉴", "zht": "Mod選單",
+    "zhc": "Mod菜单", "ru": "Меню мода", "th": "เมนูม็อด", "pt": "Menu do mod"
+  },
+  "No entities nearby": {
+    "en": "No entities nearby", "ja": "近くにエンティティがありません", "fr": "Aucune entité à proximité", "it": "Nessuna entità nelle vicinanze",
+    "de": "Keine Objekte in der Nähe", "es": "No hay entidades cercanas", "ko": "근처에 개체가 없습니다", "zht": "附近沒有實體",
+    "zhc": "附近没有实体", "ru": "Поблизости нет объектов", "th": "ไม่มีวัตถุใกล้เคียง", "pt": "Nenhuma entidade por perto"
+  },
+  "Not in field": {
+    "en": "Not in field", "ja": "フィールド外", "fr": "Pas sur le terrain", "it": "Non nel campo",
+    "de": "Nicht im Feld", "es": "No en el campo", "ko": "필드에 있지 않음", "zht": "不在場景中",
+    "zhc": "不在场景中", "ru": "Не в поле", "th": "ไม่อยู่ในสนาม", "pt": "Não está no campo"
+  },
+  "Not on map": {
+    "en": "Not on map", "ja": "マップ外", "fr": "Pas sur la carte", "it": "Non sulla mappa",
+    "de": "Nicht auf der Karte", "es": "No en el mapa", "ko": "맵에 있지 않음", "zht": "不在地圖上",
+    "zhc": "不在地图上", "ru": "Не на карте", "th": "ไม่อยู่บนแผนที่", "pt": "Não está no mapa"
+  },
+  "no path": {
+    "en": "no path", "ja": "経路なし", "fr": "pas de chemin", "it": "nessun percorso",
+    "de": "kein Pfad", "es": "sin ruta", "ko": "경로 없음", "zht": "無路徑",
+    "zhc": "无路径", "ru": "нет пути", "th": "ไม่มีเส้นทาง", "pt": "sem caminho"
+  },
+  "No pathable entities found": {
+    "en": "No pathable entities found", "ja": "経路探索可能なエンティティが見つかりません", "fr": "Aucune entité accessible trouvée", "it": "Nessuna entità raggiungibile trovata",
+    "de": "Keine erreichbaren Objekte gefunden", "es": "No se encontraron entidades accesibles", "ko": "경로 탐색 가능한 개체를 찾을 수 없습니다", "zht": "找不到可尋路的實體",
+    "zhc": "找不到可寻路的实体", "ru": "Доступные объекты не найдены", "th": "ไม่พบวัตถุที่สามารถค้นหาเส้นทางได้", "pt": "Nenhuma entidade acessível encontrada"
+  },
+  "Already in All category": {
+    "en": "Already in All category", "ja": "すでに全カテゴリにいます", "fr": "Déjà dans la catégorie Tout", "it": "Già nella categoria Tutti",
+    "de": "Bereits in Kategorie Alle", "es": "Ya en la categoría Todos", "ko": "이미 전체 카테고리에 있습니다", "zht": "已在全部類別中",
+    "zhc": "已在全部类别中", "ru": "Уже в категории Все", "th": "อยู่ในหมวดหมู่ทั้งหมดแล้ว", "pt": "Já está na categoria Todos"
+  },
+  "No entity selected": {
+    "en": "No entity selected", "ja": "エンティティが選択されていません", "fr": "Aucune entité sélectionnée", "it": "Nessuna entità selezionata",
+    "de": "Kein Objekt ausgewählt", "es": "No hay entidad seleccionada", "ko": "선택된 개체가 없습니다", "zht": "未選擇實體",
+    "zhc": "未选择实体", "ru": "Объект не выбран", "th": "ไม่ได้เลือกวัตถุ", "pt": "Nenhuma entidade selecionada"
+  },
+  "Player not available": {
+    "en": "Player not available", "ja": "プレイヤーが利用できません", "fr": "Joueur non disponible", "it": "Giocatore non disponibile",
+    "de": "Spieler nicht verfügbar", "es": "Jugador no disponible", "ko": "플레이어를 사용할 수 없습니다", "zht": "玩家不可用",
+    "zhc": "玩家不可用", "ru": "Игрок недоступен", "th": "ผู้เล่นไม่พร้อมใช้งาน", "pt": "Jogador não disponível"
+  },
+  "Entering {0}": {
+    "en": "Entering {0}", "ja": "{0}に入ります", "fr": "Entrée dans {0}", "it": "Ingresso in {0}",
+    "de": "{0} betreten", "es": "Entrando en {0}", "ko": "{0} 진입 중", "zht": "進入{0}",
+    "zhc": "进入{0}", "ru": "Вход в {0}", "th": "กำลังเข้า {0}", "pt": "Entrando em {0}"
+  },
+  "Pathfinding filter {0}": {
+    "en": "Pathfinding filter {0}", "ja": "経路探索フィルター {0}", "fr": "Filtre de recherche de chemin {0}", "it": "Filtro percorso {0}",
+    "de": "Pfadfindungsfilter {0}", "es": "Filtro de búsqueda de ruta {0}", "ko": "경로 탐색 필터 {0}", "zht": "尋路篩選器 {0}",
+    "zhc": "寻路筛选器 {0}", "ru": "Фильтр поиска пути {0}", "th": "ตัวกรองการค้นหาเส้นทาง {0}", "pt": "Filtro de busca de caminho {0}"
+  },
+  "Map exit filter {0}": {
+    "en": "Map exit filter {0}", "ja": "マップ出口フィルター {0}", "fr": "Filtre sortie de carte {0}", "it": "Filtro uscita mappa {0}",
+    "de": "Kartenausgangsfilter {0}", "es": "Filtro de salida de mapa {0}", "ko": "맵 출구 필터 {0}", "zht": "地圖出口篩選器 {0}",
+    "zhc": "地图出口筛选器 {0}", "ru": "Фильтр выходов карты {0}", "th": "ตัวกรองทางออกแผนที่ {0}", "pt": "Filtro de saída do mapa {0}"
+  },
+  "Layer transition filter {0}": {
+    "en": "Layer transition filter {0}", "ja": "レイヤー遷移フィルター {0}", "fr": "Filtre transition de couche {0}", "it": "Filtro transizione livello {0}",
+    "de": "Ebenenübergangsfilter {0}", "es": "Filtro de transición de capa {0}", "ko": "레이어 전환 필터 {0}", "zht": "圖層轉換篩選器 {0}",
+    "zhc": "图层转换筛选器 {0}", "ru": "Фильтр перехода слоёв {0}", "th": "ตัวกรองการเปลี่ยนชั้น {0}", "pt": "Filtro de transição de camada {0}"
+  },
+  "Teleported {0} of {1}": {
+    "en": "Teleported {0} of {1}", "ja": "{1}中{0}にテレポートしました", "fr": "Téléporté {0} sur {1}", "it": "Teletrasportato {0} di {1}",
+    "de": "{0} von {1} teleportiert", "es": "Teletransportado {0} de {1}", "ko": "{1} 중 {0} 텔레포트됨", "zht": "已傳送 {0}/{1}",
+    "zhc": "已传送 {0}/{1}", "ru": "Телепортировано {0} из {1}", "th": "เทเลพอร์ต {0} จาก {1}", "pt": "Teletransportado {0} de {1}"
+  },
+  "Category: {0}": {
+    "en": "Category: {0}", "ja": "カテゴリ: {0}", "fr": "Catégorie : {0}", "it": "Categoria: {0}",
+    "de": "Kategorie: {0}", "es": "Categoría: {0}", "ko": "카테고리: {0}", "zht": "類別：{0}",
+    "zhc": "类别：{0}", "ru": "Категория: {0}", "th": "หมวดหมู่: {0}", "pt": "Categoria: {0}"
+  },
+  "{1} {2}": {
+    "en": "{1} {2}", "ja": "{1} {2}", "fr": "{1} {2}", "it": "{1} {2}",
+    "de": "{1} {2}", "es": "{1} {2}", "ko": "{1} {2}", "zht": "{1} {2}",
+    "zhc": "{1} {2}", "ru": "{1} {2}", "th": "{1} {2}", "pt": "{1} {2}"
+  },
+  "entity": {
+    "en": "entity", "ja": "エンティティ", "fr": "entité", "it": "entità",
+    "de": "Objekt", "es": "entidad", "ko": "개체", "zht": "實體",
+    "zhc": "实体", "ru": "объект", "th": "วัตถุ", "pt": "entidade"
+  },
+  "entities": {
+    "en": "entities", "ja": "エンティティ", "fr": "entités", "it": "entità",
+    "de": "Objekte", "es": "entidades", "ko": "개체", "zht": "實體",
+    "zhc": "实体", "ru": "объекты", "th": "วัตถุ", "pt": "entidades"
+  },
+  "{0} of {1}": {
+    "en": "{0} of {1}", "ja": "{1}中{0}", "fr": "{0} sur {1}", "it": "{0} di {1}",
+    "de": "{0} von {1}", "es": "{0} de {1}", "ko": "{1} 중 {0}", "zht": "{0}/{1}",
+    "zhc": "{0}/{1}", "ru": "{0} из {1}", "th": "{0} จาก {1}", "pt": "{0} de {1}"
+  },
+  "north": {
+    "en": "north", "ja": "北", "fr": "nord", "it": "nord",
+    "de": "Norden", "es": "norte", "ko": "북", "zht": "北",
+    "zhc": "北", "ru": "север", "th": "เหนือ", "pt": "norte"
+  },
+  "south": {
+    "en": "south", "ja": "南", "fr": "sud", "it": "sud",
+    "de": "Süden", "es": "sur", "ko": "남", "zht": "南",
+    "zhc": "南", "ru": "юг", "th": "ใต้", "pt": "sul"
+  },
+  "west": {
+    "en": "west", "ja": "西", "fr": "ouest", "it": "ovest",
+    "de": "Westen", "es": "oeste", "ko": "서", "zht": "西",
+    "zhc": "西", "ru": "запад", "th": "ตะวันตก", "pt": "oeste"
+  },
+  "east": {
+    "en": "east", "ja": "東", "fr": "est", "it": "est",
+    "de": "Osten", "es": "este", "ko": "동", "zht": "東",
+    "zhc": "东", "ru": "восток", "th": "ตะวันออก", "pt": "leste"
+  },
+  "unknown": {
+    "en": "unknown", "ja": "不明", "fr": "inconnu", "it": "sconosciuto",
+    "de": "unbekannt", "es": "desconocido", "ko": "알 수 없음", "zht": "未知",
+    "zhc": "未知", "ru": "неизвестно", "th": "ไม่ทราบ", "pt": "desconhecido"
+  },
+  "North": {
+    "en": "North", "ja": "北", "fr": "Nord", "it": "Nord",
+    "de": "Norden", "es": "Norte", "ko": "북", "zht": "北",
+    "zhc": "北", "ru": "Север", "th": "เหนือ", "pt": "Norte"
+  },
+  "South": {
+    "en": "South", "ja": "南", "fr": "Sud", "it": "Sud",
+    "de": "Süden", "es": "Sur", "ko": "남", "zht": "南",
+    "zhc": "南", "ru": "Юг", "th": "ใต้", "pt": "Sul"
+  },
+  "East": {
+    "en": "East", "ja": "東", "fr": "Est", "it": "Est",
+    "de": "Osten", "es": "Este", "ko": "동", "zht": "東",
+    "zhc": "东", "ru": "Восток", "th": "ตะวันออก", "pt": "Leste"
+  },
+  "West": {
+    "en": "West", "ja": "西", "fr": "Ouest", "it": "Ovest",
+    "de": "Westen", "es": "Oeste", "ko": "서", "zht": "西",
+    "zhc": "西", "ru": "Запад", "th": "ตะวันตก", "pt": "Oeste"
+  },
+  "Northwest": {
+    "en": "Northwest", "ja": "北西", "fr": "Nord-ouest", "it": "Nord-ovest",
+    "de": "Nordwesten", "es": "Noroeste", "ko": "북서", "zht": "西北",
+    "zhc": "西北", "ru": "Северо-запад", "th": "ตะวันตกเฉียงเหนือ", "pt": "Noroeste"
+  },
+  "Northeast": {
+    "en": "Northeast", "ja": "北東", "fr": "Nord-est", "it": "Nord-est",
+    "de": "Nordosten", "es": "Noreste", "ko": "북동", "zht": "東北",
+    "zhc": "东北", "ru": "Северо-восток", "th": "ตะวันออกเฉียงเหนือ", "pt": "Nordeste"
+  },
+  "Southwest": {
+    "en": "Southwest", "ja": "南西", "fr": "Sud-ouest", "it": "Sud-ovest",
+    "de": "Südwesten", "es": "Suroeste", "ko": "남서", "zht": "西南",
+    "zhc": "西南", "ru": "Юго-запад", "th": "ตะวันตกเฉียงใต้", "pt": "Sudoeste"
+  },
+  "Southeast": {
+    "en": "Southeast", "ja": "南東", "fr": "Sud-est", "it": "Sud-est",
+    "de": "Südosten", "es": "Sureste", "ko": "남동", "zht": "東南",
+    "zhc": "东南", "ru": "Юго-восток", "th": "ตะวันออกเฉียงใต้", "pt": "Sudeste"
+  },
+  "All": {
+    "en": "All", "ja": "全て", "fr": "Tout", "it": "Tutti",
+    "de": "Alle", "es": "Todos", "ko": "전체", "zht": "全部",
+    "zhc": "全部", "ru": "Все", "th": "ทั้งหมด", "pt": "Todos"
+  },
+  "Chests": {
+    "en": "Chests", "ja": "宝箱", "fr": "Coffres", "it": "Forzieri",
+    "de": "Truhen", "es": "Cofres", "ko": "보물상자", "zht": "寶箱",
+    "zhc": "宝箱", "ru": "Сундуки", "th": "หีบสมบัติ", "pt": "Baús"
+  },
+  "NPCs": {
+    "en": "NPCs", "ja": "NPC", "fr": "PNJ", "it": "PNG",
+    "de": "NPCs", "es": "NPCs", "ko": "NPC", "zht": "NPC",
+    "zhc": "NPC", "ru": "NPC", "th": "NPC", "pt": "NPCs"
+  },
+  "Map Exits": {
+    "en": "Map Exits", "ja": "マップ出口", "fr": "Sorties de carte", "it": "Uscite mappa",
+    "de": "Kartenausgänge", "es": "Salidas de mapa", "ko": "맵 출구", "zht": "地圖出口",
+    "zhc": "地图出口", "ru": "Выходы с карты", "th": "ทางออกแผนที่", "pt": "Saídas do mapa"
+  },
+  "Events": {
+    "en": "Events", "ja": "イベント", "fr": "Événements", "it": "Eventi",
+    "de": "Ereignisse", "es": "Eventos", "ko": "이벤트", "zht": "事件",
+    "zhc": "事件", "ru": "События", "th": "เหตุการณ์", "pt": "Eventos"
+  },
+  "Vehicles": {
+    "en": "Vehicles", "ja": "乗り物", "fr": "Véhicules", "it": "Veicoli",
+    "de": "Fahrzeuge", "es": "Vehículos", "ko": "탈것", "zht": "載具",
+    "zhc": "载具", "ru": "Транспорт", "th": "ยานพาหนะ", "pt": "Veículos"
+  },
+  "Waypoints": {
+    "en": "Waypoints", "ja": "ウェイポイント", "fr": "Points de repère", "it": "Punti di riferimento",
+    "de": "Wegpunkte", "es": "Puntos de referencia", "ko": "경유지", "zht": "路標點",
+    "zhc": "路标点", "ru": "Путевые точки", "th": "จุดอ้างอิง", "pt": "Pontos de referência"
+  },
+  "Yes": {
+    "en": "Yes", "ja": "はい", "fr": "Oui", "it": "Sì",
+    "de": "Ja", "es": "Sí", "ko": "예", "zht": "是",
+    "zhc": "是", "ru": "Да", "th": "ใช่", "pt": "Sim"
+  },
+  "No": {
+    "en": "No", "ja": "いいえ", "fr": "Non", "it": "No",
+    "de": "Nein", "es": "No", "ko": "아니요", "zht": "否",
+    "zhc": "否", "ru": "Нет", "th": "ไม่", "pt": "Não"
+  },
+  "Cancelled": {
+    "en": "Cancelled", "ja": "キャンセル", "fr": "Annulé", "it": "Annullato",
+    "de": "Abgebrochen", "es": "Cancelado", "ko": "취소됨", "zht": "已取消",
+    "zhc": "已取消", "ru": "Отменено", "th": "ยกเลิก", "pt": "Cancelado"
+  },
+  "{0} Yes or No": {
+    "en": "{0} Yes or No", "ja": "{0} はいまたはいいえ", "fr": "{0} Oui ou Non", "it": "{0} Sì o No",
+    "de": "{0} Ja oder Nein", "es": "{0} Sí o No", "ko": "{0} 예 또는 아니요", "zht": "{0} 是或否",
+    "zhc": "{0} 是或否", "ru": "{0} Да или Нет", "th": "{0} ใช่หรือไม่", "pt": "{0} Sim ou Não"
+  },
+  "Not available in battle": {
+    "en": "Not available in battle", "ja": "戦闘中は使用できません", "fr": "Non disponible en combat", "it": "Non disponibile in battaglia",
+    "de": "Im Kampf nicht verfügbar", "es": "No disponible en batalla", "ko": "전투 중에는 사용할 수 없습니다", "zht": "戰鬥中不可用",
+    "zhc": "战斗中不可用", "ru": "Недоступно в бою", "th": "ไม่สามารถใช้ในการต่อสู้", "pt": "Não disponível em batalha"
+  },
+  "Unavailable in battle": {
+    "en": "Unavailable in battle", "ja": "戦闘中は利用不可", "fr": "Indisponible en combat", "it": "Non utilizzabile in battaglia",
+    "de": "Im Kampf nicht nutzbar", "es": "No utilizable en batalla", "ko": "전투 중 이용 불가", "zht": "戰鬥中無法使用",
+    "zhc": "战斗中无法使用", "ru": "Недоступно в бою", "th": "ใช้ไม่ได้ในการต่อสู้", "pt": "Indisponível em batalha"
+  },
+  "Only available in battle": {
+    "en": "Only available in battle", "ja": "戦闘中のみ使用可能", "fr": "Disponible uniquement en combat", "it": "Disponibile solo in battaglia",
+    "de": "Nur im Kampf verfügbar", "es": "Solo disponible en batalla", "ko": "전투 중에만 사용 가능", "zht": "僅在戰鬥中可用",
+    "zhc": "仅在战斗中可用", "ru": "Доступно только в бою", "th": "ใช้ได้เฉพาะในการต่อสู้", "pt": "Disponível apenas em batalha"
+  },
+  "Unavailable outside of battle": {
+    "en": "Unavailable outside of battle", "ja": "戦闘外では利用不可", "fr": "Indisponible hors combat", "it": "Non disponibile fuori dalla battaglia",
+    "de": "Außerhalb des Kampfes nicht verfügbar", "es": "No disponible fuera de batalla", "ko": "전투 외에는 이용 불가", "zht": "戰鬥外無法使用",
+    "zhc": "战斗外无法使用", "ru": "Недоступно вне боя", "th": "ใช้ไม่ได้นอกการต่อสู้", "pt": "Indisponível fora de batalha"
+  },
+  "Not in battle or no active character": {
+    "en": "Not in battle or no active character", "ja": "戦闘中でないかアクティブなキャラクターがいません", "fr": "Pas en combat ou aucun personnage actif", "it": "Non in battaglia o nessun personaggio attivo",
+    "de": "Nicht im Kampf oder kein aktiver Charakter", "es": "No en batalla o sin personaje activo", "ko": "전투 중이 아니거나 활성 캐릭터가 없습니다", "zht": "不在戰鬥中或沒有活動角色",
+    "zhc": "不在战斗中或没有活动角色", "ru": "Не в бою или нет активного персонажа", "th": "ไม่อยู่ในการต่อสู้หรือไม่มีตัวละครที่ใช้งาน", "pt": "Não está em batalha ou sem personagem ativo"
+  },
+  "{0}, status information not available": {
+    "en": "{0}, status information not available", "ja": "{0}、ステータス情報は利用できません", "fr": "{0}, informations de statut non disponibles", "it": "{0}, informazioni sullo stato non disponibili",
+    "de": "{0}, Statusinformationen nicht verfügbar", "es": "{0}, información de estado no disponible", "ko": "{0}, 상태 정보를 사용할 수 없습니다", "zht": "{0}，狀態資訊不可用",
+    "zhc": "{0}，状态信息不可用", "ru": "{0}, информация о статусе недоступна", "th": "{0} ข้อมูลสถานะไม่พร้อมใช้งาน", "pt": "{0}, informações de status não disponíveis"
+  },
+  "Error reading character status": {
+    "en": "Error reading character status", "ja": "キャラクターステータスの読み取りエラー", "fr": "Erreur de lecture du statut du personnage", "it": "Errore nella lettura dello stato del personaggio",
+    "de": "Fehler beim Lesen des Charakterstatus", "es": "Error al leer el estado del personaje", "ko": "캐릭터 상태 읽기 오류", "zht": "讀取角色狀態時出錯",
+    "zhc": "读取角色状态时出错", "ru": "Ошибка чтения статуса персонажа", "th": "ข้อผิดพลาดในการอ่านสถานะตัวละคร", "pt": "Erro ao ler status do personagem"
+  },
+  "Enemy HP: {0}": {
+    "en": "Enemy HP: {0}", "ja": "敵HP: {0}", "fr": "PV ennemi : {0}", "it": "HP nemico: {0}",
+    "de": "Gegner-HP: {0}", "es": "HP enemigo: {0}", "ko": "적 HP: {0}", "zht": "敵人HP：{0}",
+    "zhc": "敌人HP：{0}", "ru": "HP врага: {0}", "th": "HP ศัตรู: {0}", "pt": "HP do inimigo: {0}"
+  },
+  "{0}'s turn": {
+    "en": "{0}'s turn", "ja": "{0}のターン", "fr": "Tour de {0}", "it": "Turno di {0}",
+    "de": "{0}s Zug", "es": "Turno de {0}", "ko": "{0}의 턴", "zht": "{0}的回合",
+    "zhc": "{0}的回合", "ru": "Ход {0}", "th": "ตาของ {0}", "pt": "Vez de {0}"
+  },
+  "{0} gil": {
+    "en": "{0} gil", "ja": "{0}ギル", "fr": "{0} gils", "it": "{0} guil",
+    "de": "{0} Gil", "es": "{0} gil", "ko": "{0} 길", "zht": "{0}乙太幣",
+    "zhc": "{0}金币", "ru": "{0} гил", "th": "{0} กิล", "pt": "{0} gil"
+  },
+  "Error reading gil amount": {
+    "en": "Error reading gil amount", "ja": "ギル金額の読み取りエラー", "fr": "Erreur de lecture du montant de gils", "it": "Errore nella lettura dell'importo di guil",
+    "de": "Fehler beim Lesen des Gil-Betrags", "es": "Error al leer la cantidad de gil", "ko": "길 금액 읽기 오류", "zht": "讀取金幣數量時出錯",
+    "zhc": "读取金币数量时出错", "ru": "Ошибка чтения количества гил", "th": "ข้อผิดพลาดในการอ่านจำนวนกิล", "pt": "Erro ao ler quantidade de gil"
+  },
+  "Error reading map name": {
+    "en": "Error reading map name", "ja": "マップ名の読み取りエラー", "fr": "Erreur de lecture du nom de la carte", "it": "Errore nella lettura del nome della mappa",
+    "de": "Fehler beim Lesen des Kartennamens", "es": "Error al leer el nombre del mapa", "ko": "맵 이름 읽기 오류", "zht": "讀取地圖名稱時出錯",
+    "zhc": "读取地图名称时出错", "ru": "Ошибка чтения названия карты", "th": "ข้อผิดพลาดในการอ่านชื่อแผนที่", "pt": "Erro ao ler nome do mapa"
+  },
+  "Wall tones {0}": {
+    "en": "Wall tones {0}", "ja": "壁トーン {0}", "fr": "Sons de mur {0}", "it": "Toni muro {0}",
+    "de": "Wandtöne {0}", "es": "Tonos de pared {0}", "ko": "벽 소리 {0}", "zht": "牆壁音效 {0}",
+    "zhc": "墙壁音效 {0}", "ru": "Звуки стен {0}", "th": "เสียงกำแพง {0}", "pt": "Sons de parede {0}"
+  },
+  "Footsteps {0}": {
+    "en": "Footsteps {0}", "ja": "足音 {0}", "fr": "Pas {0}", "it": "Passi {0}",
+    "de": "Schritte {0}", "es": "Pasos {0}", "ko": "발소리 {0}", "zht": "腳步聲 {0}",
+    "zhc": "脚步声 {0}", "ru": "Шаги {0}", "th": "เสียงฝีเท้า {0}", "pt": "Passos {0}"
+  },
+  "Audio beacons {0}": {
+    "en": "Audio beacons {0}", "ja": "音声ビーコン {0}", "fr": "Balises audio {0}", "it": "Segnali audio {0}",
+    "de": "Audio-Signale {0}", "es": "Balizas de audio {0}", "ko": "오디오 비콘 {0}", "zht": "音訊信標 {0}",
+    "zhc": "音频信标 {0}", "ru": "Звуковые маяки {0}", "th": "สัญญาณเสียง {0}", "pt": "Sinais de áudio {0}"
+  },
+  "EXP counter {0}": {
+    "en": "EXP counter {0}", "ja": "経験値カウンター {0}", "fr": "Compteur EXP {0}", "it": "Contatore EXP {0}",
+    "de": "EXP-Zähler {0}", "es": "Contador de EXP {0}", "ko": "경험치 카운터 {0}", "zht": "經驗值計數器 {0}",
+    "zhc": "经验值计数器 {0}", "ru": "Счётчик опыта {0}", "th": "ตัวนับค่าประสบการณ์ {0}", "pt": "Contador de EXP {0}"
+  },
+  "Running": {
+    "en": "Running", "ja": "走行中", "fr": "Course", "it": "Corsa",
+    "de": "Rennen", "es": "Corriendo", "ko": "달리기", "zht": "奔跑中",
+    "zhc": "奔跑中", "ru": "Бег", "th": "วิ่ง", "pt": "Correndo"
+  },
+  "Walking": {
+    "en": "Walking", "ja": "歩行中", "fr": "Marche", "it": "Camminata",
+    "de": "Gehen", "es": "Caminando", "ko": "걷기", "zht": "步行中",
+    "zhc": "步行中", "ru": "Ходьба", "th": "เดิน", "pt": "Andando"
+  },
+  "On foot": {
+    "en": "On foot", "ja": "徒歩", "fr": "À pied", "it": "A piedi",
+    "de": "Zu Fuß", "es": "A pie", "ko": "도보", "zht": "步行",
+    "zhc": "步行", "ru": "Пешком", "th": "เดินเท้า", "pt": "A pé"
+  },
+  "On {0}": {
+    "en": "On {0}", "ja": "{0}に乗っている", "fr": "Sur {0}", "it": "Su {0}",
+    "de": "Auf {0}", "es": "En {0}", "ko": "{0} 탑승 중", "zht": "乘坐{0}",
+    "zhc": "乘坐{0}", "ru": "На {0}", "th": "บน {0}", "pt": "Em {0}"
+  },
+  "Can land": {
+    "en": "Can land", "ja": "着陸可能", "fr": "Peut atterrir", "it": "Può atterrare",
+    "de": "Kann landen", "es": "Puede aterrizar", "ko": "착륙 가능", "zht": "可以降落",
+    "zhc": "可以降落", "ru": "Можно приземлиться", "th": "สามารถลงจอดได้", "pt": "Pode pousar"
+  },
+  "ship": {
+    "en": "ship", "ja": "船", "fr": "navire", "it": "nave",
+    "de": "Schiff", "es": "barco", "ko": "배", "zht": "船",
+    "zhc": "船", "ru": "корабль", "th": "เรือ", "pt": "navio"
+  },
+  "airship": {
+    "en": "airship", "ja": "飛空艇", "fr": "aéronef", "it": "aeronave",
+    "de": "Luftschiff", "es": "aeronave", "ko": "비공정", "zht": "飛空艇",
+    "zhc": "飞空艇", "ru": "воздушный корабль", "th": "เรือบิน", "pt": "aeronave"
+  },
+  "submarine": {
+    "en": "submarine", "ja": "潜水艦", "fr": "sous-marin", "it": "sottomarino",
+    "de": "U-Boot", "es": "submarino", "ko": "잠수함", "zht": "潛水艇",
+    "zhc": "潜水艇", "ru": "подводная лодка", "th": "เรือดำน้ำ", "pt": "submarino"
+  },
+  "wind drake": {
+    "en": "wind drake", "ja": "飛竜", "fr": "dragon du vent", "it": "drago del vento",
+    "de": "Winddrache", "es": "dragón del viento", "ko": "비룡", "zht": "飛龍",
+    "zhc": "飞龙", "ru": "ветряной дракон", "th": "มังกรลม", "pt": "dragão do vento"
+  },
+  "chocobo": {
+    "en": "chocobo", "ja": "チョコボ", "fr": "chocobo", "it": "chocobo",
+    "de": "Chocobo", "es": "chocobo", "ko": "초코보", "zht": "陸行鳥",
+    "zhc": "陆行鸟", "ru": "чокобо", "th": "โชโกโบ", "pt": "chocobo"
+  },
+  "black chocobo": {
+    "en": "black chocobo", "ja": "黒チョコボ", "fr": "chocobo noir", "it": "chocobo nero",
+    "de": "Schwarzer Chocobo", "es": "chocobo negro", "ko": "검은 초코보", "zht": "黑色陸行鳥",
+    "zhc": "黑色陆行鸟", "ru": "чёрный чокобо", "th": "โชโกโบดำ", "pt": "chocobo preto"
+  },
+  "magical armor": {
+    "en": "magical armor", "ja": "魔導アーマー", "fr": "armure magique", "it": "armatura magica",
+    "de": "Magische Rüstung", "es": "armadura mágica", "ko": "마도 아머", "zht": "魔導裝甲",
+    "zhc": "魔导装甲", "ru": "магическая броня", "th": "ชุดเกราะเวทมนตร์", "pt": "armadura mágica"
+  },
+  "Stole {0}": {
+    "en": "Stole {0}", "ja": "{0}を盗んだ", "fr": "{0} volé", "it": "Rubato {0}",
+    "de": "{0} gestohlen", "es": "Robó {0}", "ko": "{0}을(를) 훔쳤습니다", "zht": "偷取了{0}",
+    "zhc": "偷取了{0}", "ru": "Украдено: {0}", "th": "ขโมย {0}", "pt": "Roubou {0}"
+  },
+  "Stole {0} x{1}": {
+    "en": "Stole {0} x{1}", "ja": "{0}を{1}個盗んだ", "fr": "{0} x{1} volé", "it": "Rubato {0} x{1}",
+    "de": "{0} x{1} gestohlen", "es": "Robó {0} x{1}", "ko": "{0} x{1}을(를) 훔쳤습니다", "zht": "偷取了{0} x{1}",
+    "zhc": "偷取了{0} x{1}", "ru": "Украдено: {0} x{1}", "th": "ขโมย {0} x{1}", "pt": "Roubou {0} x{1}"
+  },
+  "Stole item": {
+    "en": "Stole item", "ja": "アイテムを盗んだ", "fr": "Objet volé", "it": "Oggetto rubato",
+    "de": "Gegenstand gestohlen", "es": "Objeto robado", "ko": "아이템을 훔쳤습니다", "zht": "偷取了物品",
+    "zhc": "偷取了物品", "ru": "Предмет украден", "th": "ขโมยไอเทม", "pt": "Roubou item"
+  },
+  "Status {0}": {
+    "en": "Status {0}", "ja": "ステータス {0}", "fr": "Statut {0}", "it": "Stato {0}",
+    "de": "Status {0}", "es": "Estado {0}", "ko": "상태 {0}", "zht": "狀態 {0}",
+    "zhc": "状态 {0}", "ru": "Статус {0}", "th": "สถานะ {0}", "pt": "Status {0}"
+  },
+  "Job level up!": {
+    "en": "Job level up!", "ja": "ジョブレベルアップ！", "fr": "Niveau de job augmenté !", "it": "Livello mestiere aumentato!",
+    "de": "Job-Levelaufstieg!", "es": "¡Nivel de trabajo aumentado!", "ko": "잡 레벨 업!", "zht": "職業等級提升！",
+    "zhc": "职业等级提升！", "ru": "Уровень профессии повышен!", "th": "เลเวลอาชีพเพิ่มขึ้น!", "pt": "Nível de trabalho aumentou!"
+  },
+  "Gained {0} gil": {
+    "en": "Gained {0} gil", "ja": "{0}ギル獲得", "fr": "{0} gils obtenus", "it": "Ottenuti {0} guil",
+    "de": "{0} Gil erhalten", "es": "{0} gil obtenidos", "ko": "{0} 길 획득", "zht": "獲得了{0}乙太幣",
+    "zhc": "获得了{0}金币", "ru": "Получено {0} гил", "th": "ได้รับ {0} กิล", "pt": "Ganhou {0} gil"
+  },
+  "Found {0}": {
+    "en": "Found {0}", "ja": "{0}を見つけた", "fr": "{0} trouvé", "it": "Trovato {0}",
+    "de": "{0} gefunden", "es": "Encontrado {0}", "ko": "{0}을(를) 발견했습니다", "zht": "找到了{0}",
+    "zhc": "找到了{0}", "ru": "Найдено: {0}", "th": "พบ {0}", "pt": "Encontrou {0}"
+  },
+  "Found {0} x{1}": {
+    "en": "Found {0} x{1}", "ja": "{0}を{1}個見つけた", "fr": "{0} x{1} trouvé", "it": "Trovato {0} x{1}",
+    "de": "{0} x{1} gefunden", "es": "Encontrado {0} x{1}", "ko": "{0} x{1}을(를) 발견했습니다", "zht": "找到了{0} x{1}",
+    "zhc": "找到了{0} x{1}", "ru": "Найдено: {0} x{1}", "th": "พบ {0} x{1}", "pt": "Encontrou {0} x{1}"
+  },
+  "{0} gained {1} XP": {
+    "en": "{0} gained {1} XP", "ja": "{0}は{1}の経験値を獲得", "fr": "{0} a gagné {1} XP", "it": "{0} ha ottenuto {1} XP",
+    "de": "{0} hat {1} EP erhalten", "es": "{0} ganó {1} XP", "ko": "{0}이(가) {1} 경험치를 획득했습니다", "zht": "{0}獲得了{1}經驗值",
+    "zhc": "{0}获得了{1}经验值", "ru": "{0} получил(а) {1} опыта", "th": "{0} ได้รับ {1} XP", "pt": "{0} ganhou {1} XP"
+  },
+  "and leveled up to level {0}": {
+    "en": "and leveled up to level {0}", "ja": "レベル{0}にレベルアップ", "fr": "et a atteint le niveau {0}", "it": "e ha raggiunto il livello {0}",
+    "de": "und ist auf Stufe {0} aufgestiegen", "es": "y subió al nivel {0}", "ko": "레벨 {0}으로 레벨 업", "zht": "並升到了等級{0}",
+    "zhc": "并升到了等级{0}", "ru": "и повысил(а) уровень до {0}", "th": "และเลเวลอัพเป็นเลเวล {0}", "pt": "e subiu para o nível {0}"
+  },
+  "{0} learned {1}": {
+    "en": "{0} learned {1}", "ja": "{0}は{1}を習得した", "fr": "{0} a appris {1}", "it": "{0} ha imparato {1}",
+    "de": "{0} hat {1} gelernt", "es": "{0} aprendió {1}", "ko": "{0}이(가) {1}을(를) 배웠습니다", "zht": "{0}學會了{1}",
+    "zhc": "{0}学会了{1}", "ru": "{0} выучил(а) {1}", "th": "{0} เรียนรู้ {1}", "pt": "{0} aprendeu {1}"
+  },
+  "Map closed. {0}": {
+    "en": "Map closed. {0}", "ja": "マップを閉じました。{0}", "fr": "Carte fermée. {0}", "it": "Mappa chiusa. {0}",
+    "de": "Karte geschlossen. {0}", "es": "Mapa cerrado. {0}", "ko": "맵 닫힘. {0}", "zht": "地圖已關閉。{0}",
+    "zhc": "地图已关闭。{0}", "ru": "Карта закрыта. {0}", "th": "ปิดแผนที่แล้ว {0}", "pt": "Mapa fechado. {0}"
+  },
+  "Map open: {0}": {
+    "en": "Map open: {0}", "ja": "マップを開きました: {0}", "fr": "Carte ouverte : {0}", "it": "Mappa aperta: {0}",
+    "de": "Karte geöffnet: {0}", "es": "Mapa abierto: {0}", "ko": "맵 열림: {0}", "zht": "地圖已開啟：{0}",
+    "zhc": "地图已打开：{0}", "ru": "Карта открыта: {0}", "th": "เปิดแผนที่: {0}", "pt": "Mapa aberto: {0}"
+  },
+  "Map open": {
+    "en": "Map open", "ja": "マップを開きました", "fr": "Carte ouverte", "it": "Mappa aperta",
+    "de": "Karte geöffnet", "es": "Mapa abierto", "ko": "맵 열림", "zht": "地圖已開啟",
+    "zhc": "地图已打开", "ru": "Карта открыта", "th": "เปิดแผนที่", "pt": "Mapa aberto"
+  },
+  "Formation view": {
+    "en": "Formation view", "ja": "フォーメーション表示", "fr": "Vue de formation", "it": "Vista formazione",
+    "de": "Formationsansicht", "es": "Vista de formación", "ko": "대형 보기", "zht": "陣形檢視",
+    "zhc": "阵形查看", "ru": "Просмотр формации", "th": "มุมมองรูปแบบ", "pt": "Visualização de formação"
+  },
+  "No formations available": {
+    "en": "No formations available", "ja": "利用可能なフォーメーションはありません", "fr": "Aucune formation disponible", "it": "Nessuna formazione disponibile",
+    "de": "Keine Formationen verfügbar", "es": "No hay formaciones disponibles", "ko": "사용 가능한 대형이 없습니다", "zht": "沒有可用的陣形",
+    "zhc": "没有可用的阵形", "ru": "Нет доступных формаций", "th": "ไม่มีรูปแบบที่ใช้ได้", "pt": "Nenhuma formação disponível"
+  },
+  "{0}. Details": {
+    "en": "{0}. Details", "ja": "{0}。詳細", "fr": "{0}. Détails", "it": "{0}. Dettagli",
+    "de": "{0}. Details", "es": "{0}. Detalles", "ko": "{0}. 상세 정보", "zht": "{0}。詳細資訊",
+    "zhc": "{0}。详细信息", "ru": "{0}. Подробности", "th": "{0} รายละเอียด", "pt": "{0}. Detalhes"
+  },
+  "{0}. Page changed": {
+    "en": "{0}. Page changed", "ja": "{0}。ページ変更", "fr": "{0}. Page changée", "it": "{0}. Pagina cambiata",
+    "de": "{0}. Seite gewechselt", "es": "{0}. Página cambiada", "ko": "{0}. 페이지 변경됨", "zht": "{0}。頁面已變更",
+    "zhc": "{0}。页面已变更", "ru": "{0}. Страница изменена", "th": "{0} เปลี่ยนหน้าแล้ว", "pt": "{0}. Página alterada"
+  },
+  "Minimap open": {
+    "en": "Minimap open", "ja": "ミニマップを開きました", "fr": "Minicarte ouverte", "it": "Minimappa aperta",
+    "de": "Minikarte geöffnet", "es": "Minimapa abierto", "ko": "미니맵 열림", "zht": "小地圖已開啟",
+    "zhc": "小地图已打开", "ru": "Миникарта открыта", "th": "เปิดแผนที่ขนาดเล็ก", "pt": "Minimapa aberto"
+  },
+  "Minimap open: {0}": {
+    "en": "Minimap open: {0}", "ja": "ミニマップを開きました: {0}", "fr": "Minicarte ouverte : {0}", "it": "Minimappa aperta: {0}",
+    "de": "Minikarte geöffnet: {0}", "es": "Minimapa abierto: {0}", "ko": "미니맵 열림: {0}", "zht": "小地圖已開啟：{0}",
+    "zhc": "小地图已打开：{0}", "ru": "Миникарта открыта: {0}", "th": "เปิดแผนที่ขนาดเล็ก: {0}", "pt": "Minimapa aberto: {0}"
+  },
+  "Minimap closed": {
+    "en": "Minimap closed", "ja": "ミニマップを閉じました", "fr": "Minicarte fermée", "it": "Minimappa chiusa",
+    "de": "Minikarte geschlossen", "es": "Minimapa cerrado", "ko": "미니맵 닫힘", "zht": "小地圖已關閉",
+    "zhc": "小地图已关闭", "ru": "Миникарта закрыта", "th": "ปิดแผนที่ขนาดเล็ก", "pt": "Minimapa fechado"
+  },
+  "Image open": {
+    "en": "Image open", "ja": "画像を開きました", "fr": "Image ouverte", "it": "Immagine aperta",
+    "de": "Bild geöffnet", "es": "Imagen abierta", "ko": "이미지 열림", "zht": "圖片已開啟",
+    "zhc": "图片已打开", "ru": "Изображение открыто", "th": "เปิดรูปภาพ", "pt": "Imagem aberta"
+  },
+  "Gallery": {
+    "en": "Gallery", "ja": "ギャラリー", "fr": "Galerie", "it": "Galleria",
+    "de": "Galerie", "es": "Galería", "ko": "갤러리", "zht": "畫廊",
+    "zhc": "画廊", "ru": "Галерея", "th": "แกลเลอรี", "pt": "Galeria"
+  },
+  "Music Player": {
+    "en": "Music Player", "ja": "ミュージックプレイヤー", "fr": "Lecteur de musique", "it": "Lettore musicale",
+    "de": "Musikspieler", "es": "Reproductor de música", "ko": "음악 플레이어", "zht": "音樂播放器",
+    "zhc": "音乐播放器", "ru": "Музыкальный проигрыватель", "th": "เครื่องเล่นเพลง", "pt": "Reprodutor de música"
+  },
+  "No description available": {
+    "en": "No description available", "ja": "説明はありません", "fr": "Aucune description disponible", "it": "Nessuna descrizione disponibile",
+    "de": "Keine Beschreibung verfügbar", "es": "No hay descripción disponible", "ko": "설명을 사용할 수 없습니다", "zht": "沒有可用的描述",
+    "zhc": "没有可用的描述", "ru": "Описание недоступно", "th": "ไม่มีคำอธิบาย", "pt": "Nenhuma descrição disponível"
+  },
+  "No waypoints": {
+    "en": "No waypoints", "ja": "ウェイポイントなし", "fr": "Aucun point de repère", "it": "Nessun punto di riferimento",
+    "de": "Keine Wegpunkte", "es": "Sin puntos de referencia", "ko": "경유지 없음", "zht": "沒有路標點",
+    "zhc": "没有路标点", "ru": "Нет путевых точек", "th": "ไม่มีจุดอ้างอิง", "pt": "Sem pontos de referência"
+  },
+  "No waypoint selected": {
+    "en": "No waypoint selected", "ja": "ウェイポイントが選択されていません", "fr": "Aucun point de repère sélectionné", "it": "Nessun punto di riferimento selezionato",
+    "de": "Kein Wegpunkt ausgewählt", "es": "No hay punto de referencia seleccionado", "ko": "선택된 경유지 없음", "zht": "未選擇路標點",
+    "zhc": "未选择路标点", "ru": "Путевая точка не выбрана", "th": "ไม่ได้เลือกจุดอ้างอิง", "pt": "Nenhum ponto de referência selecionado"
+  },
+  "Enter waypoint name": {
+    "en": "Enter waypoint name", "ja": "ウェイポイント名を入力", "fr": "Entrez le nom du point de repère", "it": "Inserisci il nome del punto di riferimento",
+    "de": "Wegpunktname eingeben", "es": "Ingrese el nombre del punto de referencia", "ko": "경유지 이름 입력", "zht": "輸入路標點名稱",
+    "zhc": "输入路标点名称", "ru": "Введите название путевой точки", "th": "ป้อนชื่อจุดอ้างอิง", "pt": "Insira o nome do ponto de referência"
+  },
+  "Enter new waypoint name": {
+    "en": "Enter new waypoint name", "ja": "新しいウェイポイント名を入力", "fr": "Entrez le nouveau nom du point de repère", "it": "Inserisci il nuovo nome del punto di riferimento",
+    "de": "Neuen Wegpunktnamen eingeben", "es": "Ingrese el nuevo nombre del punto de referencia", "ko": "새 경유지 이름 입력", "zht": "輸入新路標點名稱",
+    "zhc": "输入新路标点名称", "ru": "Введите новое название путевой точки", "th": "ป้อนชื่อจุดอ้างอิงใหม่", "pt": "Insira o novo nome do ponto de referência"
+  },
+  "Cannot get player position": {
+    "en": "Cannot get player position", "ja": "プレイヤーの位置を取得できません", "fr": "Impossible d'obtenir la position du joueur", "it": "Impossibile ottenere la posizione del giocatore",
+    "de": "Spielerposition kann nicht ermittelt werden", "es": "No se puede obtener la posición del jugador", "ko": "플레이어 위치를 가져올 수 없습니다", "zht": "無法取得玩家位置",
+    "zhc": "无法获取玩家位置", "ru": "Невозможно получить позицию игрока", "th": "ไม่สามารถรับตำแหน่งผู้เล่น", "pt": "Não é possível obter a posição do jogador"
+  },
+  "Waypoint added: {0}": {
+    "en": "Waypoint added: {0}", "ja": "ウェイポイント追加: {0}", "fr": "Point de repère ajouté : {0}", "it": "Punto di riferimento aggiunto: {0}",
+    "de": "Wegpunkt hinzugefügt: {0}", "es": "Punto de referencia añadido: {0}", "ko": "경유지 추가됨: {0}", "zht": "已新增路標點：{0}",
+    "zhc": "已添加路标点：{0}", "ru": "Путевая точка добавлена: {0}", "th": "เพิ่มจุดอ้างอิงแล้ว: {0}", "pt": "Ponto de referência adicionado: {0}"
+  },
+  "Waypoint renamed to: {0}": {
+    "en": "Waypoint renamed to: {0}", "ja": "ウェイポイント名を変更: {0}", "fr": "Point de repère renommé en : {0}", "it": "Punto di riferimento rinominato in: {0}",
+    "de": "Wegpunkt umbenannt in: {0}", "es": "Punto de referencia renombrado a: {0}", "ko": "경유지 이름 변경됨: {0}", "zht": "路標點已重新命名為：{0}",
+    "zhc": "路标点已重命名为：{0}", "ru": "Путевая точка переименована в: {0}", "th": "เปลี่ยนชื่อจุดอ้างอิงเป็น: {0}", "pt": "Ponto de referência renomeado para: {0}"
+  },
+  "Failed to rename waypoint": {
+    "en": "Failed to rename waypoint", "ja": "ウェイポイント名の変更に失敗しました", "fr": "Échec du renommage du point de repère", "it": "Impossibile rinominare il punto di riferimento",
+    "de": "Wegpunkt konnte nicht umbenannt werden", "es": "Error al renombrar el punto de referencia", "ko": "경유지 이름 변경 실패", "zht": "重新命名路標點失敗",
+    "zhc": "重命名路标点失败", "ru": "Не удалось переименовать путевую точку", "th": "ไม่สามารถเปลี่ยนชื่อจุดอ้างอิง", "pt": "Falha ao renomear ponto de referência"
+  },
+  "Waypoint deleted: {0}": {
+    "en": "Waypoint deleted: {0}", "ja": "ウェイポイント削除: {0}", "fr": "Point de repère supprimé : {0}", "it": "Punto di riferimento eliminato: {0}",
+    "de": "Wegpunkt gelöscht: {0}", "es": "Punto de referencia eliminado: {0}", "ko": "경유지 삭제됨: {0}", "zht": "已刪除路標點：{0}",
+    "zhc": "已删除路标点：{0}", "ru": "Путевая точка удалена: {0}", "th": "ลบจุดอ้างอิงแล้ว: {0}", "pt": "Ponto de referência excluído: {0}"
+  },
+  "Failed to delete waypoint": {
+    "en": "Failed to delete waypoint", "ja": "ウェイポイントの削除に失敗しました", "fr": "Échec de la suppression du point de repère", "it": "Impossibile eliminare il punto di riferimento",
+    "de": "Wegpunkt konnte nicht gelöscht werden", "es": "Error al eliminar el punto de referencia", "ko": "경유지 삭제 실패", "zht": "刪除路標點失敗",
+    "zhc": "删除路标点失败", "ru": "Не удалось удалить путевую точку", "th": "ไม่สามารถลบจุดอ้างอิง", "pt": "Falha ao excluir ponto de referência"
+  },
+  "No waypoints to clear": {
+    "en": "No waypoints to clear", "ja": "クリアするウェイポイントがありません", "fr": "Aucun point de repère à effacer", "it": "Nessun punto di riferimento da cancellare",
+    "de": "Keine Wegpunkte zum Löschen", "es": "No hay puntos de referencia para borrar", "ko": "삭제할 경유지가 없습니다", "zht": "沒有路標點可清除",
+    "zhc": "没有路标点可清除", "ru": "Нет путевых точек для очистки", "th": "ไม่มีจุดอ้างอิงให้ล้าง", "pt": "Sem pontos de referência para limpar"
+  },
+  "waypoint": {
+    "en": "waypoint", "ja": "ウェイポイント", "fr": "point de repère", "it": "punto di riferimento",
+    "de": "Wegpunkt", "es": "punto de referencia", "ko": "경유지", "zht": "路標點",
+    "zhc": "路标点", "ru": "путевая точка", "th": "จุดอ้างอิง", "pt": "ponto de referência"
+  },
+  "waypoints": {
+    "en": "waypoints", "ja": "ウェイポイント", "fr": "points de repère", "it": "punti di riferimento",
+    "de": "Wegpunkte", "es": "puntos de referencia", "ko": "경유지", "zht": "路標點",
+    "zhc": "路标点", "ru": "путевые точки", "th": "จุดอ้างอิง", "pt": "pontos de referência"
+  },
+  "Cleared {0} {1}": {
+    "en": "Cleared {0} {1}", "ja": "{0}個の{1}をクリアしました", "fr": "{0} {1} effacés", "it": "{0} {1} cancellati",
+    "de": "{0} {1} gelöscht", "es": "{0} {1} borrados", "ko": "{0}개의 {1} 삭제됨", "zht": "已清除 {0} 個{1}",
+    "zhc": "已清除 {0} 个{1}", "ru": "Очищено {0} {1}", "th": "ล้าง {0} {1} แล้ว", "pt": "{0} {1} limpos"
+  },
+  "Delete {0}?": {
+    "en": "Delete {0}?", "ja": "{0}を削除しますか？", "fr": "Supprimer {0} ?", "it": "Eliminare {0}?",
+    "de": "{0} löschen?", "es": "¿Eliminar {0}?", "ko": "{0}을(를) 삭제하시겠습니까?", "zht": "刪除{0}？",
+    "zhc": "删除{0}？", "ru": "Удалить {0}?", "th": "ลบ {0}?", "pt": "Excluir {0}?"
+  },
+  "Clear all {0} waypoints?": {
+    "en": "Clear all {0} waypoints?", "ja": "{0}個のウェイポイントを全てクリアしますか？", "fr": "Effacer les {0} points de repère ?", "it": "Cancellare tutti i {0} punti di riferimento?",
+    "de": "Alle {0} Wegpunkte löschen?", "es": "¿Borrar todos los {0} puntos de referencia?", "ko": "{0}개의 경유지를 모두 삭제하시겠습니까?", "zht": "清除所有{0}個路標點？",
+    "zhc": "清除所有{0}个路标点？", "ru": "Очистить все {0} путевых точек?", "th": "ล้างจุดอ้างอิงทั้งหมด {0} จุด?", "pt": "Limpar todos os {0} pontos de referência?"
+  },
+  "Are you sure?": {
+    "en": "Are you sure?", "ja": "よろしいですか？", "fr": "Êtes-vous sûr ?", "it": "Sei sicuro?",
+    "de": "Sind Sie sicher?", "es": "¿Está seguro?", "ko": "확실합니까?", "zht": "你確定嗎？",
+    "zhc": "你确定吗？", "ru": "Вы уверены?", "th": "คุณแน่ใจหรือไม่?", "pt": "Tem certeza?"
+  },
+  "Name cannot be empty": {
+    "en": "Name cannot be empty", "ja": "名前は空にできません", "fr": "Le nom ne peut pas être vide", "it": "Il nome non può essere vuoto",
+    "de": "Der Name darf nicht leer sein", "es": "El nombre no puede estar vacío", "ko": "이름은 비워둘 수 없습니다", "zht": "名稱不可為空",
+    "zhc": "名称不可为空", "ru": "Имя не может быть пустым", "th": "ชื่อต้องไม่เว้นว่าง", "pt": "O nome não pode estar vazio"
+  },
+  "Confirmed: {0}": {
+    "en": "Confirmed: {0}", "ja": "確認: {0}", "fr": "Confirmé : {0}", "it": "Confermato: {0}",
+    "de": "Bestätigt: {0}", "es": "Confirmado: {0}", "ko": "확인됨: {0}", "zht": "已確認：{0}",
+    "zhc": "已确认：{0}", "ru": "Подтверждено: {0}", "th": "ยืนยัน: {0}", "pt": "Confirmado: {0}"
+  },
+  "empty": {
+    "en": "empty", "ja": "空", "fr": "vide", "it": "vuoto",
+    "de": "leer", "es": "vacío", "ko": "비어 있음", "zht": "空",
+    "zhc": "空", "ru": "пусто", "th": "ว่าง", "pt": "vazio"
+  },
+  "space": {
+    "en": "space", "ja": "スペース", "fr": "espace", "it": "spazio",
+    "de": "Leerzeichen", "es": "espacio", "ko": "공백", "zht": "空格",
+    "zhc": "空格", "ru": "пробел", "th": "เว้นวรรค", "pt": "espaço"
+  },
+  "period": {
+    "en": "period", "ja": "ピリオド", "fr": "point", "it": "punto",
+    "de": "Punkt", "es": "punto", "ko": "마침표", "zht": "句號",
+    "zhc": "句号", "ru": "точка", "th": "จุด", "pt": "ponto"
+  },
+  "comma": {
+    "en": "comma", "ja": "コンマ", "fr": "virgule", "it": "virgola",
+    "de": "Komma", "es": "coma", "ko": "쉼표", "zht": "逗號",
+    "zhc": "逗号", "ru": "запятая", "th": "จุลภาค", "pt": "vírgula"
+  },
+  "apostrophe": {
+    "en": "apostrophe", "ja": "アポストロフィ", "fr": "apostrophe", "it": "apostrofo",
+    "de": "Apostroph", "es": "apóstrofo", "ko": "아포스트로피", "zht": "撇號",
+    "zhc": "撇号", "ru": "апостроф", "th": "อะพอสทรอฟี", "pt": "apóstrofo"
+  },
+  "quote": {
+    "en": "quote", "ja": "引用符", "fr": "guillemet", "it": "virgoletta",
+    "de": "Anführungszeichen", "es": "comilla", "ko": "따옴표", "zht": "引號",
+    "zhc": "引号", "ru": "кавычка", "th": "อัญประกาศ", "pt": "aspas"
+  },
+  "dash": {
+    "en": "dash", "ja": "ダッシュ", "fr": "tiret", "it": "trattino",
+    "de": "Strich", "es": "guion", "ko": "대시", "zht": "破折號",
+    "zhc": "破折号", "ru": "тире", "th": "ขีดกลาง", "pt": "travessão"
+  },
+  "underscore": {
+    "en": "underscore", "ja": "アンダースコア", "fr": "tiret bas", "it": "trattino basso",
+    "de": "Unterstrich", "es": "guion bajo", "ko": "밑줄", "zht": "底線",
+    "zhc": "下划线", "ru": "нижнее подчёркивание", "th": "ขีดล่าง", "pt": "sublinhado"
+  },
+  "semicolon": {
+    "en": "semicolon", "ja": "セミコロン", "fr": "point-virgule", "it": "punto e virgola",
+    "de": "Semikolon", "es": "punto y coma", "ko": "세미콜론", "zht": "分號",
+    "zhc": "分号", "ru": "точка с запятой", "th": "อัฒภาค", "pt": "ponto e vírgula"
+  },
+  "colon": {
+    "en": "colon", "ja": "コロン", "fr": "deux-points", "it": "due punti",
+    "de": "Doppelpunkt", "es": "dos puntos", "ko": "콜론", "zht": "冒號",
+    "zhc": "冒号", "ru": "двоеточие", "th": "ทวิภาค", "pt": "dois pontos"
+  },
+  "exclamation": {
+    "en": "exclamation", "ja": "感嘆符", "fr": "point d'exclamation", "it": "punto esclamativo",
+    "de": "Ausrufezeichen", "es": "exclamación", "ko": "느낌표", "zht": "驚嘆號",
+    "zhc": "感叹号", "ru": "восклицательный знак", "th": "อัศเจรีย์", "pt": "exclamação"
+  },
+  "question": {
+    "en": "question", "ja": "疑問符", "fr": "point d'interrogation", "it": "punto interrogativo",
+    "de": "Fragezeichen", "es": "interrogación", "ko": "물음표", "zht": "問號",
+    "zhc": "问号", "ru": "вопросительный знак", "th": "เครื่องหมายคำถาม", "pt": "interrogação"
+  },
+  "slash": {
+    "en": "slash", "ja": "スラッシュ", "fr": "barre oblique", "it": "barra",
+    "de": "Schrägstrich", "es": "barra", "ko": "슬래시", "zht": "斜線",
+    "zhc": "斜线", "ru": "косая черта", "th": "ทับ", "pt": "barra"
+  },
+  "backslash": {
+    "en": "backslash", "ja": "バックスラッシュ", "fr": "barre oblique inversée", "it": "barra rovesciata",
+    "de": "Rückschrägstrich", "es": "barra invertida", "ko": "백슬래시", "zht": "反斜線",
+    "zhc": "反斜线", "ru": "обратная косая черта", "th": "ทับกลับ", "pt": "barra invertida"
+  },
+  "open paren": {
+    "en": "open paren", "ja": "開き括弧", "fr": "parenthèse ouvrante", "it": "parentesi aperta",
+    "de": "öffnende Klammer", "es": "paréntesis abierto", "ko": "여는 괄호", "zht": "左括號",
+    "zhc": "左括号", "ru": "открывающая скобка", "th": "วงเล็บเปิด", "pt": "parêntese aberto"
+  },
+  "close paren": {
+    "en": "close paren", "ja": "閉じ括弧", "fr": "parenthèse fermante", "it": "parentesi chiusa",
+    "de": "schließende Klammer", "es": "paréntesis cerrado", "ko": "닫는 괄호", "zht": "右括號",
+    "zhc": "右括号", "ru": "закрывающая скобка", "th": "วงเล็บปิด", "pt": "parêntese fechado"
+  },
+  "open bracket": {
+    "en": "open bracket", "ja": "開き角括弧", "fr": "crochet ouvrant", "it": "parentesi quadra aperta",
+    "de": "öffnende eckige Klammer", "es": "corchete abierto", "ko": "여는 대괄호", "zht": "左方括號",
+    "zhc": "左方括号", "ru": "открывающая квадратная скобка", "th": "วงเล็บเหลี่ยมเปิด", "pt": "colchete aberto"
+  },
+  "close bracket": {
+    "en": "close bracket", "ja": "閉じ角括弧", "fr": "crochet fermant", "it": "parentesi quadra chiusa",
+    "de": "schließende eckige Klammer", "es": "corchete cerrado", "ko": "닫는 대괄호", "zht": "右方括號",
+    "zhc": "右方括号", "ru": "закрывающая квадратная скобка", "th": "วงเล็บเหลี่ยมปิด", "pt": "colchete fechado"
+  },
+  "open brace": {
+    "en": "open brace", "ja": "開き波括弧", "fr": "accolade ouvrante", "it": "parentesi graffa aperta",
+    "de": "öffnende geschweifte Klammer", "es": "llave abierta", "ko": "여는 중괄호", "zht": "左大括號",
+    "zhc": "左大括号", "ru": "открывающая фигурная скобка", "th": "วงเล็บปีกกาเปิด", "pt": "chave aberta"
+  },
+  "close brace": {
+    "en": "close brace", "ja": "閉じ波括弧", "fr": "accolade fermante", "it": "parentesi graffa chiusa",
+    "de": "schließende geschweifte Klammer", "es": "llave cerrada", "ko": "닫는 중괄호", "zht": "右大括號",
+    "zhc": "右大括号", "ru": "закрывающая фигурная скобка", "th": "วงเล็บปีกกาปิด", "pt": "chave fechada"
+  },
+  "backtick": {
+    "en": "backtick", "ja": "バッククォート", "fr": "accent grave", "it": "accento grave",
+    "de": "Gravis", "es": "acento grave", "ko": "백틱", "zht": "反引號",
+    "zhc": "反引号", "ru": "обратный апостроф", "th": "แบ็กทิก", "pt": "crase"
+  },
+  "tilde": {
+    "en": "tilde", "ja": "チルダ", "fr": "tilde", "it": "tilde",
+    "de": "Tilde", "es": "tilde", "ko": "틸드", "zht": "波浪號",
+    "zhc": "波浪号", "ru": "тильда", "th": "ตัวหนอน", "pt": "til"
+  },
+  "equals": {
+    "en": "equals", "ja": "イコール", "fr": "égal", "it": "uguale",
+    "de": "Gleichheitszeichen", "es": "igual", "ko": "등호", "zht": "等號",
+    "zhc": "等号", "ru": "равно", "th": "เท่ากับ", "pt": "igual"
+  },
+  "plus": {
+    "en": "plus", "ja": "プラス", "fr": "plus", "it": "più",
+    "de": "Plus", "es": "más", "ko": "더하기", "zht": "加號",
+    "zhc": "加号", "ru": "плюс", "th": "บวก", "pt": "mais"
+  },
+  "pipe": {
+    "en": "pipe", "ja": "パイプ", "fr": "barre verticale", "it": "barra verticale",
+    "de": "Senkrechtstrich", "es": "barra vertical", "ko": "파이프", "zht": "豎線",
+    "zhc": "竖线", "ru": "вертикальная черта", "th": "ท่อ", "pt": "barra vertical"
+  },
+  "Navigation not available": {
+    "en": "Navigation not available", "ja": "ナビゲーションは利用できません", "fr": "Navigation non disponible", "it": "Navigazione non disponibile",
+    "de": "Navigation nicht verfügbar", "es": "Navegación no disponible", "ko": "내비게이션을 사용할 수 없습니다", "zht": "導航不可用",
+    "zhc": "导航不可用", "ru": "Навигация недоступна", "th": "การนำทางไม่พร้อมใช้งาน", "pt": "Navegação não disponível"
+  },
+  "No character data": {
+    "en": "No character data", "ja": "キャラクターデータがありません", "fr": "Aucune donnée de personnage", "it": "Nessun dato personaggio",
+    "de": "Keine Charakterdaten", "es": "Sin datos de personaje", "ko": "캐릭터 데이터 없음", "zht": "沒有角色資料",
+    "zhc": "没有角色数据", "ru": "Нет данных персонажа", "th": "ไม่มีข้อมูลตัวละคร", "pt": "Sem dados de personagem"
+  },
+  "Error reading stat": {
+    "en": "Error reading stat", "ja": "ステータスの読み取りエラー", "fr": "Erreur de lecture de statistique", "it": "Errore nella lettura della statistica",
+    "de": "Fehler beim Lesen des Statuswerts", "es": "Error al leer estadística", "ko": "스탯 읽기 오류", "zht": "讀取屬性時出錯",
+    "zhc": "读取属性时出错", "ru": "Ошибка чтения характеристики", "th": "ข้อผิดพลาดในการอ่านค่าสถานะ", "pt": "Erro ao ler atributo"
+  },
+  "Timers frozen": {
+    "en": "Timers frozen", "ja": "タイマー凍結", "fr": "Minuteries gelées", "it": "Timer congelati",
+    "de": "Timer eingefroren", "es": "Temporizadores congelados", "ko": "타이머 정지됨", "zht": "計時器已凍結",
+    "zhc": "计时器已冻结", "ru": "Таймеры заморожены", "th": "หยุดตัวจับเวลาแล้ว", "pt": "Temporizadores congelados"
+  },
+  "Timers resumed": {
+    "en": "Timers resumed", "ja": "タイマー再開", "fr": "Minuteries reprises", "it": "Timer ripresi",
+    "de": "Timer fortgesetzt", "es": "Temporizadores reanudados", "ko": "타이머 재개됨", "zht": "計時器已恢復",
+    "zhc": "计时器已恢复", "ru": "Таймеры возобновлены", "th": "เริ่มตัวจับเวลาต่อแล้ว", "pt": "Temporizadores retomados"
+  },
+  "Error toggling timer freeze": {
+    "en": "Error toggling timer freeze", "ja": "タイマー凍結の切り替えエラー", "fr": "Erreur de basculement du gel de minuterie", "it": "Errore nel commutare il congelamento del timer",
+    "de": "Fehler beim Umschalten der Timer-Pause", "es": "Error al alternar la congelación del temporizador", "ko": "타이머 정지 전환 오류", "zht": "切換計時器凍結時出錯",
+    "zhc": "切换计时器冻结时出错", "ru": "Ошибка переключения заморозки таймеров", "th": "ข้อผิดพลาดในการสลับการหยุดตัวจับเวลา", "pt": "Erro ao alternar congelamento do temporizador"
+  },
+  "No active timers": {
+    "en": "No active timers", "ja": "アクティブなタイマーはありません", "fr": "Aucune minuterie active", "it": "Nessun timer attivo",
+    "de": "Keine aktiven Timer", "es": "No hay temporizadores activos", "ko": "활성 타이머 없음", "zht": "沒有活動的計時器",
+    "zhc": "没有活动的计时器", "ru": "Нет активных таймеров", "th": "ไม่มีตัวจับเวลาที่ใช้งาน", "pt": "Sem temporizadores ativos"
+  },
+  "Error reading timers": {
+    "en": "Error reading timers", "ja": "タイマーの読み取りエラー", "fr": "Erreur de lecture des minuteries", "it": "Errore nella lettura dei timer",
+    "de": "Fehler beim Lesen der Timer", "es": "Error al leer los temporizadores", "ko": "타이머 읽기 오류", "zht": "讀取計時器時出錯",
+    "zhc": "读取计时器时出错", "ru": "Ошибка чтения таймеров", "th": "ข้อผิดพลาดในการอ่านตัวจับเวลา", "pt": "Erro ao ler temporizadores"
+  },
+  "Empty": {
+    "en": "Empty", "ja": "空", "fr": "Vide", "it": "Vuoto",
+    "de": "Leer", "es": "Vacío", "ko": "비어 있음", "zht": "空",
+    "zhc": "空", "ru": "Пусто", "th": "ว่าง", "pt": "Vazio"
+  },
+  "Game Over": {
+    "en": "Game Over", "ja": "ゲームオーバー", "fr": "Fin de partie", "it": "Fine del gioco",
+    "de": "Spiel vorbei", "es": "Fin del juego", "ko": "게임 오버", "zht": "遊戲結束",
+    "zhc": "游戏结束", "ru": "Конец игры", "th": "จบเกม", "pt": "Fim de jogo"
+  },
+  "Keyboard input active": {
+    "en": "Keyboard input active", "ja": "キーボード入力有効", "fr": "Saisie clavier active", "it": "Input da tastiera attivo",
+    "de": "Tastatureingabe aktiv", "es": "Entrada de teclado activa", "ko": "키보드 입력 활성화", "zht": "鍵盤輸入啟用",
+    "zhc": "键盘输入启用", "ru": "Ввод с клавиатуры активен", "th": "การป้อนข้อมูลคีย์บอร์ดทำงาน", "pt": "Entrada do teclado ativa"
+  },
+  "Error reading controls": {
+    "en": "Error reading controls", "ja": "コントロールの読み取りエラー", "fr": "Erreur de lecture des contrôles", "it": "Errore nella lettura dei controlli",
+    "de": "Fehler beim Lesen der Steuerung", "es": "Error al leer los controles", "ko": "컨트롤 읽기 오류", "zht": "讀取控制項時出錯",
+    "zhc": "读取控制项时出错", "ru": "Ошибка чтения элементов управления", "th": "ข้อผิดพลาดในการอ่านการควบคุม", "pt": "Erro ao ler controles"
+  },
+  "No controls displayed": {
+    "en": "No controls displayed", "ja": "コントロールが表示されていません", "fr": "Aucun contrôle affiché", "it": "Nessun controllo visualizzato",
+    "de": "Keine Steuerung angezeigt", "es": "No se muestran controles", "ko": "표시된 컨트롤 없음", "zht": "未顯示控制項",
+    "zhc": "未显示控制项", "ru": "Элементы управления не отображаются", "th": "ไม่มีการแสดงการควบคุม", "pt": "Nenhum controle exibido"
+  },
+  "quantity {0}": {
+    "en": "quantity {0}", "ja": "数量 {0}", "fr": "quantité {0}", "it": "quantità {0}",
+    "de": "Anzahl {0}", "es": "cantidad {0}", "ko": "수량 {0}", "zht": "數量 {0}",
+    "zhc": "数量 {0}", "ru": "количество {0}", "th": "จำนวน {0}", "pt": "quantidade {0}"
+  },
+  "Cannot determine current map": {
+    "en": "Cannot determine current map", "ja": "現在のマップを判定できません", "fr": "Impossible de déterminer la carte actuelle", "it": "Impossibile determinare la mappa attuale",
+    "de": "Aktuelle Karte kann nicht ermittelt werden", "es": "No se puede determinar el mapa actual", "ko": "현재 맵을 확인할 수 없습니다", "zht": "無法確定當前地圖",
+    "zhc": "无法确定当前地图", "ru": "Невозможно определить текущую карту", "th": "ไม่สามารถระบุแผนที่ปัจจุบัน", "pt": "Não é possível determinar o mapa atual"
+  },
+  "Error dumping entities": {
+    "en": "Error dumping entities", "ja": "エンティティのダンプエラー", "fr": "Erreur de vidage des entités", "it": "Errore nel dump delle entità",
+    "de": "Fehler beim Dumpen der Objekte", "es": "Error al volcar entidades", "ko": "엔티티 덤프 오류", "zht": "匯出實體時出錯",
+    "zhc": "导出实体时出错", "ru": "Ошибка дампа объектов", "th": "ข้อผิดพลาดในการส่งออกวัตถุ", "pt": "Erro ao exportar entidades"
+  },
+  "Landing Pings {0}": {
+    "en": "Landing Pings {0}", "ja": "着陸ピング {0}", "fr": "Pings d'atterrissage {0}", "it": "Ping di atterraggio {0}",
+    "de": "Landepings {0}", "es": "Pings de aterrizaje {0}", "ko": "착륙 핑 {0}", "zht": "降落提示音 {0}",
+    "zhc": "降落提示音 {0}", "ru": "Сигналы посадки {0}", "th": "เสียงลงจอด {0}", "pt": "Pings de pouso {0}"
+  }
+}

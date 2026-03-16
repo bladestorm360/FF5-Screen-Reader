@@ -5,6 +5,7 @@ using FFV_ScreenReader.Utils;
 using MelonLoader;
 using Il2CppSerial.FF5.UI.KeyInput;
 using FFV_ScreenReader.Menus;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using ConfigActualDetailsControllerBase_KeyInput = Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase;
 using ConfigActualDetailsControllerBase_Touch = Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase;
 using LibraryInfoController_KeyInput = Il2CppLast.UI.KeyInput.LibraryInfoController;
@@ -36,12 +37,12 @@ namespace FFV_ScreenReader.Core
 
         private static void NotAvailableInBattle()
         {
-            FFV_ScreenReaderMod.SpeakText("Not available in battle", interrupt: true);
+            FFV_ScreenReaderMod.SpeakText(T("Not available in battle"), interrupt: true);
         }
 
         private static void NotOnMap()
         {
-            FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+            FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
         }
 
         private void InitializeBindings()
@@ -164,13 +165,13 @@ namespace FFV_ScreenReader.Core
             if (Input.GetKeyDown(KeyCode.F8))
             {
                 if (IsInBattle())
-                    FFV_ScreenReaderMod.SpeakText("Unavailable in battle", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Unavailable in battle"), interrupt: true);
                 else if (!IsOnValidMap())
-                    FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
                 else
                 {
                     ModMenu.Open();
-                    FFV_ScreenReaderMod.SpeakText("Mod menu", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Mod menu"), interrupt: true);
                 }
                 return;
             }
@@ -249,7 +250,7 @@ namespace FFV_ScreenReader.Core
         {
             if (!IsOnValidMap())
             {
-                FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
                 return;
             }
 
@@ -257,7 +258,7 @@ namespace FFV_ScreenReader.Core
             if (MoveStateHelper.IsOnFoot())
             {
                 bool isRunning = MoveStateHelper.GetDashFlag();
-                FFV_ScreenReaderMod.SpeakText(isRunning ? "Running" : "Walking", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(isRunning ? T("Running") : T("Walking"), interrupt: true);
             }
             else
             {
@@ -309,7 +310,7 @@ namespace FFV_ScreenReader.Core
             {
                 if (!IsOnValidMap())
                 {
-                    FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
                     return;
                 }
                 CoroutineManager.StartUntracked(AnnounceWalkRunState());
@@ -320,7 +321,7 @@ namespace FFV_ScreenReader.Core
             {
                 if (!IsOnValidMap())
                 {
-                    FFV_ScreenReaderMod.SpeakText("Not on map", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
                     return;
                 }
                 CoroutineManager.StartUntracked(AnnounceEncounterState());
@@ -334,12 +335,12 @@ namespace FFV_ScreenReader.Core
                     int current = FFV_ScreenReaderMod.EnemyHPDisplay;
                     int next = (current + 1) % 3;
                     FFV_ScreenReaderMod.SetEnemyHPDisplay(next);
-                    string[] options = { "Numbers", "Percentage", "Hidden" };
-                    FFV_ScreenReaderMod.SpeakText($"Enemy HP: {options[next]}", interrupt: true);
+                    string[] options = { T("Numbers"), T("Percentage"), T("Hidden") };
+                    FFV_ScreenReaderMod.SpeakText(string.Format(T("Enemy HP: {0}"), options[next]), interrupt: true);
                 }
                 else
                 {
-                    FFV_ScreenReaderMod.SpeakText("Only available in battle", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Only available in battle"), interrupt: true);
                 }
             }
         }
@@ -454,7 +455,7 @@ namespace FFV_ScreenReader.Core
             yield return null;
             yield return null;
             bool isDashing = MoveStateHelper.GetDashFlag();
-            FFV_ScreenReaderMod.SpeakText(isDashing ? "Run" : "Walk", interrupt: true);
+            FFV_ScreenReaderMod.SpeakText(isDashing ? T("Run") : T("Walk"), interrupt: true);
         }
 
         private static System.Collections.IEnumerator AnnounceEncounterState()
@@ -466,7 +467,7 @@ namespace FFV_ScreenReader.Core
                 if (userData?.CheatSettingsData != null)
                 {
                     bool enabled = userData.CheatSettingsData.IsEnableEncount;
-                    FFV_ScreenReaderMod.SpeakText(enabled ? "Encounters on" : "Encounters off", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(enabled ? T("Encounters on") : T("Encounters off"), interrupt: true);
                 }
             }
             catch (System.Exception ex)

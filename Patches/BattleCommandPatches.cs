@@ -12,6 +12,7 @@ using Il2CppLast.Management;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
 using static FFV_ScreenReader.Utils.TextUtils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using BattleQuantityAbilityInfomationController = Il2CppSerial.FF5.UI.KeyInput.BattleQuantityAbilityInfomationController;
 using UnityEngine;
 
@@ -52,7 +53,7 @@ namespace FFV_ScreenReader.Patches
                 string characterName = data.Name;
                 if (string.IsNullOrEmpty(characterName)) return;
 
-                string announcement = $"{characterName}'s turn";
+                string announcement = string.Format(T("{0}'s turn"), characterName);
                 FFV_ScreenReaderMod.SpeakText(announcement);
             }
             catch (Exception ex)

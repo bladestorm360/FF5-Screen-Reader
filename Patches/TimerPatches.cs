@@ -9,6 +9,7 @@ using Il2CppLast.Timer;
 using FFV_ScreenReader.Core;
 using UnityEngine;
 using static FFV_ScreenReader.Utils.TextUtils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -69,13 +70,13 @@ namespace FFV_ScreenReader.Patches
                     timerHarmony?.Unpatch(originalMethod, prefixMethod);
                 }
 
-                string message = timersFrozen ? "Timers frozen" : "Timers resumed";
+                string message = timersFrozen ? T("Timers frozen") : T("Timers resumed");
                 FFV_ScreenReaderMod.SpeakText(message, interrupt: true);
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error toggling timer freeze: {ex.Message}");
-                FFV_ScreenReaderMod.SpeakText("Error toggling timer freeze", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("Error toggling timer freeze"), interrupt: true);
             }
         }
         /// <summary>
@@ -149,14 +150,14 @@ namespace FFV_ScreenReader.Patches
                 }
                 else
                 {
-                    FFV_ScreenReaderMod.SpeakText("No active timers", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("No active timers"), interrupt: true);
                     return false;
                 }
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error announcing timers: {ex.Message}");
-                FFV_ScreenReaderMod.SpeakText("Error reading timers", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("Error reading timers"), interrupt: true);
                 return false;
             }
         }
@@ -172,7 +173,7 @@ namespace FFV_ScreenReader.Patches
             if (!string.IsNullOrEmpty(minutes) && int.TryParse(minutes, out int min) && min > 0)
             {
                 result.Append(min);
-                result.Append(min == 1 ? " minute" : " minutes");
+                result.Append(min == 1 ? $" {T("minute")}" : $" {T("minutes")}");
             }
 
             // Parse seconds
@@ -182,7 +183,7 @@ namespace FFV_ScreenReader.Patches
                     result.Append(" ");
 
                 result.Append(sec);
-                result.Append(sec == 1 ? " second" : " seconds");
+                result.Append(sec == 1 ? $" {T("second")}" : $" {T("seconds")}");
             }
 
             // If we couldn't parse anything, return the raw text

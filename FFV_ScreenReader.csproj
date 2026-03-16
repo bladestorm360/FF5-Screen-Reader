@@ -74,4 +74,9 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="mod_text.json" LogicalName="mod_text.json" />
+    <EmbeddedResource Include="translation.json" LogicalName="translation.json" />
+  </ItemGroup>
+
 </Project>

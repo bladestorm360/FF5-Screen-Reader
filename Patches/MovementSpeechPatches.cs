@@ -6,6 +6,7 @@ using Il2Cpp;
 using Il2CppLast.Map;
 using Il2CppLast.Entity.Field;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using FFV_ScreenReader.Core;
 
 namespace FFV_ScreenReader.Patches
@@ -209,7 +210,7 @@ namespace FFV_ScreenReader.Patches
                     {
                         lastAnnouncedTransportId = transportationId;
                         MoveStateHelper.SetOnFoot();
-                        Core.FFV_ScreenReaderMod.SpeakText("On foot", interrupt: false);
+                        Core.FFV_ScreenReaderMod.SpeakText(T("On foot"), interrupt: false);
                         return;
                     }
 
@@ -229,13 +230,13 @@ namespace FFV_ScreenReader.Patches
                     string vehicleName = GetTransportationName(resolvedType);
                     if (!string.IsNullOrEmpty(vehicleName))
                     {
-                        announcement = $"On {vehicleName}";
+                        announcement = string.Format(T("On {0}"), vehicleName);
                         MoveStateHelper.SetVehicleState(resolvedType);
                     }
                 }
                 else if (wasOnVehicle && isNowOnFoot)
                 {
-                    announcement = "On foot";
+                    announcement = T("On foot");
                     MoveStateHelper.SetOnFoot();
                 }
 
@@ -369,7 +370,7 @@ namespace FFV_ScreenReader.Patches
                     lastTransportationId = typeId;
                     wasInIntermediateState = false;
                     Core.FFV_ScreenReaderMod.SuppressWallTonesForTransition();
-                    Core.FFV_ScreenReaderMod.SpeakText($"On {vehicleName}", interrupt: false);
+                    Core.FFV_ScreenReaderMod.SpeakText(string.Format(T("On {0}"), vehicleName), interrupt: false);
                 }
             }
             catch (Exception ex)
@@ -387,7 +388,7 @@ namespace FFV_ScreenReader.Patches
                 lastAnnouncedTransportId = TRANSPORT_PLAYER;
                 lastTransportationId = TRANSPORT_PLAYER;
                 Core.FFV_ScreenReaderMod.SuppressWallTonesForTransition();
-                Core.FFV_ScreenReaderMod.SpeakText("On foot", interrupt: false);
+                Core.FFV_ScreenReaderMod.SpeakText(T("On foot"), interrupt: false);
             }
             catch (Exception ex)
             {
@@ -403,23 +404,23 @@ namespace FFV_ScreenReader.Patches
             switch (typeId)
             {
                 case TRANSPORT_SHIP:
-                    return "ship";
+                    return T("ship");
                 case TRANSPORT_PLANE:
-                    return "airship";
+                    return T("airship");
                 case TRANSPORT_SUBMARINE:
-                    return "submarine";
+                    return T("submarine");
                 case TRANSPORT_SPECIAL_PLANE:
-                    return "airship";
+                    return T("airship");
                 case TRANSPORT_LOWFLYING:
-                    return "wind drake";
+                    return T("wind drake");
                 case TRANSPORT_YELLOW_CHOCOBO:
-                    return "chocobo";
+                    return T("chocobo");
                 case TRANSPORT_BLACK_CHOCOBO:
-                    return "black chocobo";
+                    return T("black chocobo");
                 case TRANSPORT_BOKO:
-                    return "chocobo";
+                    return T("chocobo");
                 case TRANSPORT_MAGICAL_ARMOR:
-                    return "magical armor";
+                    return T("magical armor");
                 default:
                     return null;
             }

@@ -8,6 +8,7 @@ using UnityEngine;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Menus;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using Il2CppLast.Management;
 using Il2CppLast.OutGame.Library;
 using Il2CppLast.UI.Common.Library;
@@ -141,7 +142,7 @@ namespace FFV_ScreenReader.Patches
                             if (previousState == 2 && !string.IsNullOrEmpty(BestiaryStateTracker.CachedEntryName))
                             {
                                 // Returning from full map — use cached data (MonsterData is stale)
-                                reannounce = $"Map closed. {BestiaryStateTracker.CachedEntryName}";
+                                reannounce = string.Format(T("Map closed. {0}"), BestiaryStateTracker.CachedEntryName);
                                 BestiaryStateTracker.CachedEntryName = null;
                                 BestiaryStateTracker.CachedHabitatNames = null;
                             }
@@ -268,13 +269,13 @@ namespace FFV_ScreenReader.Patches
                 var cached = BestiaryStateTracker.CachedHabitatNames;
                 if (cached != null && cached.Count > 0)
                 {
-                    string announcement = $"Map open: {cached[0]}";
+                    string announcement = string.Format(T("Map open: {0}"), cached[0]);
                     AnnouncementDeduplicator.AnnounceIfNew(
                         AnnouncementContexts.BESTIARY_MAP, announcement);
                 }
                 else
                 {
-                    FFV_ScreenReaderMod.SpeakText("Map open", true);
+                    FFV_ScreenReaderMod.SpeakText(T("Map open"), true);
                 }
             }
             catch (Exception ex)
@@ -313,7 +314,7 @@ namespace FFV_ScreenReader.Patches
             }
 
             // Timeout — announce generic fallback
-            FFV_ScreenReaderMod.SpeakText("Formation view", true);
+            FFV_ScreenReaderMod.SpeakText(T("Formation view"), true);
         }
 
         private static void ReadCurrentFormation(ArBattleTopController controller)
@@ -325,7 +326,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (partyList == null || partyList.Count == 0)
                 {
-                    FFV_ScreenReaderMod.SpeakText("No formations available", true);
+                    FFV_ScreenReaderMod.SpeakText(T("No formations available"), true);
                     return;
                 }
 
@@ -344,7 +345,7 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"[Bestiary] Error reading formation data: {ex.Message}");
-                FFV_ScreenReaderMod.SpeakText("Formation view", true);
+                FFV_ScreenReaderMod.SpeakText(T("Formation view"), true);
             }
         }
 
@@ -496,7 +497,7 @@ namespace FFV_ScreenReader.Patches
                 // Announce monster name
                 var pbData = data.pictureBookData;
                 string name = pbData != null && pbData.IsRelease ? pbData.MonsterName : "Unknown";
-                string announcement = $"{name}. Details";
+                string announcement = string.Format(T("{0}. Details"), name);
 
                 FFV_ScreenReaderMod.SpeakText(announcement, true);
 
@@ -605,7 +606,7 @@ namespace FFV_ScreenReader.Patches
                 if (data?.pictureBookData != null && data.pictureBookData.IsRelease)
                     name = data.pictureBookData.MonsterName;
 
-                FFV_ScreenReaderMod.SpeakText($"{name}. Page changed", true);
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("{0}. Page changed"), name), true);
             }
             catch (Exception ex)
             {
@@ -651,7 +652,7 @@ namespace FFV_ScreenReader.Patches
             {
                 var pbData = data.pictureBookData;
                 string name = pbData != null && pbData.IsRelease ? pbData.MonsterName : "Unknown";
-                FFV_ScreenReaderMod.SpeakText($"{name}. Details", true);
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("{0}. Details"), name), true);
 
                 LibraryInfoController_SetData_Patch.BuildAndInitializeStatBuffer();
             }
@@ -694,18 +695,18 @@ namespace FFV_ScreenReader.Patches
                         if (tracker.CurrentMonsterData?.pictureBookData != null)
                             BestiaryStateTracker.CachedEntryName = BestiaryReader.ReadListEntry(tracker.CurrentMonsterData.pictureBookData);
 
-                        string mapInfo = "Minimap open";
+                        string mapInfo = T("Minimap open");
                         if (tracker.CurrentMonsterData != null)
                         {
                             string mapName = BestiaryReader.ReadMapName(tracker.CurrentMonsterData, currentMapIndex);
                             if (!string.IsNullOrEmpty(mapName))
-                                mapInfo = $"Minimap open: {mapName}";
+                                mapInfo = string.Format(T("Minimap open: {0}"), mapName);
                         }
                         FFV_ScreenReaderMod.SpeakText(mapInfo, true);
                     }
                     else if (currentState == 0) // MonsterList
                     {
-                        string closeMsg = "Minimap closed";
+                        string closeMsg = T("Minimap closed");
                         if (!string.IsNullOrEmpty(BestiaryStateTracker.CachedEntryName))
                             closeMsg += $". {BestiaryStateTracker.CachedEntryName}";
                         BestiaryStateTracker.CachedEntryName = null;
@@ -960,7 +961,7 @@ namespace FFV_ScreenReader.Patches
             {
                 var pbData = data.pictureBookData;
                 string name = pbData != null && pbData.IsRelease ? pbData.MonsterName : "Unknown";
-                FFV_ScreenReaderMod.SpeakText($"{name}. Details", true);
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("{0}. Details"), name), true);
 
                 LibraryInfoController_SetData_Patch.BuildAndInitializeStatBuffer();
             }

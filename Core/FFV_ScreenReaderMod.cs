@@ -16,6 +16,7 @@ using Il2CppLast.Entity.Field;
 using Il2CppLast.Message;
 using GameCursor = Il2CppLast.UI.Cursor;
 using FieldTresureBox = Il2CppLast.Entity.Field.FieldTresureBox;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 [assembly: MelonInfo(typeof(FFV_ScreenReader.Core.FFV_ScreenReaderMod), "FFV Screen Reader", "1.0.0", "Your Name")]
 [assembly: MelonGame("SQUARE ENIX, Inc.", "FINAL FANTASY V")]
@@ -66,6 +67,9 @@ namespace FFV_ScreenReader.Core
         {
             Instance = this;
             LoggerInstance.Msg("FFV Screen Reader Mod loaded!");
+
+            // Initialize mod text translator (loads embedded mod_text.json)
+            ModTextTranslator.Initialize();
 
             // Subscribe to scene load events for automatic component caching
             _sceneLoadedDelegate = (UnityEngine.Events.UnityAction<UnityEngine.SceneManagement.Scene,
@@ -340,7 +344,7 @@ namespace FFV_ScreenReader.Core
             entity = entityNavigator.CurrentEntity;
             if (entity == null)
             {
-                SpeakText("No entities nearby");
+                SpeakText(T("No entities nearby"));
                 return false;
             }
 
@@ -350,7 +354,7 @@ namespace FFV_ScreenReader.Core
             playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
             if (playerController == null || playerController.fieldPlayer == null || playerController.fieldPlayer.transform == null)
             {
-                SpeakText("Not in field");
+                SpeakText(T("Not in field"));
                 return false;
             }
 
@@ -374,7 +378,7 @@ namespace FFV_ScreenReader.Core
                 if (!TryGetEntityContext(out var entity, out var pathInfo, out var playerController))
                     return;
 
-                SpeakText(pathInfo.Success ? pathInfo.Description : "no path");
+                SpeakText(pathInfo.Success ? pathInfo.Description : T("no path"));
             }
             catch (System.Exception ex)
             {
@@ -390,7 +394,7 @@ namespace FFV_ScreenReader.Core
             }
             else
             {
-                SpeakText(entityNavigator.EntityCount == 0 ? "No entities nearby" : "No pathable entities found");
+                SpeakText(entityNavigator.EntityCount == 0 ? T("No entities nearby") : T("No pathable entities found"));
             }
         }
 
@@ -402,7 +406,7 @@ namespace FFV_ScreenReader.Core
             }
             else
             {
-                SpeakText(entityNavigator.EntityCount == 0 ? "No entities nearby" : "No pathable entities found");
+                SpeakText(entityNavigator.EntityCount == 0 ? T("No entities nearby") : T("No pathable entities found"));
             }
         }
 
@@ -424,12 +428,12 @@ namespace FFV_ScreenReader.Core
                     int parenStart = parenEnd >= 0 ? formatted.LastIndexOf('(', parenEnd) : -1;
                     if (parenStart >= 0 && parenEnd > parenStart)
                     {
-                        formatted = formatted.Substring(0, parenStart + 1) + "here" + formatted.Substring(parenEnd);
+                        formatted = formatted.Substring(0, parenStart + 1) + T("here") + formatted.Substring(parenEnd);
                     }
                 }
 
-                string countSuffix = $", {entityNavigator.CurrentIndex + 1} of {entityNavigator.EntityCount}";
-                string announcement = pathInfo.Success ? $"{formatted}{countSuffix}" : $"{formatted}, no path{countSuffix}";
+                string countSuffix = $", {entityNavigator.CurrentIndex + 1} {T("of")} {entityNavigator.EntityCount}";
+                string announcement = pathInfo.Success ? $"{formatted}{countSuffix}" : $"{formatted}, {T("no path")}{countSuffix}";
                 SpeakText(announcement);
             }
             catch (System.Exception ex)
@@ -482,8 +486,8 @@ namespace FFV_ScreenReader.Core
 
             PreferencesManager.SavePathfindingFilter(filterByPathfinding);
 
-            string status = filterByPathfinding ? "on" : "off";
-            SpeakText($"Pathfinding filter {status}");
+            string status = filterByPathfinding ? T("on") : T("off");
+            SpeakText(string.Format(T("Pathfinding filter {0}"), status));
         }
 
         internal void ToggleMapExitFilter()
@@ -495,8 +499,8 @@ namespace FFV_ScreenReader.Core
 
             PreferencesManager.SaveMapExitFilter(filterMapExits);
 
-            string status = filterMapExits ? "on" : "off";
-            SpeakText($"Map exit filter {status}");
+            string status = filterMapExits ? T("on") : T("off");
+            SpeakText(string.Format(T("Map exit filter {0}"), status));
         }
 
         internal void ToggleToLayerFilter()
@@ -507,8 +511,8 @@ namespace FFV_ScreenReader.Core
 
             PreferencesManager.SaveToLayerFilter(filterToLayer);
 
-            string status = filterToLayer ? "on" : "off";
-            SpeakText($"Layer transition filter {status}");
+            string status = filterToLayer ? T("on") : T("off");
+            SpeakText(string.Format(T("Layer transition filter {0}"), status));
         }
 
         private void AnnounceCategoryChange()
@@ -516,7 +520,7 @@ namespace FFV_ScreenReader.Core
             string categoryName = EntityNavigator.GetCategoryName(entityNavigator.Category);
             int entityCount = entityNavigator.EntityCount;
 
-            string announcement = $"Category: {categoryName}, {entityCount} {(entityCount == 1 ? "entity" : "entities")}";
+            string announcement = string.Format(T("Category: {0}, {1} {2}"), categoryName, entityCount, entityCount == 1 ? T("entity") : T("entities"));
             SpeakText(announcement);
         }
 
@@ -525,14 +529,14 @@ namespace FFV_ScreenReader.Core
             var entity = entityNavigator.CurrentEntity;
             if (entity == null)
             {
-                SpeakText("No entity selected");
+                SpeakText(T("No entity selected"));
                 return;
             }
 
             var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
             if (playerController?.fieldPlayer == null)
             {
-                SpeakText("Player not available");
+                SpeakText(T("Player not available"));
                 return;
             }
 
@@ -546,17 +550,17 @@ namespace FFV_ScreenReader.Core
             string direction = GetDirectionName(offset);
             string name = (entity is MapExitEntity || entity is TreasureChestEntity || entity is GroupEntity)
                 ? entity.DisplayName : entity.Name;
-            SpeakText($"Teleported {direction} of {name}");
+            SpeakText(string.Format(T("Teleported {0} of {1}"), direction, name));
             LoggerInstance.Msg($"Teleported {direction} of {name} to position {newPos}");
         }
 
         private string GetDirectionName(Vector2 offset)
         {
-            if (offset.y > 0) return "north";
-            if (offset.y < 0) return "south";
-            if (offset.x < 0) return "west";
-            if (offset.x > 0) return "east";
-            return "unknown";
+            if (offset.y > 0) return T("north");
+            if (offset.y < 0) return T("south");
+            if (offset.x < 0) return T("west");
+            if (offset.x > 0) return T("east");
+            return T("unknown");
         }
 
         internal void AnnounceGilAmount()
@@ -566,17 +570,17 @@ namespace FFV_ScreenReader.Core
                 var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
                 if (userDataManager == null)
                 {
-                    SpeakText("Not on map");
+                    SpeakText(T("Not on map"));
                     return;
                 }
 
                 int gil = userDataManager.OwendGil;
-                SpeakText($"{gil:N0} gil");
+                SpeakText(string.Format(T("{0} gil"), gil.ToString("N0")));
             }
             catch (System.Exception ex)
             {
                 LoggerInstance.Warning($"Error announcing gil amount: {ex.Message}");
-                SpeakText("Error reading gil amount");
+                SpeakText(T("Error reading gil amount"));
             }
         }
 
@@ -587,7 +591,7 @@ namespace FFV_ScreenReader.Core
                 var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
                 if (playerController?.fieldPlayer == null)
                 {
-                    SpeakText("Not on map");
+                    SpeakText(T("Not on map"));
                     return;
                 }
                 string mapName = FFV_ScreenReader.Field.MapNameResolver.GetCurrentMapName();
@@ -596,7 +600,7 @@ namespace FFV_ScreenReader.Core
             catch (System.Exception ex)
             {
                 LoggerInstance.Warning($"Error announcing current map: {ex.Message}");
-                SpeakText("Error reading map name");
+                SpeakText(T("Error reading map name"));
             }
         }
 
@@ -609,7 +613,7 @@ namespace FFV_ScreenReader.Core
 
                 if (activeCharacter == null)
                 {
-                    SpeakText("Unavailable outside of battle");
+                    SpeakText(T("Unavailable outside of battle"));
                     return;
                 }
 
@@ -618,7 +622,7 @@ namespace FFV_ScreenReader.Core
                 // Read HP/MP directly from character parameter
                 if (activeCharacter.Parameter == null)
                 {
-                    SpeakText($"{characterName}, status information not available");
+                    SpeakText(string.Format(T("{0}, status information not available"), characterName));
                     return;
                 }
 
@@ -628,7 +632,7 @@ namespace FFV_ScreenReader.Core
             catch (System.Exception ex)
             {
                 LoggerInstance.Warning($"Error announcing character status: {ex.Message}");
-                SpeakText("Error reading character status");
+                SpeakText(T("Error reading character status"));
             }
         }
 

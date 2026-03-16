@@ -7,6 +7,7 @@ using MelonLoader;
 using UnityEngine.UI;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 // Type aliases for IL2CPP types - Base
 using BasePopup = Il2CppLast.UI.Popup;
@@ -228,7 +229,7 @@ namespace FFV_ScreenReader.Patches
 
         private static string ReadGameOverSelectPopup(IntPtr ptr)
         {
-            return "Game Over";
+            return T("Game Over");
         }
 
         private static string ReadInfomationPopup(IntPtr ptr)

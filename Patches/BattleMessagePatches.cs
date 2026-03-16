@@ -14,6 +14,7 @@ using Il2CppLast.Data.Master;
 using Il2CppLast.Systems;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using UnityEngine;
 using BattleCommandMessageController_KeyInput = Il2CppLast.UI.KeyInput.BattleCommandMessageController;
 using BattleCommandMessageController_Touch = Il2CppLast.UI.Touch.BattleCommandMessageController;
@@ -115,15 +116,15 @@ namespace FFV_ScreenReader.Patches
                         string actionLower = actionName.ToLower();
                         if (actionLower == "attack" || actionLower == "fight")
                         {
-                            announcement = $"{actorName} attacks";
+                            announcement = string.Format(T("{0} attacks"), actorName);
                         }
                         else if (actionLower == "defend" || actionLower == "guard")
                         {
-                            announcement = $"{actorName} defends";
+                            announcement = string.Format(T("{0} defends"), actorName);
                         }
                         else if (actionLower == "item")
                         {
-                            announcement = $"{actorName} uses item";
+                            announcement = string.Format(T("{0} uses item"), actorName);
                         }
                         else
                         {
@@ -132,7 +133,7 @@ namespace FFV_ScreenReader.Patches
                     }
                     else
                     {
-                        announcement = $"{actorName} attacks";
+                        announcement = string.Format(T("{0} attacks"), actorName);
                     }
 
                     // Ally dual-wield suppression: same ally name + direct attack = redundant second swing
@@ -228,7 +229,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                string targetName = BattleUnitHelper.GetUnitName(data) ?? "Unknown";
+                string targetName = BattleUnitHelper.GetUnitName(data) ?? T("Unknown");
 
                 string message;
                 if (hitType == Il2CppLast.Systems.HitType.Miss)
@@ -237,19 +238,19 @@ namespace FFV_ScreenReader.Patches
                     if (missType == Il2CppLast.Systems.CalcResult.MissType.NonView)
                         return;
 
-                    message = $"{targetName}: Miss";
+                    message = string.Format(T("{0}: Miss"), targetName);
                 }
                 else if (hitType == Il2CppLast.Systems.HitType.Recovery)
                 {
-                    message = $"{targetName}: Recovered {value} HP";
+                    message = string.Format(T("{0}: Recovered {1} HP"), targetName, value);
                 }
                 else if (hitType == Il2CppLast.Systems.HitType.MPRecovery)
                 {
-                    message = $"{targetName}: Recovered {value} MP";
+                    message = string.Format(T("{0}: Recovered {1} MP"), targetName, value);
                 }
                 else
                 {
-                    message = $"{targetName}: {value} damage";
+                    message = string.Format(T("{0}: {1} damage"), targetName, value);
                 }
 
                 // Announce damage/recovery
@@ -326,11 +327,11 @@ namespace FFV_ScreenReader.Patches
                         string announcement;
                         if (cnt > 1)
                         {
-                            announcement = $"Stole {itemName} x{cnt}";
+                            announcement = string.Format(T("Stole {0} x{1}"), itemName, cnt);
                         }
                         else
                         {
-                            announcement = $"Stole {itemName}";
+                            announcement = string.Format(T("Stole {0}"), itemName);
                         }
 
                         FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
@@ -339,7 +340,7 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Fallback if we couldn't get the item name
-                FFV_ScreenReaderMod.SpeakText($"Stole item", interrupt: false);
+                FFV_ScreenReaderMod.SpeakText(T("Stole item"), interrupt: false);
             }
             catch (Exception ex)
             {
@@ -366,7 +367,7 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 // Get target name using BattleUnitHelper
-                string targetName = FFV_ScreenReader.Utils.BattleUnitHelper.GetUnitName(battleUnitData) ?? "Unknown";
+                string targetName = FFV_ScreenReader.Utils.BattleUnitHelper.GetUnitName(battleUnitData) ?? T("Unknown");
 
                 // Get condition name from ID - look up from ConfirmedConditionList
                 string conditionName = null;

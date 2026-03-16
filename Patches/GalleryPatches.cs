@@ -6,6 +6,7 @@ using UnityEngine;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Menus;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using Il2CppLast.Management;
 using Il2CppLast.UI.KeyInput;
 
@@ -64,7 +65,7 @@ namespace FFV_ScreenReader.Patches
                         break;
 
                     case 2: // Details — image opened
-                        FFV_ScreenReaderMod.SpeakText("Image open", true);
+                        FFV_ScreenReaderMod.SpeakText(T("Image open"), true);
                         GalleryStateTracker.PreviousState = 2;
                         break;
 
@@ -82,7 +83,7 @@ namespace FFV_ScreenReader.Patches
         private static IEnumerator AnnounceGalleryEntry()
         {
             yield return null;
-            FFV_ScreenReaderMod.SpeakText("Gallery", true);
+            FFV_ScreenReaderMod.SpeakText(T("Gallery"), true);
 
             float elapsed = 0f;
             while (elapsed < 2f)

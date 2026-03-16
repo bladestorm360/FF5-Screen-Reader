@@ -6,6 +6,7 @@ using Il2CppLast.Battle;
 using Il2CppLast.Management;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using UnityEngine;
 using BattlePlayerData = Il2Cpp.BattlePlayerData;
 
@@ -332,7 +333,7 @@ namespace FFV_ScreenReader.Patches
             if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS, "all")) return;
             AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX);
 
-            FFV_ScreenReaderMod.SpeakText("All allies");
+            FFV_ScreenReaderMod.SpeakText(T("All allies"));
         }
 
         /// <summary>
@@ -343,7 +344,7 @@ namespace FFV_ScreenReader.Patches
             if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES, "all")) return;
             AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX);
 
-            FFV_ScreenReaderMod.SpeakText("All enemies");
+            FFV_ScreenReaderMod.SpeakText(T("All enemies"));
         }
     }
 

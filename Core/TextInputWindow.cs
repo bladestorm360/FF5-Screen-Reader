@@ -5,6 +5,7 @@ using System.Text;
 using MelonLoader;
 using UnityEngine;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -94,30 +95,30 @@ namespace FFV_ScreenReader.Core
         {
             switch (c)
             {
-                case ' ': return "space";
-                case '.': return "period";
-                case ',': return "comma";
-                case '\'': return "apostrophe";
-                case '"': return "quote";
-                case '-': return "dash";
-                case '_': return "underscore";
-                case ';': return "semicolon";
-                case ':': return "colon";
-                case '!': return "exclamation";
-                case '?': return "question";
-                case '/': return "slash";
-                case '\\': return "backslash";
-                case '(': return "open paren";
-                case ')': return "close paren";
-                case '[': return "open bracket";
-                case ']': return "close bracket";
-                case '{': return "open brace";
-                case '}': return "close brace";
-                case '`': return "backtick";
-                case '~': return "tilde";
-                case '=': return "equals";
-                case '+': return "plus";
-                case '|': return "pipe";
+                case ' ': return T("space");
+                case '.': return T("period");
+                case ',': return T("comma");
+                case '\'': return T("apostrophe");
+                case '"': return T("quote");
+                case '-': return T("dash");
+                case '_': return T("underscore");
+                case ';': return T("semicolon");
+                case ':': return T("colon");
+                case '!': return T("exclamation");
+                case '?': return T("question");
+                case '/': return T("slash");
+                case '\\': return T("backslash");
+                case '(': return T("open paren");
+                case ')': return T("close paren");
+                case '[': return T("open bracket");
+                case ']': return T("close bracket");
+                case '{': return T("open brace");
+                case '}': return T("close brace");
+                case '`': return T("backtick");
+                case '~': return T("tilde");
+                case '=': return T("equals");
+                case '+': return T("plus");
+                case '|': return T("pipe");
                 default: return c.ToString();
             }
         }
@@ -152,11 +153,11 @@ namespace FFV_ScreenReader.Core
                 string finalText = inputBuffer.ToString().Trim();
                 if (string.IsNullOrEmpty(finalText))
                 {
-                    FFV_ScreenReaderMod.SpeakText("Name cannot be empty", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(T("Name cannot be empty"), interrupt: true);
                     return true;
                 }
 
-                FFV_ScreenReaderMod.SpeakText($"Confirmed: {finalText}", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("Confirmed: {0}"), finalText), interrupt: true);
                 var callback = onConfirmCallback;
                 Close();
                 callback?.Invoke(finalText);
@@ -166,7 +167,7 @@ namespace FFV_ScreenReader.Core
             // Escape - cancel
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_ESCAPE))
             {
-                FFV_ScreenReaderMod.SpeakText("Cancelled", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(T("Cancelled"), interrupt: true);
                 var callback = onCancelCallback;
                 Close();
                 callback?.Invoke();
@@ -211,7 +212,7 @@ namespace FFV_ScreenReader.Core
             // Up Arrow - read full text
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_UP))
             {
-                string text = inputBuffer.Length > 0 ? inputBuffer.ToString() : "empty";
+                string text = inputBuffer.Length > 0 ? inputBuffer.ToString() : T("empty");
                 FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
                 return true;
             }
@@ -219,7 +220,7 @@ namespace FFV_ScreenReader.Core
             // Down Arrow - read full text
             if (WindowsFocusHelper.IsKeyDown(WindowsFocusHelper.VK_DOWN))
             {
-                string text = inputBuffer.Length > 0 ? inputBuffer.ToString() : "empty";
+                string text = inputBuffer.Length > 0 ? inputBuffer.ToString() : T("empty");
                 FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
                 return true;
             }

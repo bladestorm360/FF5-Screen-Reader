@@ -15,6 +15,7 @@ using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
 using UnityEngine;
 using static FFV_ScreenReader.Utils.TextUtils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -123,7 +124,7 @@ namespace FFV_ScreenReader.Patches
                                 parts.Add($"{name}: {LocalizationHelper.GetModString("level")} {lv}!");
                         }
                         if (c.IsJobLevelUp)
-                            parts.Add($"{name}: Job level up!");
+                            parts.Add(string.Format(T("{0}: Job level up!"), name));
                     }
                 }
 

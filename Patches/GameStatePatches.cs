@@ -5,6 +5,7 @@ using MelonLoader;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Field;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using SubSceneManagerMainGame = Il2CppLast.Management.SubSceneManagerMainGame;
 using GameSceneManager = Il2CppLast.Management.SceneManager;
 
@@ -212,7 +213,7 @@ namespace FFV_ScreenReader.Patches
                 if (!isFirstRun && mapChanged)
                 {
                     string mapName = MapNameResolver.GetCurrentMapName();
-                    FFV_ScreenReaderMod.SpeakText($"Entering {mapName}", interrupt: false);
+                    FFV_ScreenReaderMod.SpeakText(string.Format(T("Entering {0}"), mapName), interrupt: false);
 
                     bool isWorldMap = GameConstants.IsWorldMap(currentMapId);
                     MoveStateHelper.OnMapTransition(isWorldMap);

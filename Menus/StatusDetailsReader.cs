@@ -11,6 +11,7 @@ using MelonLoader;
 using UnityEngine.UI;
 using FFV_ScreenReader.Patches;
 using static FFV_ScreenReader.Utils.TextUtils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Menus
 {
@@ -330,7 +331,7 @@ namespace FFV_ScreenReader.Menus
             var tracker = StatusNavigationTracker.Instance;
             if (!tracker.ValidateState())
             {
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("Navigation not available");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(T("Navigation not available"));
                 return;
             }
 
@@ -345,7 +346,7 @@ namespace FFV_ScreenReader.Menus
 
             if (tracker.CurrentCharacterData == null)
             {
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("No character data");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(T("No character data"));
                 return;
             }
 
@@ -359,7 +360,7 @@ namespace FFV_ScreenReader.Menus
             catch (Exception ex)
             {
                 MelonLogger.Error($"Error reading stat at index {index}: {ex.Message}");
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("Error reading stat");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(T("Error reading stat"));
             }
         }
 
@@ -371,7 +372,7 @@ namespace FFV_ScreenReader.Menus
             var tracker = StatusNavigationTracker.Instance;
             if (!tracker.ValidateState())
             {
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("Navigation not available");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(T("Navigation not available"));
                 return;
             }
 
@@ -395,7 +396,7 @@ namespace FFV_ScreenReader.Menus
 
             if (tracker.CurrentCharacterData == null)
             {
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("No character data");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(T("No character data"));
                 return;
             }
 
@@ -408,7 +409,7 @@ namespace FFV_ScreenReader.Menus
             catch (Exception ex)
             {
                 MelonLogger.Error($"Error reading stat at index {index}: {ex.Message}");
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText("Error reading stat");
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(T("Error reading stat"));
             }
         }
 

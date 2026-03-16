@@ -1,25 +1,37 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using MelonLoader;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Field;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using Il2Cpp;
 using Il2CppLast.Map;
+using Il2CppLast.Management;
 
 namespace FFV_ScreenReader.Utils
 {
     /// <summary>
-    /// Translates Japanese entity names to English using an external JSON dictionary.
-    /// Translations are loaded from UserData/EntityNames.json at startup.
-    /// Uses the same 4-tier lookup as FF4: exact → strip prefix → strip suffix → strip both.
+    /// Translates Japanese entity names to the current game language using an embedded translation resource.
+    /// Uses a 4-tier lookup: exact → strip prefix → strip suffix → strip both, with language fallback to English.
+    /// Detects language via MessageManager.Instance.currentLanguage.
     /// </summary>
     public static class EntityTranslator
     {
-        private static Dictionary<string, string> translations;
+        private static Dictionary<string, Dictionary<string, string>> translations;
         private static bool isInitialized = false;
+        private static string cachedLanguageCode = "en";
+        private static bool hasLoggedLanguage = false;
+        private static HashSet<string> loggedMisses = new HashSet<string>();
+
+        private static readonly Dictionary<int, string> LanguageCodeMap = new()
+        {
+            {1,"ja"},{2,"en"},{3,"fr"},{4,"it"},{5,"de"},{6,"es"},
+            {7,"ko"},{8,"zht"},{9,"zhc"},{10,"ru"},{11,"th"},{12,"pt"}
+        };
 
         // Matches numeric prefix (e.g., "6:") or SC prefix (e.g., "SC01:") at start of entity names
         private static readonly Regex EntityPrefixRegex = new Regex(
@@ -39,6 +51,48 @@ namespace FFV_ScreenReader.Utils
             {'⑯', "16"}, {'⑰', "17"}, {'⑱', "18"}, {'⑲', "19"}, {'⑳', "20"}
         };
 
+        /// <summary>
+        /// Detects the current game language via MessageManager and returns a language code.
+        /// Caches the result; defaults to "en" if MessageManager is unavailable.
+        /// </summary>
+        public static string DetectLanguage()
+        {
+            try
+            {
+                var mgr = MessageManager.Instance;
+                if (mgr != null)
+                {
+                    int langId = (int)mgr.currentLanguage;
+                    if (!hasLoggedLanguage)
+                        MelonLogger.Msg($"[EntityTranslator] Raw langId from MessageManager: {langId}");
+
+                    if (LanguageCodeMap.TryGetValue(langId, out string code))
+                    {
+                        cachedLanguageCode = code;
+                        if (!hasLoggedLanguage)
+                        {
+                            MelonLogger.Msg($"[EntityTranslator] Detected language: {cachedLanguageCode}");
+                            hasLoggedLanguage = true;
+                        }
+                    }
+                    else if (!hasLoggedLanguage)
+                    {
+                        MelonLogger.Msg($"[EntityTranslator] langId {langId} not in map, keeping default: {cachedLanguageCode}");
+                    }
+                }
+                else if (!hasLoggedLanguage)
+                {
+                    MelonLogger.Msg("[EntityTranslator] MessageManager.Instance is null, using default: " + cachedLanguageCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!hasLoggedLanguage)
+                    MelonLogger.Msg($"[EntityTranslator] DetectLanguage exception: {ex.Message}, using default: {cachedLanguageCode}");
+            }
+            return cachedLanguageCode;
+        }
+
         private static string GetEntityNamesFilePath()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -49,39 +103,50 @@ namespace FFV_ScreenReader.Utils
         }
 
         /// <summary>
-        /// Loads EntityNames.json and flattens non-empty translations into the lookup dictionary.
+        /// Loads the embedded translation resource into the multi-language lookup dictionary.
+        /// Format: { "japaneseName": { "en": "English", "fr": "French", ... }, ... }
         /// </summary>
         public static void Initialize()
         {
             if (isInitialized) return;
 
-            translations = new Dictionary<string, string>();
+            translations = new Dictionary<string, Dictionary<string, string>>();
 
             try
             {
-                string filePath = GetEntityNamesFilePath();
-                if (File.Exists(filePath))
-                {
-                    string json = File.ReadAllText(filePath, Encoding.UTF8);
-                    var mapData = ParseEntityNamesJson(json);
+                using var stream = Assembly.GetExecutingAssembly()
+                    .GetManifestResourceStream("translation.json");
 
-                    // Flatten: any non-empty value becomes a translation
-                    foreach (var mapEntry in mapData)
+                if (stream != null)
+                {
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    string json = reader.ReadToEnd();
+                    MelonLogger.Msg($"[EntityTranslator] Embedded resource length: {json.Length} chars");
+
+                    var data = ParseNestedJson(json);
+                    MelonLogger.Msg($"[EntityTranslator] Parsed {data.Count} raw entries from embedded resource");
+
+                    foreach (var entry in data)
                     {
-                        foreach (var entityEntry in mapEntry.Value)
+                        // Only include entries where at least one language value is non-empty
+                        bool hasValue = false;
+                        foreach (var langEntry in entry.Value)
                         {
-                            if (!string.IsNullOrEmpty(entityEntry.Value) && !translations.ContainsKey(entityEntry.Key))
+                            if (!string.IsNullOrEmpty(langEntry.Value))
                             {
-                                translations[entityEntry.Key] = entityEntry.Value;
+                                hasValue = true;
+                                break;
                             }
                         }
+                        if (hasValue)
+                            translations[entry.Key] = entry.Value;
                     }
 
-                    MelonLogger.Msg($"[EntityTranslator] Loaded {translations.Count} translations from EntityNames.json");
+                    MelonLogger.Msg($"[EntityTranslator] Loaded {translations.Count} translations from embedded resource");
                 }
                 else
                 {
-                    MelonLogger.Msg("[EntityTranslator] No EntityNames.json found, translations empty");
+                    MelonLogger.Warning("[EntityTranslator] Embedded translation resource not found");
                 }
             }
             catch (Exception ex)
@@ -93,7 +158,7 @@ namespace FFV_ScreenReader.Utils
         }
 
         /// <summary>
-        /// Translates a Japanese entity name to English.
+        /// Translates a Japanese entity name to the current game language.
         /// Returns original name if no translation found.
         /// 4-tier lookup: exact → strip prefix → strip suffix → strip both.
         /// </summary>
@@ -108,29 +173,77 @@ namespace FFV_ScreenReader.Utils
             if (translations.Count == 0)
                 return japaneseName;
 
+            // When game is in Japanese, entity names are already Japanese — no translation needed
+            if (DetectLanguage() == "ja")
+                return japaneseName;
+
             // 1. Exact match
-            if (translations.TryGetValue(japaneseName, out string englishName))
-                return englishName;
+            if (TryLookup(japaneseName, out string exactMatch))
+                return exactMatch;
 
             // 2. Strip numeric/SC prefix and try base name lookup
             StripPrefix(japaneseName, out string prefix, out string baseName);
-            if (prefix != null && translations.TryGetValue(baseName, out string baseTranslation))
+            if (prefix != null && TryLookup(baseName, out string baseTranslation))
                 return prefix + " " + baseTranslation;
 
             // 3. Strip circled number suffix and try base name lookup
             StripSuffix(japaneseName, out string suffix, out string baseNameNoSuffix);
-            if (suffix != null && translations.TryGetValue(baseNameNoSuffix, out string baseSuffixTranslation))
+            if (suffix != null && TryLookup(baseNameNoSuffix, out string baseSuffixTranslation))
                 return baseSuffixTranslation + " " + ConvertCircledNumber(suffix);
 
             // 4. Handle both prefix AND suffix
             if (prefix != null)
             {
                 StripSuffix(baseName, out string innerSuffix, out string innerBase);
-                if (innerSuffix != null && translations.TryGetValue(innerBase, out string innerTranslation))
+                if (innerSuffix != null && TryLookup(innerBase, out string innerTranslation))
                     return prefix + " " + innerTranslation + " " + ConvertCircledNumber(innerSuffix);
             }
 
+            // Log untranslated entities containing Japanese characters (once per unique name)
+            if (ContainsJapaneseCharacters(japaneseName) && loggedMisses.Add(japaneseName))
+                MelonLogger.Msg($"[EntityTranslator] MISS: \"{japaneseName}\"");
+
             return japaneseName;
+        }
+
+        /// <summary>
+        /// Looks up a Japanese key in the translations dictionary for the current game language.
+        /// Returns false if no translation found, so the caller can fall back to the original Japanese.
+        /// </summary>
+        private static bool TryLookup(string key, out string result)
+        {
+            result = null;
+            if (!translations.TryGetValue(key, out var langDict))
+                return false;
+            string lang = DetectLanguage();
+            if (langDict.TryGetValue(lang, out string localized) && !string.IsNullOrEmpty(localized))
+            {
+                result = localized;
+                return true;
+            }
+            // Fallback to English if detected language wasn't found
+            if (lang != "en" && langDict.TryGetValue("en", out string english) && !string.IsNullOrEmpty(english))
+            {
+                result = english;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if a string contains Japanese characters (Hiragana, Katakana, or CJK Unified Ideographs).
+        /// </summary>
+        public static bool ContainsJapaneseCharacters(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+            foreach (char c in text)
+            {
+                if ((c >= '\u3040' && c <= '\u309F') ||  // Hiragana
+                    (c >= '\u30A0' && c <= '\u30FF') ||  // Katakana
+                    (c >= '\u4E00' && c <= '\u9FFF'))     // CJK Unified Ideographs
+                    return true;
+            }
+            return false;
         }
 
         private static void StripPrefix(string name, out string prefix, out string baseName)
@@ -176,14 +289,15 @@ namespace FFV_ScreenReader.Utils
         public static int TranslationCount => translations?.Count ?? 0;
 
         // ─────────────────────────────────────────────
-        //  JSON parsing for EntityNames.json
-        //  Format: { "MapName": { "japaneseName": "englishName", ... }, ... }
+        //  JSON parsing — used for embedded translation data
+        //  Format: { "outerKey": { "innerKey": "value", ... }, ... }
         // ─────────────────────────────────────────────
 
         /// <summary>
-        /// Parses EntityNames.json into a nested dictionary: mapName → (japaneseName → englishName).
+        /// Parses a two-level nested JSON dictionary: outerKey → (innerKey → value).
+        /// Used for the embedded translation resource (jpName → {lang → translation}).
         /// </summary>
-        private static Dictionary<string, Dictionary<string, string>> ParseEntityNamesJson(string json)
+        internal static Dictionary<string, Dictionary<string, string>> ParseNestedJson(string json)
         {
             var result = new Dictionary<string, Dictionary<string, string>>();
             if (string.IsNullOrEmpty(json)) return result;
@@ -198,23 +312,23 @@ namespace FFV_ScreenReader.Utils
             int pos = 0;
             while (pos < inner.Length)
             {
-                // Find next quoted key (map name)
+                // Find next quoted key
                 int keyStart = inner.IndexOf('"', pos);
                 if (keyStart < 0) break;
                 int keyEnd = FindClosingQuote(inner, keyStart + 1);
                 if (keyEnd < 0) break;
 
-                string mapName = UnescapeJsonString(inner.Substring(keyStart + 1, keyEnd - keyStart - 1));
+                string outerKey = UnescapeJsonString(inner.Substring(keyStart + 1, keyEnd - keyStart - 1));
 
-                // Find the opening brace for this map's entries
+                // Find the opening brace for this key's entries
                 int braceStart = inner.IndexOf('{', keyEnd);
                 if (braceStart < 0) break;
 
                 int braceEnd = FindMatchingBrace(inner, braceStart);
                 if (braceEnd < 0) break;
 
-                string mapJson = inner.Substring(braceStart + 1, braceEnd - braceStart - 1);
-                result[mapName] = ParseStringDictionary(mapJson);
+                string innerJson = inner.Substring(braceStart + 1, braceEnd - braceStart - 1);
+                result[outerKey] = ParseStringDictionary(innerJson);
 
                 pos = braceEnd + 1;
             }
@@ -341,14 +455,14 @@ namespace FFV_ScreenReader.Utils
                     if (File.Exists(filePath))
                     {
                         string json = File.ReadAllText(filePath, Encoding.UTF8);
-                        existingData = ParseEntityNamesJson(json);
+                        existingData = ParseNestedJson(json);
                     }
 
                     // 2. Get current map name
                     string mapKey = MapNameResolver.GetCurrentMapName();
                     if (string.IsNullOrEmpty(mapKey))
                     {
-                        FFV_ScreenReaderMod.SpeakText("Cannot determine current map");
+                        FFV_ScreenReaderMod.SpeakText(T("Cannot determine current map"));
                         return;
                     }
 
@@ -356,7 +470,7 @@ namespace FFV_ScreenReader.Utils
                     var newEntities = CollectDumpableEntities();
                     if (newEntities.Count == 0)
                     {
-                        FFV_ScreenReaderMod.SpeakText($"No Japanese entities found on {mapKey}");
+                        FFV_ScreenReaderMod.SpeakText(string.Format(T("No Japanese entities found on {0}"), mapKey));
                         return;
                     }
 
@@ -373,7 +487,7 @@ namespace FFV_ScreenReader.Utils
 
                         if (trulyNew.Count == 0)
                         {
-                            FFV_ScreenReaderMod.SpeakText($"No new entities for {mapKey}");
+                            FFV_ScreenReaderMod.SpeakText(string.Format(T("No new entities for {0}"), mapKey));
                             return;
                         }
 
@@ -382,7 +496,7 @@ namespace FFV_ScreenReader.Utils
                             existingData[mapKey][name] = "";
 
                         SaveDumpFile(filePath, existingData);
-                        FFV_ScreenReaderMod.SpeakText($"{trulyNew.Count} new entities for {mapKey}");
+                        FFV_ScreenReaderMod.SpeakText(string.Format(T("{0} new entities for {1}"), trulyNew.Count, mapKey));
                     }
                     else
                     {
@@ -393,7 +507,7 @@ namespace FFV_ScreenReader.Utils
                         existingData[mapKey] = mapEntries;
 
                         SaveDumpFile(filePath, existingData);
-                        FFV_ScreenReaderMod.SpeakText($"Dumped {newEntities.Count} entities for {mapKey}");
+                        FFV_ScreenReaderMod.SpeakText(string.Format(T("Dumped {0} entities for {1}"), newEntities.Count, mapKey));
                     }
 
                     MelonLogger.Msg($"[EntityDump] Saved {newEntities.Count} entity names for {mapKey}");
@@ -401,7 +515,7 @@ namespace FFV_ScreenReader.Utils
                 catch (Exception ex)
                 {
                     MelonLogger.Warning($"[EntityDump] Error: {ex.Message}");
-                    FFV_ScreenReaderMod.SpeakText("Error dumping entities");
+                    FFV_ScreenReaderMod.SpeakText(T("Error dumping entities"));
                 }
             }
 
@@ -434,7 +548,7 @@ namespace FFV_ScreenReader.Utils
                     if (string.IsNullOrEmpty(name)) continue;
 
                     // Only include entities with Japanese characters
-                    if (!EntityFactory.ContainsJapaneseCharacters(name))
+                    if (!ContainsJapaneseCharacters(name))
                         continue;
 
                     names.Add(name);
