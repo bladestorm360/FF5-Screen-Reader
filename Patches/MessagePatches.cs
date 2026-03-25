@@ -86,13 +86,13 @@ namespace FFV_ScreenReader.Patches
         {
             if (_isInDialogue) return;
             if (BattleState.IsInBattle) return; // Don't suppress if already in battle
-            if (GameStatePatches.IsInEventState)
-            {
-                MelonLogger.Msg("[Dialogue] Start skipped (Event state)");
-                return;
-            }
 
             _isInDialogue = true;
+
+            // Only suppress navigation when not in event state
+            // (events/cutscenes manage their own navigation)
+            if (GameStatePatches.IsInEventState)
+                return;
 
             var mod = FFV_ScreenReaderMod.Instance;
             mod?.SuppressNavigationForDialogue();
@@ -107,11 +107,9 @@ namespace FFV_ScreenReader.Patches
 
             _isInDialogue = false;
 
+            // Only restore navigation when not in event state
             if (GameStatePatches.IsInEventState)
-            {
-                MelonLogger.Msg("[Dialogue] End skipped (Event state)");
-                return; // Don't restore mid-event
-            }
+                return;
 
             var mod = FFV_ScreenReaderMod.Instance;
             mod?.RestoreNavigationAfterDialogue();
