@@ -290,6 +290,9 @@ namespace FFV_ScreenReader.Patches
                 string announcement = BuildPlayerAnnouncement(selectedPlayer);
                 if (!string.IsNullOrEmpty(announcement))
                 {
+                    // Append target position last (index within the selectable player list).
+                    var asList = list.TryCast<Il2CppSystem.Collections.Generic.List<BattlePlayerData>>();
+                    announcement = MenuPosition.Format(announcement, index, asList != null ? asList.Count : 0);
                     FFV_ScreenReaderMod.SpeakText(announcement);
                 }
             }
@@ -316,6 +319,9 @@ namespace FFV_ScreenReader.Patches
                 string announcement = BuildEnemyAnnouncement(selectedEnemy);
                 if (!string.IsNullOrEmpty(announcement))
                 {
+                    // Append target position last (index within the selectable enemy list).
+                    var asList = list.TryCast<Il2CppSystem.Collections.Generic.List<BattleEnemyData>>();
+                    announcement = MenuPosition.Format(announcement, index, asList != null ? asList.Count : 0);
                     FFV_ScreenReaderMod.SpeakText(announcement);
                 }
             }

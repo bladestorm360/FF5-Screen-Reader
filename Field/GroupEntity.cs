@@ -74,6 +74,12 @@ namespace FFV_ScreenReader.Field
 
         public override bool BlocksPathing => GetRepresentative()?.BlocksPathing ?? false;
 
+        /// <summary>
+        /// Group is alive as long as at least one member is alive. Per-member liveness
+        /// is checked in EntityCache.Scan via the member's own GameEntity key.
+        /// </summary>
+        public override bool IsAlive => members.Any(m => m.IsAlive);
+
         protected override string GetDisplayName()
         {
             var rep = GetRepresentative();

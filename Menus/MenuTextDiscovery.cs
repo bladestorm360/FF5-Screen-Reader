@@ -63,16 +63,12 @@ namespace FFV_ScreenReader.Menus
                 if (menuText != null)
                 {
                     string configValue = ConfigMenuReader.FindConfigValueText(cursor.transform, cursor.Index);
-                    if (configValue != null)
-                    {
-                        // Combine option name and value
-                        string fullText = $"{menuText}: {configValue}";
-                        FFV_ScreenReaderMod.SpeakText(fullText);
-                    }
-                    else
-                    {
-                        FFV_ScreenReaderMod.SpeakText(menuText);
-                    }
+                    // Combine option name and value when present.
+                    string fullText = configValue != null ? $"{menuText}: {configValue}" : menuText;
+                    // Append list position last (after any trailing value). count is the cursor's
+                    // item count from NextIndex/PrevIndex; cursor.Index is the current position.
+                    fullText = MenuPosition.Format(fullText, cursor.Index, count);
+                    FFV_ScreenReaderMod.SpeakText(fullText);
                 }
             }
             catch (Exception ex)

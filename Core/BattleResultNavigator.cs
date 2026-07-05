@@ -2,14 +2,16 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MelonLoader;
+using UnityEngine;
 using FFV_ScreenReader.Utils;
 
 namespace FFV_ScreenReader.Core
 {
     /// <summary>
-    /// Focus-stealing navigable window for reviewing battle result data.
-    /// Follows the same pattern as TextInputWindow: steals focus, captures keys via
-    /// Windows API, and restores focus on close.
+    /// Virtual navigable window for reviewing battle result data (no window focus stealing).
+    /// Game input is suppressed via ControllerRouter.SuppressGameInput + InputPassthroughPatches
+    /// while IsOpen. Keys are read through GamepadManager (SDL3 + GetAsyncKeyState), alongside
+    /// direct SDL controller button/stick reads.
     /// </summary>
     public static class BattleResultNavigator
     {
@@ -24,15 +26,6 @@ namespace FFV_ScreenReader.Core
         // Navigation state
         private static int currentRow;
         private static int currentCol;
-
-        // Virtual key codes
-        private const int VK_ESCAPE = 0x1B;
-        private const int VK_UP = 0x26;
-        private const int VK_DOWN = 0x28;
-        private const int VK_LEFT = 0x25;
-        private const int VK_RIGHT = 0x27;
-        private const int VK_RETURN = 0x0D;
-        private const int VK_HOME = 0x24;
 
         /// <summary>
         /// Opens the navigator with the current result data.
@@ -69,20 +62,13 @@ namespace FFV_ScreenReader.Core
             currentRow = 0;
             currentCol = 0;
 
-            // Initialize key states
-            WindowsFocusHelper.InitializeKeyStates(new[] {
-                VK_ESCAPE, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_HOME
-            });
-
-            // Steal focus
-            WindowsFocusHelper.StealFocus("FFV_BattleResults");
-
             // Announce title after delay
             CoroutineManager.StartManaged(AnnounceOpenDelayed());
         }
 
         /// <summary>
-        /// Closes the navigator and restores game focus.
+        /// Closes the navigator. Game input resumes automatically —
+        /// ControllerRouter.SuppressGameInput becomes false once IsOpen is cleared.
         /// </summary>
         public static void Close()
         {
@@ -93,49 +79,66 @@ namespace FFV_ScreenReader.Core
             colHeaders = null;
             cells = null;
             title = null;
-
-            WindowsFocusHelper.RestoreFocus();
         }
 
         /// <summary>
         /// Handles input when the navigator is open.
         /// Returns true if input was consumed.
+        /// Accepts both keyboard (GetAsyncKeyState via WindowsFocusHelper) and
+        /// SDL controller (GamepadManager). The router skips its own routing when
+        /// IsOpen, so gamepad polling here is the sole consumer of those buttons.
         /// </summary>
         public static bool HandleInput()
         {
             if (!IsOpen) return false;
 
-            if (WindowsFocusHelper.IsKeyDown(VK_ESCAPE))
+            // Close: Escape OR B (EAST) OR Start
+            if (GamepadManager.IsKeyCodePressed(KeyCode.Escape)
+                || GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_EAST)
+                || GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_START))
             {
                 Close();
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_UP))
+            // Row navigation: arrow keys OR D-pad OR left stick
+            if (GamepadManager.IsKeyCodePressed(KeyCode.UpArrow)
+                || GamepadManager.DpadUpPressed
+                || GamepadManager.LeftStickUpPressed)
             {
                 NavigateRow(-1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_DOWN))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.DownArrow)
+                || GamepadManager.DpadDownPressed
+                || GamepadManager.LeftStickDownPressed)
             {
                 NavigateRow(1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_LEFT))
+            // Column navigation
+            if (GamepadManager.IsKeyCodePressed(KeyCode.LeftArrow)
+                || GamepadManager.DpadLeftPressed
+                || GamepadManager.LeftStickLeftPressed)
             {
                 NavigateCol(-1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_RIGHT))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.RightArrow)
+                || GamepadManager.DpadRightPressed
+                || GamepadManager.LeftStickRightPressed)
             {
                 NavigateCol(1);
                 return true;
             }
 
-            if (WindowsFocusHelper.IsKeyDown(VK_RETURN) || WindowsFocusHelper.IsKeyDown(VK_HOME))
+            // Read full row: Enter/Home OR A (SOUTH)
+            if (GamepadManager.IsKeyCodePressed(KeyCode.Return)
+                || GamepadManager.IsKeyCodePressed(KeyCode.Home)
+                || GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_SOUTH))
             {
                 AnnounceFullRow();
                 return true;

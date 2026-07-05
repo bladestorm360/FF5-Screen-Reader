@@ -20,6 +20,10 @@ namespace FFV_ScreenReader.Core
         private static MelonPreferences_Entry<bool> prefAudioBeacons;
         private static MelonPreferences_Entry<bool> prefLandingPings;
         private static MelonPreferences_Entry<bool> prefExpCounter;
+        private static MelonPreferences_Entry<bool> prefStickClickNormalization;
+        private static MelonPreferences_Entry<bool> prefAnnounceOnBeaconRestart;
+        private static MelonPreferences_Entry<bool> prefMenuPositionAnnouncements;
+        private static MelonPreferences_Entry<bool> prefAutoDetail;
 
         // Volume preferences (0-100, default 50)
         private static MelonPreferences_Entry<int> prefWallBumpVolume;
@@ -31,6 +35,9 @@ namespace FFV_ScreenReader.Core
 
         // Enemy HP display mode (0=Numbers, 1=Percentage, 2=Hidden)
         private static MelonPreferences_Entry<int> prefEnemyHPDisplay;
+
+        // Multi-hit damage display (0=Total only, 1=With hit count "14x1552 damage")
+        private static MelonPreferences_Entry<int> prefDamageDisplay;
 
         /// <summary>
         /// Initialize all preferences. Call once during OnInitializeMelon.
@@ -47,6 +54,10 @@ namespace FFV_ScreenReader.Core
             prefAudioBeacons = prefsCategory.CreateEntry<bool>("AudioBeacons", false, "Audio Beacons", "Play periodic pings toward the selected entity");
             prefLandingPings = prefsCategory.CreateEntry<bool>("LandingPings", false, "Landing Pings", "Play directional pings indicating nearby landable tiles when on ship");
             prefExpCounter = prefsCategory.CreateEntry<bool>("ExpCounter", true, "EXP Counter Sound", "Play rapid beeping while EXP bar animates on battle results");
+            prefStickClickNormalization = prefsCategory.CreateEntry<bool>("StickClickNormalization", false, "Stick Click Normalization", "When on, R3/L3 pass through to the game (encounter toggle / dash); mod functions move to Mod Mode (Back/Select + R3/L3).");
+            prefAnnounceOnBeaconRestart = prefsCategory.CreateEntry<bool>("AnnounceOnBeaconRestart", false, "Beacon Destination Announcement", "Re-speak the current destination when the beacon is restarted");
+            prefMenuPositionAnnouncements = prefsCategory.CreateEntry<bool>("MenuPositionAnnouncements", true, "Menu Position Announcements", "Append the cursor's position in a list when navigating menus, e.g. (3 of 12)");
+            prefAutoDetail = prefsCategory.CreateEntry<bool>("AutoDetail", false, "Auto Detail", "Automatically announce descriptions/stats on focus for items, magic, equipment, and shops (same as the on-demand details key)");
 
             prefWallBumpVolume = prefsCategory.CreateEntry<int>("WallBumpVolume", 50, "Wall Bump Volume", "Volume for wall bump sounds (0-100)");
             prefFootstepVolume = prefsCategory.CreateEntry<int>("FootstepVolume", 50, "Footstep Volume", "Volume for footstep sounds (0-100)");
@@ -56,18 +67,23 @@ namespace FFV_ScreenReader.Core
             prefExpCounterVolume = prefsCategory.CreateEntry<int>("ExpCounterVolume", 50, "EXP Counter Volume", "Volume for EXP counter beep (0-100)");
 
             prefEnemyHPDisplay = prefsCategory.CreateEntry<int>("EnemyHPDisplay", 0, "Enemy HP Display", "0=Numbers, 1=Percentage, 2=Hidden");
+            prefDamageDisplay = prefsCategory.CreateEntry<int>("DamageDisplay", 0, "Multi-hit Damage", "0=Total only, 1=With hit count (e.g. 14x1552 damage)");
         }
 
-        #region Toggle Getters (saved preference values)
+        #region Toggle Getters (saved preference values — single source of truth)
 
-        public static bool PathfindingFilterDefault => prefPathfindingFilter?.Value ?? false;
-        public static bool MapExitFilterDefault => prefMapExitFilter?.Value ?? false;
-        public static bool ToLayerFilterDefault => prefToLayerFilter?.Value ?? false;
-        public static bool WallTonesDefault => prefWallTones?.Value ?? false;
-        public static bool FootstepsDefault => prefFootsteps?.Value ?? false;
-        public static bool AudioBeaconsDefault => prefAudioBeacons?.Value ?? false;
-        public static bool LandingPingsDefault => prefLandingPings?.Value ?? false;
-        public static bool ExpCounterDefault => prefExpCounter?.Value ?? true;
+        public static bool PathfindingFilterEnabled => prefPathfindingFilter?.Value ?? false;
+        public static bool MapExitFilterEnabled => prefMapExitFilter?.Value ?? false;
+        public static bool ToLayerFilterEnabled => prefToLayerFilter?.Value ?? false;
+        public static bool WallTonesEnabled => prefWallTones?.Value ?? false;
+        public static bool FootstepsEnabled => prefFootsteps?.Value ?? false;
+        public static bool AudioBeaconsEnabled => prefAudioBeacons?.Value ?? false;
+        public static bool LandingPingsEnabled => prefLandingPings?.Value ?? false;
+        public static bool ExpCounterEnabled => prefExpCounter?.Value ?? true;
+        public static bool StickClickNormalizationEnabled => prefStickClickNormalization?.Value ?? false;
+        public static bool AnnounceOnBeaconRestartEnabled => prefAnnounceOnBeaconRestart?.Value ?? false;
+        public static bool MenuPositionAnnouncementsEnabled => prefMenuPositionAnnouncements?.Value ?? true;
+        public static bool AutoDetailEnabled => prefAutoDetail?.Value ?? false;
 
         #endregion
 
@@ -80,73 +96,32 @@ namespace FFV_ScreenReader.Core
         public static int LandingPingVolume => prefLandingPingVolume?.Value ?? 50;
         public static int ExpCounterVolume => prefExpCounterVolume?.Value ?? 50;
         public static int EnemyHPDisplay => prefEnemyHPDisplay?.Value ?? 0;
+        public static int DamageDisplay => prefDamageDisplay?.Value ?? 0;
 
         #endregion
 
         #region Setters (with clamping + auto-save)
 
-        public static void SetWallBumpVolume(int value)
+        /// <summary>
+        /// Clamps and stores an int preference, then persists. Shared by all int setters.
+        /// </summary>
+        private static void SetIntPreference(MelonPreferences_Entry<int> pref, int value, int min, int max)
         {
-            if (prefWallBumpVolume != null)
+            if (pref != null)
             {
-                prefWallBumpVolume.Value = Math.Clamp(value, 0, 100);
+                pref.Value = Math.Clamp(value, min, max);
                 prefsCategory?.SaveToFile(false);
             }
         }
 
-        public static void SetFootstepVolume(int value)
-        {
-            if (prefFootstepVolume != null)
-            {
-                prefFootstepVolume.Value = Math.Clamp(value, 0, 100);
-                prefsCategory?.SaveToFile(false);
-            }
-        }
-
-        public static void SetWallToneVolume(int value)
-        {
-            if (prefWallToneVolume != null)
-            {
-                prefWallToneVolume.Value = Math.Clamp(value, 0, 100);
-                prefsCategory?.SaveToFile(false);
-            }
-        }
-
-        public static void SetBeaconVolume(int value)
-        {
-            if (prefBeaconVolume != null)
-            {
-                prefBeaconVolume.Value = Math.Clamp(value, 0, 100);
-                prefsCategory?.SaveToFile(false);
-            }
-        }
-
-        public static void SetLandingPingVolume(int value)
-        {
-            if (prefLandingPingVolume != null)
-            {
-                prefLandingPingVolume.Value = Math.Clamp(value, 0, 100);
-                prefsCategory?.SaveToFile(false);
-            }
-        }
-
-        public static void SetExpCounterVolume(int value)
-        {
-            if (prefExpCounterVolume != null)
-            {
-                prefExpCounterVolume.Value = Math.Clamp(value, 0, 100);
-                prefsCategory?.SaveToFile(false);
-            }
-        }
-
-        public static void SetEnemyHPDisplay(int value)
-        {
-            if (prefEnemyHPDisplay != null)
-            {
-                prefEnemyHPDisplay.Value = Math.Clamp(value, 0, 2);
-                prefsCategory?.SaveToFile(false);
-            }
-        }
+        public static void SetWallBumpVolume(int value) => SetIntPreference(prefWallBumpVolume, value, 0, 100);
+        public static void SetFootstepVolume(int value) => SetIntPreference(prefFootstepVolume, value, 0, 100);
+        public static void SetWallToneVolume(int value) => SetIntPreference(prefWallToneVolume, value, 0, 100);
+        public static void SetBeaconVolume(int value) => SetIntPreference(prefBeaconVolume, value, 0, 100);
+        public static void SetLandingPingVolume(int value) => SetIntPreference(prefLandingPingVolume, value, 0, 100);
+        public static void SetExpCounterVolume(int value) => SetIntPreference(prefExpCounterVolume, value, 0, 100);
+        public static void SetEnemyHPDisplay(int value) => SetIntPreference(prefEnemyHPDisplay, value, 0, 2);
+        public static void SetDamageDisplay(int value) => SetIntPreference(prefDamageDisplay, value, 0, 1);
 
         #endregion
 
@@ -193,6 +168,26 @@ namespace FFV_ScreenReader.Core
         public static void SaveExpCounter(bool value)
         {
             if (prefExpCounter != null) { prefExpCounter.Value = value; prefsCategory?.SaveToFile(false); }
+        }
+
+        public static void SaveStickClickNormalization(bool value)
+        {
+            if (prefStickClickNormalization != null) { prefStickClickNormalization.Value = value; prefsCategory?.SaveToFile(false); }
+        }
+
+        public static void SaveAnnounceOnBeaconRestart(bool value)
+        {
+            if (prefAnnounceOnBeaconRestart != null) { prefAnnounceOnBeaconRestart.Value = value; prefsCategory?.SaveToFile(false); }
+        }
+
+        public static void SaveMenuPositionAnnouncements(bool value)
+        {
+            if (prefMenuPositionAnnouncements != null) { prefMenuPositionAnnouncements.Value = value; prefsCategory?.SaveToFile(false); }
+        }
+
+        public static void SaveAutoDetail(bool value)
+        {
+            if (prefAutoDetail != null) { prefAutoDetail.Value = value; prefsCategory?.SaveToFile(false); }
         }
 
         #endregion

@@ -221,6 +221,25 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
+    /// <summary>
+    /// Captures the on-screen multi-hit "×N" multiplier from DamageViewUIManager.CreateHitCount, which
+    /// fires just before the matching CreateDamageView. Lets the damage announce optionally prepend it
+    /// (e.g. "14x1552 damage") when the Multi-hit Damage setting is "With hit count". The value is
+    /// consumed and reset to 1 by BattleBasicFunction_CreateDamageView_Patch.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.UI.DamageViewUIManager), nameof(Il2CppLast.UI.DamageViewUIManager.CreateHitCount))]
+    public static class DamageViewUIManager_CreateHitCount_Patch
+    {
+        // Multi-hit multiplier awaiting the next CreateDamageView. 1 = single hit (default / after consume).
+        public static int PendingHitCount = 1;
+
+        [HarmonyPostfix]
+        public static void Postfix(int hitCountValue)
+        {
+            PendingHitCount = hitCountValue;
+        }
+    }
+
     [HarmonyPatch(typeof(Il2CppLast.Battle.Function.BattleBasicFunction), nameof(Il2CppLast.Battle.Function.BattleBasicFunction.CreateDamageView))]
     public static class BattleBasicFunction_CreateDamageView_Patch
     {
@@ -230,6 +249,11 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 string targetName = BattleUnitHelper.GetUnitName(data) ?? T("Unknown");
+
+                // Consume the multi-hit "×N" multiplier captured by CreateHitCount (fires just before this
+                // view). Reset to 1 so a later damage with no fresh hit count defaults to single.
+                int hitCount = DamageViewUIManager_CreateHitCount_Patch.PendingHitCount;
+                DamageViewUIManager_CreateHitCount_Patch.PendingHitCount = 1;
 
                 string message;
                 if (hitType == Il2CppLast.Systems.HitType.Miss)
@@ -250,7 +274,12 @@ namespace FFV_ScreenReader.Patches
                 }
                 else
                 {
-                    message = string.Format(T("{0}: {1} damage"), targetName, value);
+                    // HP damage — optionally prepend the multi-hit "{N}x" multiplier to the value
+                    // (e.g. "14x1552") when the Multi-hit Damage setting is "With hit count".
+                    string valueText = (PreferencesManager.DamageDisplay == 1 && hitCount > 1)
+                        ? $"{hitCount}x{value}"
+                        : value.ToString();
+                    message = string.Format(T("{0}: {1} damage"), targetName, valueText);
                 }
 
                 // Announce damage/recovery

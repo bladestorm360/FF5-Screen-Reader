@@ -97,6 +97,10 @@ namespace FFV_ScreenReader.Patches
                 string commandName = messageManager.GetMessage(mesIdName);
                 if (string.IsNullOrWhiteSpace(commandName)) return;
 
+                // Append list position last (command index within the battle command list).
+                int commandCount = __instance.contentList != null ? __instance.contentList.Count : 0;
+                commandName = MenuPosition.Format(commandName, index, commandCount);
+
                 CoroutineManager.StartManaged(DelayedBattleCommandSpeech(commandName));
             }
             catch (Exception ex)
@@ -198,6 +202,9 @@ namespace FFV_ScreenReader.Patches
                     catch {}
                 }
 
+                // Append list position last (after quantity / description).
+                announcement = MenuPosition.Format(announcement, index, activeList != null ? activeList.Count : 0);
+
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_ITEM_SELECT, announcement)) return;
 
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
@@ -254,6 +261,9 @@ namespace FFV_ScreenReader.Patches
                     string description = StripIconMarkup(messageManager.GetMessage(mesIdDescription));
                     if (!string.IsNullOrWhiteSpace(description)) announcement += $", {description}";
                 }
+
+                // Append list position last (after description).
+                announcement = MenuPosition.Format(announcement, index, __instance.contentList != null ? __instance.contentList.Count : 0);
 
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_ABILITY_SELECT, announcement)) return;
 

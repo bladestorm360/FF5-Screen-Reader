@@ -212,6 +212,9 @@ namespace FFV_ScreenReader.Patches
             {
                 yield return wait;
 
+                // Keep the SDL Counter stream fed so the loop never drains between ticks.
+                SoundPlayer.TopUpExpCounter();
+
                 try
                 {
                     int endCount = Marshal.ReadInt32(charListCtrlPtr, 0x30);

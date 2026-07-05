@@ -6,6 +6,7 @@ using UnityEngine;
 using FFV_ScreenReader.Field;
 using FFV_ScreenReader.Core.Filters;
 using Il2CppLast.Entity.Field;
+using Il2CppLast.Management;
 using Il2CppLast.Map;
 using MelonLoader;
 
@@ -16,6 +17,7 @@ namespace FFV_ScreenReader.Core
         private Dictionary<FieldEntity, NavigableEntity> entityMap = new Dictionary<FieldEntity, NavigableEntity>();
         private List<IGroupingStrategy> enabledStrategies = new List<IGroupingStrategy>();
         private Dictionary<string, GroupEntity> groupsByKey = new Dictionary<string, GroupEntity>();
+        private int lastScannedMapId = -1;
 
         public event Action<NavigableEntity> OnEntityAdded;
 
@@ -124,11 +126,13 @@ namespace FFV_ScreenReader.Core
         public void Scan()
         {
             var sw = Stopwatch.StartNew();
+            int currentMapId = GetCurrentMapId();
 
             var currentFieldEntities = FieldNavigationHelper.GetAllFieldEntities();
 
             var currentSet = new HashSet<FieldEntity>(currentFieldEntities);
 
+            // REMOVE phase 1: entities no longer in the world
             var toRemove = new List<FieldEntity>();
             foreach (var kvp in entityMap)
             {
@@ -136,6 +140,27 @@ namespace FFV_ScreenReader.Core
                 {
                     toRemove.Add(kvp.Key);
                 }
+            }
+
+            // REMOVE phase 2: entities whose backing GameObject was deactivated
+            // (opened chest sprites, NPCs despawned by events). For GroupEntity values,
+            // check the specific member that maps to this FieldEntity key.
+            foreach (var kvp in entityMap)
+            {
+                if (toRemove.Contains(kvp.Key)) continue;
+
+                var value = kvp.Value;
+                bool dead;
+                if (value is GroupEntity group)
+                {
+                    var member = group.Members.FirstOrDefault(m => m.GameEntity == kvp.Key);
+                    dead = member != null && !member.IsAlive;
+                }
+                else
+                {
+                    dead = !value.IsAlive;
+                }
+                if (dead) toRemove.Add(kvp.Key);
             }
 
             foreach (var fieldEntity in toRemove)
@@ -160,8 +185,37 @@ namespace FFV_ScreenReader.Core
                 }
             }
 
+            lastScannedMapId = currentMapId;
             sw.Stop();
             MelonLogger.Msg($"[EntityCache] Scan: {currentFieldEntities.Count} field entities, +{addedCount} new, -{toRemove.Count} stale, took {sw.ElapsedMilliseconds}ms");
+        }
+
+        /// <summary>
+        /// Soft fallback: if a navigation entry point detects the current map differs from
+        /// the last scanned map, force a fresh scan. Backstop for any scripted transition
+        /// that bypasses CheckMapTransition's hard rescan path.
+        /// </summary>
+        public void EnsureCorrectMap()
+        {
+            try
+            {
+                int currentMapId = GetCurrentMapId();
+                if (currentMapId > 0 && currentMapId != lastScannedMapId)
+                    Scan();
+            }
+            catch { } // Map ID read may fail during transitions
+        }
+
+        private int GetCurrentMapId()
+        {
+            try
+            {
+                var userDataManager = UserDataManager.Instance();
+                if (userDataManager != null)
+                    return userDataManager.CurrentMapId;
+            }
+            catch { } // UserDataManager may not be initialized
+            return -1;
         }
         
         private void HandleEntityAddition(FieldEntity fieldEntity, NavigableEntity navEntity)

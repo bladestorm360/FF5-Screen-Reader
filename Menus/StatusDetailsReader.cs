@@ -355,7 +355,8 @@ namespace FFV_ScreenReader.Menus
                 var stat = statList[index];
                 string value = stat.Reader(tracker.CurrentCharacterData);
                 string groupName = GetGroupDisplayName(stat.Group);
-                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText($"{groupName}. {value}", true);
+                string announcement = FFV_ScreenReader.Utils.MenuPosition.Format($"{groupName}. {value}", index, statList.Count);
+                FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(announcement, true);
             }
             catch (Exception ex)
             {
@@ -404,6 +405,7 @@ namespace FFV_ScreenReader.Menus
             {
                 var stat = statList[index];
                 string value = stat.Reader(tracker.CurrentCharacterData);
+                value = FFV_ScreenReader.Utils.MenuPosition.Format(value, index, statList.Count);
                 FFV_ScreenReader.Core.FFV_ScreenReaderMod.SpeakText(value, true);
             }
             catch (Exception ex)

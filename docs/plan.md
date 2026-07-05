@@ -47,6 +47,8 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Battle results EXP totals-only speech format | Done |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
 | Entity name translator (JSON-based, EntityDump key 0) | Done |
+| Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
+| Entity labels translated into all 12 languages + promoted to embedded translation.json | Done |
 | Battle targeting status effects (Poison, Blind, etc.) | Done |
 | Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
 | Bestiary (Picture Book) accessibility | Done (extras + config menu) |

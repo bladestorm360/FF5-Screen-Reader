@@ -1,0 +1,6 @@
+- Mod now speaks in all 12 of the game's supported languages. Menu labels, status text, and other mod-spoken strings translate to match the language the game is set to.
+- NPC dialogue and cutscene text are now read aloud reliably. They were being silenced before, requiring you to read manually.
+- Status screen now reports the correct job level, and its formatting has been cleaned up. The job menu now announces job mastery and ABP.
+- New controls tooltip reader announces the on-screen control hints on screens that show them. Footsteps no longer pip falsely when your character isn't actually moving. The music player now announces play time.
+- Bundle slimmed to four files: FFV_ScreenReader.dll, Tolk.dll, nvdaControllerClient64.dll, and ReadMe.txt. SDL3.dll and waypoints.json from V1.4 are no longer needed — delete them from your MelonLoader\Mods folder after installing V1.5.
+- The ReadMe link for downloading MelonLoader now points to the official GitHub releases. The previous link pointed to a malware-distributing site, so if you installed MelonLoader using older instructions, please reinstall from the official source.

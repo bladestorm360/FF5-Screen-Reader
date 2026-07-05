@@ -45,7 +45,27 @@ namespace FFV_ScreenReader.Field
         public abstract bool BlocksPathing { get; }
         
         public virtual bool IsInteractive => true;
-        
+
+        /// <summary>
+        /// Whether the underlying game entity is still alive and active in the scene.
+        /// Used by the delta scan to prune entities deactivated by events (opened chests'
+        /// interaction collider, NPCs despawned mid-cutscene).
+        /// </summary>
+        public virtual bool IsAlive
+        {
+            get
+            {
+                if (GameEntity == null) return false;
+                try
+                {
+                    var go = GameEntity.gameObject;
+                    if (go == null) return false;
+                    return go.activeInHierarchy;
+                }
+                catch { return false; }
+            }
+        }
+
         protected abstract string GetDisplayName();
         
         protected abstract string GetEntityTypeName();

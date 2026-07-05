@@ -96,6 +96,18 @@ namespace FFV_ScreenReader.Core
             categoryFilter.TargetCategory = category;
             RebuildNavigationList();
         }
+
+        /// <summary>
+        /// Runs the delta scan: checks for map transitions and updates the entity cache
+        /// against the live FieldEntity list. Cache events (OnEntityAdded/OnEntityRemoved)
+        /// will incrementally update navigationList via HandleEntityAdded/HandleEntityRemoved.
+        /// Call from navigation entry points to keep state current without eager-push hooks.
+        /// </summary>
+        public void RefreshIfNeeded()
+        {
+            cache.EnsureCorrectMap();
+            cache.Scan();
+        }
         
         private void HandleEntityAdded(NavigableEntity entity)
         {

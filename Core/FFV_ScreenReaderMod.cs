@@ -15,7 +15,6 @@ using Il2CppLast.Management;
 using Il2CppLast.Entity.Field;
 using Il2CppLast.Message;
 using GameCursor = Il2CppLast.UI.Cursor;
-using FieldTresureBox = Il2CppLast.Entity.Field.FieldTresureBox;
 using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 [assembly: MelonInfo(typeof(FFV_ScreenReader.Core.FFV_ScreenReaderMod), "FFV Screen Reader", "1.0.0", "Your Name")]
@@ -80,9 +79,9 @@ namespace FFV_ScreenReader.Core
             PreferencesManager.Initialize();
 
             // Load saved filter preferences
-            filterByPathfinding = PreferencesManager.PathfindingFilterDefault;
-            filterMapExits = PreferencesManager.MapExitFilterDefault;
-            filterToLayer = PreferencesManager.ToLayerFilterDefault;
+            filterByPathfinding = PreferencesManager.PathfindingFilterEnabled;
+            filterMapExits = PreferencesManager.MapExitFilterEnabled;
+            filterToLayer = PreferencesManager.ToLayerFilterEnabled;
 
             // Initialize Tolk for screen reader support
             tolk = new TolkWrapper();
@@ -90,6 +89,10 @@ namespace FFV_ScreenReader.Core
 
             // Initialize external sound player for distinct audio feedback
             SoundPlayer.Initialize();
+
+            // Initialize SDL3 gamepad + keyboard polling. Must come after SoundPlayer so
+            // the [GamepadManager] log line sits next to other audio init logs.
+            GamepadManager.Initialize();
 
             // Initialize entity name translator (loads UserData/EntityNames.json)
             EntityTranslator.Initialize();
@@ -114,6 +117,9 @@ namespace FFV_ScreenReader.Core
             waypointNavigator = new WaypointNavigator(waypointManager);
             waypointController = new WaypointController(waypointManager, waypointNavigator);
 
+            // Wire waypoint navigator into the audio beacon so the beacon can target waypoints.
+            audioLoopManager.SetWaypointNavigator(waypointNavigator);
+
             // Initialize input manager
             inputManager = new InputManager(this);
 
@@ -137,7 +143,13 @@ namespace FFV_ScreenReader.Core
             BattleResultManualPatches.ApplyPatches(harmony);
             NamingPatches.ApplyPatches(harmony);
 
+            // Config menu: title-screen Language dropdown focus + keyboard/gamepad remap assign-flow.
+            ConfigMenuPatches.ApplyPatches(harmony);
+
             TryPatchEntityInteractions(harmony);
+
+            // SDL controller passthrough — postfix InputSystemManager.GetKeyDown/GetKey/...
+            InputPassthroughPatches.ApplyPatches(harmony);
         }
 
         private void UnsubscribeSceneHandler()
@@ -154,7 +166,10 @@ namespace FFV_ScreenReader.Core
             // Stop audio loops
             audioLoopManager?.StopAllLoops();
 
-            // Shutdown sound player (closes waveOut devices, frees unmanaged memory)
+            // Shutdown SDL3 (closes gamepad handle, releases SDL).
+            GamepadManager.Shutdown();
+
+            // Shutdown sound player (destroys SDL audio streams + device, frees scratch buffer)
             SoundPlayer.Shutdown();
 
             CoroutineManager.CleanupAll();
@@ -188,32 +203,6 @@ namespace FFV_ScreenReader.Core
             {
                 LoggerInstance.Warning($"[FieldReady] Error during entity scan: {ex.Message}");
             }
-        }
-
-        /// <summary>
-        /// Schedules an entity refresh after a 1-frame delay.
-        /// Called by interaction hooks (treasure chest, dialogue end) to update entity states.
-        /// </summary>
-        internal void ScheduleEntityRefresh()
-        {
-            CoroutineManager.StartManaged(EntityRefreshCoroutine());
-        }
-
-        private IEnumerator EntityRefreshCoroutine()
-        {
-            // Wait one frame for game state to fully update
-            yield return null;
-
-            // Skip scan if in Event state — entities may be in flux
-            if (GameStatePatches.IsInEventState)
-            {
-                LoggerInstance.Msg("[EntityRefresh] In Event state — skipping entity scan");
-                yield break;
-            }
-
-            // Rescan entities to pick up state changes (e.g., chest opened)
-            entityCache.ForceScan();
-            LoggerInstance.Msg("[EntityRefresh] Rescanned entities after interaction");
         }
 
         /// <summary>
@@ -341,6 +330,9 @@ namespace FFV_ScreenReader.Core
             pathInfo = null;
             playerController = null;
 
+            // Delta scan first so chest/NPC state changes surface before we read CurrentEntity.
+            entityNavigator.RefreshIfNeeded();
+
             entity = entityNavigator.CurrentEntity;
             if (entity == null)
             {
@@ -378,6 +370,7 @@ namespace FFV_ScreenReader.Core
                 if (!TryGetEntityContext(out var entity, out var pathInfo, out var playerController))
                     return;
 
+                NavigationTargetTracker.MarkEntity();
                 SpeakText(pathInfo.Success ? pathInfo.Description : T("no path"));
             }
             catch (System.Exception ex)
@@ -388,8 +381,10 @@ namespace FFV_ScreenReader.Core
 
         internal void CycleNext()
         {
+            entityNavigator.RefreshIfNeeded();
             if (entityNavigator.CycleNext())
             {
+                NavigationTargetTracker.MarkEntity();
                 AnnounceEntityOnly();
             }
             else
@@ -400,8 +395,10 @@ namespace FFV_ScreenReader.Core
 
         internal void CyclePrevious()
         {
+            entityNavigator.RefreshIfNeeded();
             if (entityNavigator.CyclePrevious())
             {
+                NavigationTargetTracker.MarkEntity();
                 AnnounceEntityOnly();
             }
             else
@@ -454,6 +451,7 @@ namespace FFV_ScreenReader.Core
 
             entityNavigator.SetCategory(newCategory);
 
+            NavigationTargetTracker.MarkEntity();
             AnnounceCategoryChange();
         }
 
@@ -475,6 +473,7 @@ namespace FFV_ScreenReader.Core
 
             entityNavigator.SetCategory(newCategory);
 
+            NavigationTargetTracker.MarkEntity();
             AnnounceCategoryChange();
         }
 
@@ -678,38 +677,78 @@ namespace FFV_ScreenReader.Core
 
         public static void SuppressWallTonesForTransition() => AudioLoopManager.SuppressWallTonesForTransition();
 
-        // Public static accessors delegated to PreferencesManager
-        public static int WallBumpVolume => PreferencesManager.WallBumpVolume;
-        public static int FootstepVolume => PreferencesManager.FootstepVolume;
-        public static int WallToneVolume => PreferencesManager.WallToneVolume;
-        public static int BeaconVolume => PreferencesManager.BeaconVolume;
-        public static int LandingPingVolume => PreferencesManager.LandingPingVolume;
-        public static int ExpCounterVolume => PreferencesManager.ExpCounterVolume;
-        public static int EnemyHPDisplay => PreferencesManager.EnemyHPDisplay;
-
-        // Public static accessors for filter and audio toggle settings (used by ModMenu, BattleState)
+        // Filter/audio toggle accessors (used by ModMenu, ControllerRouter, MovementSoundPatches,
+        // WaypointController). Filter state is runtime (mirrored to prefs on toggle); audio toggles
+        // and volumes/HP read directly from PreferencesManager — the single source of truth.
         public static bool PathfindingFilterEnabled => Instance?.filterByPathfinding ?? false;
         public static bool MapExitFilterEnabled => Instance?.filterMapExits ?? false;
         public static bool ToLayerFilterEnabled => Instance?.filterToLayer ?? false;
-        public static bool WallTonesEnabled => AudioLoopManager.Instance?.IsWallTonesEnabled ?? false;
-        public static bool FootstepsEnabled => AudioLoopManager.Instance?.IsFootstepsEnabled ?? false;
-        public static bool AudioBeaconsEnabled => AudioLoopManager.Instance?.IsAudioBeaconsEnabled ?? false;
-        public static bool LandingPingsEnabled => AudioLoopManager.Instance?.IsLandingPingsEnabled ?? false;
-        public static bool ExpCounterEnabled => PreferencesManager.ExpCounterDefault;
-
-        // Public static setters delegated to PreferencesManager
-        public static void SetWallBumpVolume(int value) => PreferencesManager.SetWallBumpVolume(value);
-        public static void SetFootstepVolume(int value) => PreferencesManager.SetFootstepVolume(value);
-        public static void SetWallToneVolume(int value) => PreferencesManager.SetWallToneVolume(value);
-        public static void SetBeaconVolume(int value) => PreferencesManager.SetBeaconVolume(value);
-        public static void SetLandingPingVolume(int value) => PreferencesManager.SetLandingPingVolume(value);
-        public static void SetExpCounterVolume(int value) => PreferencesManager.SetExpCounterVolume(value);
-        public static void SetEnemyHPDisplay(int value) => PreferencesManager.SetEnemyHPDisplay(value);
+        public static bool WallTonesEnabled => PreferencesManager.WallTonesEnabled;
+        public static bool FootstepsEnabled => PreferencesManager.FootstepsEnabled;
+        public static bool AudioBeaconsEnabled => PreferencesManager.AudioBeaconsEnabled;
+        public static bool LandingPingsEnabled => PreferencesManager.LandingPingsEnabled;
+        public static bool ExpCounterEnabled => PreferencesManager.ExpCounterEnabled;
+        public static bool StickClickNormalizationEnabled => PreferencesManager.StickClickNormalizationEnabled;
 
         public static void ToggleExpCounter()
         {
             bool newValue = !ExpCounterEnabled;
             PreferencesManager.SaveExpCounter(newValue);
+        }
+
+        public static void ToggleAnnounceOnBeaconRestart()
+        {
+            bool newValue = !PreferencesManager.AnnounceOnBeaconRestartEnabled;
+            PreferencesManager.SaveAnnounceOnBeaconRestart(newValue);
+        }
+
+        public static void ToggleMenuPositionAnnouncements()
+        {
+            bool newValue = !PreferencesManager.MenuPositionAnnouncementsEnabled;
+            PreferencesManager.SaveMenuPositionAnnouncements(newValue);
+        }
+
+        public static void ToggleAutoDetail()
+        {
+            bool newValue = !PreferencesManager.AutoDetailEnabled;
+            PreferencesManager.SaveAutoDetail(newValue);
+        }
+
+        public static void ToggleStickClickNormalization()
+        {
+            bool newValue = !StickClickNormalizationEnabled;
+            PreferencesManager.SaveStickClickNormalization(newValue);
+            SpeakText(newValue ? T("Stick Click Normalization on") : T("Stick Click Normalization off"));
+        }
+
+        /// <summary>
+        /// Silences current screen-reader output. Used by controller routing to
+        /// stop ongoing announcements when the player presses a face button.
+        /// </summary>
+        public static void InterruptSpeech()
+        {
+            tolk?.Silence();
+        }
+
+        /// <summary>
+        /// Forces the audio beacon to ping next loop iteration. Called by pathfinding
+        /// commands so the player gets immediate feedback after pressing the pathfind key.
+        /// </summary>
+        internal void RestartBeacon()
+        {
+            audioLoopManager?.RestartBeacon();
+        }
+
+        /// <summary>
+        /// Re-target the beacon to the current entity. When the "Beacon Destination
+        /// Announcement" toggle is on, also re-speaks the current destination (same as
+        /// announcing the selected entity).
+        /// </summary>
+        internal void RestartEntityBeacon()
+        {
+            RestartBeacon();
+            if (PreferencesManager.AnnounceOnBeaconRestartEnabled)
+                AnnounceCurrentEntity();
         }
 
         /// <summary>
@@ -720,22 +759,8 @@ namespace FFV_ScreenReader.Core
         {
             try
             {
-                // Patch FieldTresureBox.Open() - triggers entity refresh when chest is opened
-                Type treasureBoxType = typeof(FieldTresureBox);
-                var openMethod = treasureBoxType.GetMethod("Open", BindingFlags.Public | BindingFlags.Instance);
-                var openPostfix = typeof(EntityInteractionPatches).GetMethod("TreasureBox_Open_Postfix", BindingFlags.Public | BindingFlags.Static);
-
-                if (openMethod != null && openPostfix != null)
-                {
-                    harmony.Patch(openMethod, postfix: new HarmonyMethod(openPostfix));
-                    LoggerInstance.Msg("Patched FieldTresureBox.Open for entity refresh");
-                }
-                else
-                {
-                    LoggerInstance.Warning($"FieldTresureBox.Open patch failed. Method: {openMethod != null}, Postfix: {openPostfix != null}");
-                }
-
-                // Patch MessageWindowManager.Close() - triggers entity refresh when dialogue ends
+                // Patch MessageWindowManager.Close() - resets DialogueTracker. Entity state
+                // changes are now picked up by the delta scan on the next cycle.
                 Type messageManagerType = typeof(MessageWindowManager);
                 var closeMethod = messageManagerType.GetMethod("Close", BindingFlags.Public | BindingFlags.Instance);
                 var closePostfix = typeof(EntityInteractionPatches).GetMethod("MessageWindow_Close_Postfix", BindingFlags.Public | BindingFlags.Static);
@@ -743,7 +768,7 @@ namespace FFV_ScreenReader.Core
                 if (closeMethod != null && closePostfix != null)
                 {
                     harmony.Patch(closeMethod, postfix: new HarmonyMethod(closePostfix));
-                    LoggerInstance.Msg("Patched MessageWindowManager.Close for entity refresh");
+                    LoggerInstance.Msg("Patched MessageWindowManager.Close for dialogue tracker reset");
                 }
                 else
                 {
@@ -790,21 +815,14 @@ namespace FFV_ScreenReader.Core
     }
 
     /// <summary>
-    /// Postfix patches for entity interaction hooks.
-    /// Triggers entity refresh when treasure chests are opened or dialogue ends.
+    /// Postfix patch for dialogue close. Entity state updates (chest opened, NPC
+    /// despawned, NPC spawned by event) are now handled by the delta scan on the next
+    /// navigation input — no eager refresh needed here.
     /// </summary>
     public static class EntityInteractionPatches
     {
-        public static void TreasureBox_Open_Postfix()
-        {
-            FFV_ScreenReaderMod.Instance?.ScheduleEntityRefresh();
-        }
-
         public static void MessageWindow_Close_Postfix()
         {
-            if (!GameStatePatches.IsInEventState)
-                FFV_ScreenReaderMod.Instance?.ScheduleEntityRefresh();
-
             // Reset dialogue tracker (clears page data + restores navigation)
             FFV_ScreenReader.Patches.DialogueTracker.Reset();
         }

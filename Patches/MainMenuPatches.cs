@@ -42,7 +42,8 @@ namespace FFV_ScreenReader.Patches
                                 bool shouldAnnounce = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.MAIN_MENU_SET_FOCUS, menuText);
                                 if (shouldAnnounce)
                                 {
-                                    FFV_ScreenReaderMod.SpeakText(menuText, interrupt: true);
+                                    // Append list position last (i is the focused command's index).
+                                    FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(menuText, i, contents.Count), interrupt: true);
                                 }
                                 else
                                 {

@@ -141,16 +141,6 @@ namespace FFV_ScreenReader.Core
 
         #endregion
 
-        // Virtual key codes for navigation
-        private const int VK_ESCAPE = 0x1B;
-        private const int VK_F8 = 0x77;
-        private const int VK_UP = 0x26;
-        private const int VK_DOWN = 0x28;
-        private const int VK_LEFT = 0x25;
-        private const int VK_RIGHT = 0x27;
-        private const int VK_RETURN = 0x0D;
-        private const int VK_SPACE = 0x20;
-
         /// <summary>
         /// Initializes the mod menu with all menu items.
         /// Call this once during mod initialization.
@@ -162,35 +152,44 @@ namespace FFV_ScreenReader.Core
                 // Audio Feedback section
                 new SectionHeader(T("Audio Feedback")),
                 new ToggleItem(T("Wall Tones"),
-                    () => FFV_ScreenReaderMod.WallTonesEnabled,
+                    () => PreferencesManager.WallTonesEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleWallTones()),
                 new ToggleItem(T("Footsteps"),
-                    () => FFV_ScreenReaderMod.FootstepsEnabled,
+                    () => PreferencesManager.FootstepsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleFootsteps()),
                 new ToggleItem(T("Audio Beacons"),
-                    () => FFV_ScreenReaderMod.AudioBeaconsEnabled,
+                    () => PreferencesManager.AudioBeaconsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleAudioBeacons()),
                 new ToggleItem(T("Landing Pings"),
-                    () => FFV_ScreenReaderMod.LandingPingsEnabled,
+                    () => PreferencesManager.LandingPingsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleLandingPings()),
+                new ToggleItem(T("Beacon Destination Announcement"),
+                    () => PreferencesManager.AnnounceOnBeaconRestartEnabled,
+                    FFV_ScreenReaderMod.ToggleAnnounceOnBeaconRestart),
+                new ToggleItem(T("Menu Position Announcements"),
+                    () => PreferencesManager.MenuPositionAnnouncementsEnabled,
+                    FFV_ScreenReaderMod.ToggleMenuPositionAnnouncements),
+                new ToggleItem(T("Auto Detail"),
+                    () => PreferencesManager.AutoDetailEnabled,
+                    FFV_ScreenReaderMod.ToggleAutoDetail),
 
                 // Volume Controls section
                 new SectionHeader(T("Volume Controls")),
                 new VolumeItem(T("Wall Bump Volume"),
-                    () => FFV_ScreenReaderMod.WallBumpVolume,
-                    FFV_ScreenReaderMod.SetWallBumpVolume),
+                    () => PreferencesManager.WallBumpVolume,
+                    PreferencesManager.SetWallBumpVolume),
                 new VolumeItem(T("Footstep Volume"),
-                    () => FFV_ScreenReaderMod.FootstepVolume,
-                    FFV_ScreenReaderMod.SetFootstepVolume),
+                    () => PreferencesManager.FootstepVolume,
+                    PreferencesManager.SetFootstepVolume),
                 new VolumeItem(T("Wall Tone Volume"),
-                    () => FFV_ScreenReaderMod.WallToneVolume,
-                    FFV_ScreenReaderMod.SetWallToneVolume),
+                    () => PreferencesManager.WallToneVolume,
+                    PreferencesManager.SetWallToneVolume),
                 new VolumeItem(T("Beacon Volume"),
-                    () => FFV_ScreenReaderMod.BeaconVolume,
-                    FFV_ScreenReaderMod.SetBeaconVolume),
+                    () => PreferencesManager.BeaconVolume,
+                    PreferencesManager.SetBeaconVolume),
                 new VolumeItem(T("Landing Ping Volume"),
-                    () => FFV_ScreenReaderMod.LandingPingVolume,
-                    FFV_ScreenReaderMod.SetLandingPingVolume),
+                    () => PreferencesManager.LandingPingVolume,
+                    PreferencesManager.SetLandingPingVolume),
 
                 // Navigation Filters section
                 new SectionHeader(T("Navigation Filters")),
@@ -204,21 +203,31 @@ namespace FFV_ScreenReader.Core
                     () => FFV_ScreenReaderMod.ToLayerFilterEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleToLayerFilter()),
 
+                // Controller Settings section
+                new SectionHeader(T("Controller Settings")),
+                new ToggleItem(T("Stick Click Normalization"),
+                    () => PreferencesManager.StickClickNormalizationEnabled,
+                    FFV_ScreenReaderMod.ToggleStickClickNormalization),
+
                 // Battle Results section
                 new SectionHeader(T("Battle Results")),
                 new ToggleItem(T("EXP Counter Sound"),
-                    () => FFV_ScreenReaderMod.ExpCounterEnabled,
+                    () => PreferencesManager.ExpCounterEnabled,
                     FFV_ScreenReaderMod.ToggleExpCounter),
                 new VolumeItem(T("EXP Counter Volume"),
-                    () => FFV_ScreenReaderMod.ExpCounterVolume,
-                    FFV_ScreenReaderMod.SetExpCounterVolume),
+                    () => PreferencesManager.ExpCounterVolume,
+                    PreferencesManager.SetExpCounterVolume),
 
                 // Battle Settings section
                 new SectionHeader(T("Battle Settings")),
                 new EnumItem(T("Enemy HP Display"),
                     new[] { T("Numbers"), T("Percentage"), T("Hidden") },
-                    () => FFV_ScreenReaderMod.EnemyHPDisplay,
-                    FFV_ScreenReaderMod.SetEnemyHPDisplay),
+                    () => PreferencesManager.EnemyHPDisplay,
+                    PreferencesManager.SetEnemyHPDisplay),
+                new EnumItem(T("Multi-hit Damage"),
+                    new[] { T("Total only"), T("With hit count") },
+                    () => PreferencesManager.DamageDisplay,
+                    PreferencesManager.SetDamageDisplay),
 
                 // Close Menu action
                 new ActionItem(T("Close Menu"), Close)
@@ -239,15 +248,11 @@ namespace FFV_ScreenReader.Core
             if (items != null && items.Count > 1 && items[0] is SectionHeader)
                 currentIndex = 1;
 
-            // Initialize key states to current pressed state to prevent keys that opened the menu from triggering actions
-            WindowsFocusHelper.InitializeKeyStates(new[] {
-                VK_ESCAPE, VK_F8, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_SPACE
-            });
-
-            StealGameFocus();
-
-            // Window title change announces "FFV_ModMenu" via screen reader focus
-            // Just announce the first item after a short delay
+            // Announce that the menu opened (both F8 and the controller Start button reach here),
+            // then the first item after a short delay. The menu is virtual — game input is
+            // suppressed via ControllerRouter.SuppressGameInput + InputPassthroughPatches (no
+            // window stealing), so we speak the title ourselves instead of relying on NVDA.
+            FFV_ScreenReaderMod.SpeakText(T("Mod menu"), interrupt: true);
             CoroutineManager.StartManaged(AnnounceFirstItemDelayed());
         }
 
@@ -271,14 +276,15 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
-            RestoreGameFocus();
-            // Focus returns to game window, screen reader announces the focus change
+            // Announce on every close path (keyboard Escape/F8, "Close Menu" item, controller B/Start).
+            // Game input is restored automatically — ControllerRouter.SuppressGameInput becomes false.
+            FFV_ScreenReaderMod.SpeakText(T("Mod menu closed"), interrupt: true);
         }
 
         /// <summary>
-        /// Handles input when the mod menu is open.
-        /// Uses Windows GetAsyncKeyState API for input detection, which works
-        /// even when the game window doesn't have focus.
+        /// Handles input when the mod menu is open. Reads keys via GamepadManager
+        /// (SDL3 + GetAsyncKeyState — hardware state); game input is suppressed by
+        /// InputPassthroughPatches + Input.ResetInputAxes while open. No window focus stealing.
         /// Returns true if input was consumed (menu is open).
         /// </summary>
         public static bool HandleInput()
@@ -287,42 +293,42 @@ namespace FFV_ScreenReader.Core
             if (items == null || items.Count == 0) return false;
 
             // Escape or F8 to close
-            if (WindowsFocusHelper.IsKeyDown(VK_ESCAPE) || WindowsFocusHelper.IsKeyDown(VK_F8))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.Escape) || GamepadManager.IsKeyCodePressed(KeyCode.F8))
             {
                 Close();
                 return true;
             }
 
             // Up arrow - navigate to previous item
-            if (WindowsFocusHelper.IsKeyDown(VK_UP))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.UpArrow))
             {
                 NavigatePrevious();
                 return true;
             }
 
             // Down arrow - navigate to next item
-            if (WindowsFocusHelper.IsKeyDown(VK_DOWN))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.DownArrow))
             {
                 NavigateNext();
                 return true;
             }
 
             // Left arrow - decrease value
-            if (WindowsFocusHelper.IsKeyDown(VK_LEFT))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.LeftArrow))
             {
                 AdjustCurrentItem(-1);
                 return true;
             }
 
             // Right arrow - increase value
-            if (WindowsFocusHelper.IsKeyDown(VK_RIGHT))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.RightArrow))
             {
                 AdjustCurrentItem(1);
                 return true;
             }
 
             // Enter or Space - toggle/activate
-            if (WindowsFocusHelper.IsKeyDown(VK_RETURN) || WindowsFocusHelper.IsKeyDown(VK_SPACE))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.Return) || GamepadManager.IsKeyCodePressed(KeyCode.Space))
             {
                 ToggleCurrentItem();
                 return true;
@@ -331,7 +337,7 @@ namespace FFV_ScreenReader.Core
             return true; // Consume all input while menu is open
         }
 
-        private static void NavigateNext()
+        public static void NavigateNext()
         {
             int startIndex = currentIndex;
             do
@@ -349,7 +355,7 @@ namespace FFV_ScreenReader.Core
             AnnounceCurrentItem();
         }
 
-        private static void NavigatePrevious()
+        public static void NavigatePrevious()
         {
             int startIndex = currentIndex;
             do
@@ -367,7 +373,7 @@ namespace FFV_ScreenReader.Core
             AnnounceCurrentItem();
         }
 
-        private static void AdjustCurrentItem(int delta)
+        public static void AdjustCurrentItem(int delta)
         {
             if (currentIndex < 0 || currentIndex >= items.Count) return;
 
@@ -378,7 +384,7 @@ namespace FFV_ScreenReader.Core
             AnnounceCurrentItem();
         }
 
-        private static void ToggleCurrentItem()
+        public static void ToggleCurrentItem()
         {
             if (currentIndex < 0 || currentIndex >= items.Count) return;
 
@@ -411,30 +417,6 @@ namespace FFV_ScreenReader.Core
             }
 
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: interrupt);
-        }
-
-        private static void StealGameFocus()
-        {
-            try
-            {
-                WindowsFocusHelper.StealFocus("FFV_ModMenu");
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[ModMenu] Error in focus control: {ex.Message}");
-            }
-        }
-
-        private static void RestoreGameFocus()
-        {
-            try
-            {
-                WindowsFocusHelper.RestoreFocus();
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[ModMenu] Error in focus control: {ex.Message}");
-            }
         }
     }
 }

@@ -141,6 +141,9 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
+                // Append list position last (after quantity/description).
+                announcement = MenuPosition.Format(announcement, index, targetList.Count);
+
                 // Skip duplicates or rapid re-announcements
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_LIST, announcement))
                 {
@@ -148,6 +151,11 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
+
+                // Auto Detail: queue equip-requirements after the name (same reader as the details key).
+                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                if (PreferencesManager.AutoDetailEnabled)
+                    ItemDetailsAnnouncer.AnnounceEquipRequirements(interrupt: false);
             }
             catch (Exception ex)
             {
@@ -236,6 +244,9 @@ namespace FFV_ScreenReader.Patches
                         announcement += $", {description}";
                     }
                 }
+
+                // Append list position last (after mechanical info/description).
+                announcement = MenuPosition.Format(announcement, index, contentList.Count);
 
                 // Skip duplicates or rapid re-announcements
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_EQUIP_SELECT, announcement))
@@ -329,6 +340,10 @@ namespace FFV_ScreenReader.Patches
                 // Filter icon markup
                 announcement = StripIconMarkup(announcement);
 
+                // Append slot position last.
+                int slotCount = __instance.contentList != null ? __instance.contentList.Count : 0;
+                announcement = MenuPosition.Format(announcement, index, slotCount);
+
                 // Skip duplicates or rapid re-announcements
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_EQUIP_SLOT, announcement))
                 {
@@ -384,6 +399,9 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
+
+                // Append target position last.
+                announcement = MenuPosition.Format(announcement, index, contentList.Count);
 
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_USE_TARGET, announcement))
                 {

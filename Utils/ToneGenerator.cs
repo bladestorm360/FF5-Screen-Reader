@@ -1,121 +1,34 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace FFV_ScreenReader.Utils
 {
     /// <summary>
-    /// Generates WAV tone buffers for wall tones, footsteps, beacons, and landing pings.
-    /// Extracted from SoundPlayer to separate tone generation from playback engine.
-    /// All methods return byte[] WAV data with 44-byte headers.
+    /// Generates PCM audio tones as WAV byte arrays.
+    /// All output is 16-bit at SoundConstants.SAMPLE_RATE.
     /// </summary>
     public static class ToneGenerator
     {
         /// <summary>
-        /// Writes a standard 44-byte PCM WAV header to a BinaryWriter.
-        /// </summary>
-        /// <param name="writer">BinaryWriter to write to</param>
-        /// <param name="channels">1 for mono, 2 for stereo</param>
-        /// <param name="sampleRate">Sample rate (e.g., 22050)</param>
-        /// <param name="bitsPerSample">Bits per sample (e.g., 16)</param>
-        /// <param name="dataSize">Size of the PCM data in bytes (excluding header)</param>
-        public static void WriteWavHeader(BinaryWriter writer, int channels, int sampleRate, int bitsPerSample, int dataSize)
-        {
-            int blockAlign = channels * (bitsPerSample / 8);
-            int byteRate = sampleRate * blockAlign;
-
-            writer.Write(new[] { 'R', 'I', 'F', 'F' });
-            writer.Write(36 + dataSize);
-            writer.Write(new[] { 'W', 'A', 'V', 'E' });
-
-            writer.Write(new[] { 'f', 'm', 't', ' ' });
-            writer.Write(16);                          // fmt chunk size
-            writer.Write((short)1);                    // PCM format
-            writer.Write((short)channels);
-            writer.Write(sampleRate);
-            writer.Write(byteRate);
-            writer.Write((short)blockAlign);
-            writer.Write((short)bitsPerSample);
-
-            writer.Write(new[] { 'd', 'a', 't', 'a' });
-            writer.Write(dataSize);
-        }
-
-        /// <summary>
-        /// Converts a mono 16-bit WAV to stereo by duplicating each sample to both channels.
-        /// </summary>
-        public static byte[] MonoToStereo(byte[] monoWav)
-        {
-            if (monoWav == null || monoWav.Length < 44) return monoWav;
-
-            using (var reader = new BinaryReader(new MemoryStream(monoWav)))
-            {
-                reader.ReadBytes(4);  // "RIFF"
-                reader.ReadInt32();   // file size
-                reader.ReadBytes(4);  // "WAVE"
-                reader.ReadBytes(4);  // "fmt "
-                int fmtSize = reader.ReadInt32();
-                reader.ReadInt16();   // audio format
-                int channels = reader.ReadInt16();
-                int sampleRate = reader.ReadInt32();
-                reader.ReadInt32();   // byte rate
-                reader.ReadInt16();   // block align
-                int bitsPerSample = reader.ReadInt16();
-
-                if (fmtSize > 16)
-                    reader.ReadBytes(fmtSize - 16);
-
-                reader.ReadBytes(4);  // "data"
-                int dataSize = reader.ReadInt32();
-
-                if (channels == 2)
-                    return monoWav;
-
-                byte[] monoData = reader.ReadBytes(dataSize);
-
-                int stereoDataSize = dataSize * 2;
-
-                using (var ms = new MemoryStream())
-                using (var writer = new BinaryWriter(ms))
-                {
-                    WriteWavHeader(writer, 2, sampleRate, bitsPerSample, stereoDataSize);
-
-                    for (int i = 0; i < monoData.Length; i += 2)
-                    {
-                        writer.Write(monoData[i]);
-                        writer.Write(monoData[i + 1]);
-                        writer.Write(monoData[i]);
-                        writer.Write(monoData[i + 1]);
-                    }
-
-                    return ms.ToArray();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Generates a 16-bit WAV file containing a "thud" sound with soft attack and noise mix.
+        /// Generates a mono "thud" tone with soft quadratic attack, noise mix, and decay.
         /// Used for wall bump sounds.
         /// </summary>
         public static byte[] GenerateThudTone(int frequency, int durationMs, float volume)
         {
-            int sampleRate = SoundConstants.SAMPLE_RATE;
-            int samples = (sampleRate * durationMs) / 1000;
+            int samples = (SoundConstants.SAMPLE_RATE * durationMs) / 1000;
             int attackSamples = samples / 4;
             var random = new Random(42);
-            int dataSize = samples * 2;
+            int dataSize = samples * 2; // 16-bit mono
 
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
             {
-                WriteWavHeader(writer, 1, sampleRate, SoundConstants.BITS_PER_SAMPLE, dataSize);
+                WriteWavHeader(writer, 1, dataSize);
 
                 double filteredNoise = 0;
-
                 for (int i = 0; i < samples; i++)
                 {
-                    double t = (double)i / sampleRate;
-
+                    double t = (double)i / SoundConstants.SAMPLE_RATE;
                     double attackLinear = Math.Min(1.0, (double)i / attackSamples);
                     double attack = attackLinear * attackLinear;
                     double decay = (double)(samples - i) / samples;
@@ -129,25 +42,24 @@ namespace FFV_ScreenReader.Utils
 
                     writer.Write((short)(value * 32767));
                 }
-
                 return ms.ToArray();
             }
         }
 
         /// <summary>
-        /// Generates a short 16-bit click/tap sound for footsteps using filtered noise burst.
+        /// Generates a mono filtered-noise click tone with exponential decay.
+        /// Used for footstep sounds.
         /// </summary>
         public static byte[] GenerateClickTone(int frequency, int durationMs, float volume)
         {
-            int sampleRate = SoundConstants.SAMPLE_RATE;
-            int samples = (sampleRate * durationMs) / 1000;
+            int samples = (SoundConstants.SAMPLE_RATE * durationMs) / 1000;
             var random = new Random(42);
-            int dataSize = samples * 2;
+            int dataSize = samples * 2; // 16-bit mono
 
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
             {
-                WriteWavHeader(writer, 1, sampleRate, SoundConstants.BITS_PER_SAMPLE, dataSize);
+                WriteWavHeader(writer, 1, dataSize);
 
                 for (int i = 0; i < samples; i++)
                 {
@@ -155,20 +67,33 @@ namespace FFV_ScreenReader.Utils
                     double noise = (random.NextDouble() * 2 - 1) * volume * decay;
                     writer.Write((short)(noise * 32767));
                 }
-
                 return ms.ToArray();
             }
         }
 
         /// <summary>
-        /// Generates a 16-bit stereo WAV tone with constant-power panning and decay envelope.
-        /// Used for one-shot wall tone pings.
+        /// Generates a 16-bit stereo sine tone with constant-power panning.
+        /// When sustain is false: applies attack+decay envelope (for one-shot sounds).
+        /// When sustain is true: cycle-aligned flat amplitude for seamless hardware looping.
         /// </summary>
-        public static byte[] GenerateStereoTone(int frequency, int durationMs, float volume, float pan)
+        public static byte[] GenerateStereoTone(int frequency, int durationMs, float volume, float pan, bool sustain = false)
         {
-            int sampleRate = SoundConstants.SAMPLE_RATE;
-            int samples = (sampleRate * durationMs) / 1000;
-            int dataSize = samples * 4;
+            int samples;
+            if (sustain)
+            {
+                // Cycle-aligned for seamless looping
+                double samplesPerCycle = (double)SoundConstants.SAMPLE_RATE / frequency;
+                int targetSamples = (SoundConstants.SAMPLE_RATE * durationMs) / 1000;
+                int numCycles = (int)Math.Round(targetSamples / samplesPerCycle);
+                if (numCycles < 1) numCycles = 1;
+                samples = (int)Math.Round(numCycles * samplesPerCycle);
+            }
+            else
+            {
+                samples = (SoundConstants.SAMPLE_RATE * durationMs) / 1000;
+            }
+
+            int dataSize = samples * 4; // stereo 16-bit
 
             double panAngle = pan * Math.PI / 2;
             float leftVol = volume * (float)Math.Cos(panAngle);
@@ -177,81 +102,30 @@ namespace FFV_ScreenReader.Utils
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
             {
-                WriteWavHeader(writer, 2, sampleRate, SoundConstants.BITS_PER_SAMPLE, dataSize);
+                WriteWavHeader(writer, 2, dataSize);
 
+                int attackSamples = samples / 10;
                 for (int i = 0; i < samples; i++)
                 {
-                    double t = (double)i / sampleRate;
+                    double t = (double)i / SoundConstants.SAMPLE_RATE;
+                    double sineValue;
 
-                    int attackSamples = samples / 10;
-                    double attack = Math.Min(1.0, (double)i / attackSamples);
-                    double decay = (double)(samples - i) / samples;
-                    double envelope = attack * decay;
-
-                    double sineValue = Math.Sin(2 * Math.PI * frequency * t) * envelope;
+                    if (sustain)
+                    {
+                        sineValue = Math.Sin(2 * Math.PI * frequency * t);
+                    }
+                    else
+                    {
+                        double attack = Math.Min(1.0, (double)i / attackSamples);
+                        double decay = (double)(samples - i) / samples;
+                        sineValue = Math.Sin(2 * Math.PI * frequency * t) * attack * decay;
+                    }
 
                     writer.Write((short)(sineValue * leftVol * 32767));
                     writer.Write((short)(sineValue * rightVol * 32767));
                 }
-
                 return ms.ToArray();
             }
-        }
-
-        /// <summary>
-        /// Generates a stereo WAV tone with sustain and volume baked in during generation.
-        /// This preserves dynamic range at low volumes (no post-scaling quantization).
-        /// </summary>
-        public static byte[] GenerateStereoToneSustainWithVolume(int frequency, int durationMs, float baseVolume, float pan, int volumePercent)
-        {
-            float scaledVolume = baseVolume * (volumePercent / 50.0f);
-            return GenerateStereoToneSustain(frequency, durationMs, scaledVolume, pan);
-        }
-
-        /// <summary>
-        /// Generates a 16-bit stereo WAV tone with sustain (no decay) for seamless hardware looping.
-        /// Uses cycle-aligned sample counts to ensure the waveform starts and ends at the same phase.
-        /// </summary>
-        public static byte[] GenerateStereoToneSustain(int frequency, int durationMs, float volume, float pan)
-        {
-            int sampleRate = SoundConstants.SAMPLE_RATE;
-
-            double samplesPerCycle = (double)sampleRate / frequency;
-            int targetSamples = (sampleRate * durationMs) / 1000;
-            int numCycles = (int)Math.Round(targetSamples / samplesPerCycle);
-            if (numCycles < 1) numCycles = 1;
-            int samples = (int)Math.Round(numCycles * samplesPerCycle);
-            int dataSize = samples * 4;
-
-            double panAngle = pan * Math.PI / 2;
-            float leftVol = volume * (float)Math.Cos(panAngle);
-            float rightVol = volume * (float)Math.Sin(panAngle);
-
-            using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
-            {
-                WriteWavHeader(writer, 2, sampleRate, SoundConstants.BITS_PER_SAMPLE, dataSize);
-
-                for (int i = 0; i < samples; i++)
-                {
-                    double t = (double)i / sampleRate;
-                    double sineValue = Math.Sin(2 * Math.PI * frequency * t);
-
-                    writer.Write((short)(sineValue * leftVol * 32767));
-                    writer.Write((short)(sineValue * rightVol * 32767));
-                }
-
-                return ms.ToArray();
-            }
-        }
-
-        /// <summary>
-        /// Generates a stereo landing ping WAV with volume baked in during generation.
-        /// </summary>
-        public static byte[] GenerateLandingPingWithVolume(int frequency, int totalDurationMs, int pingDurationMs, float baseVolume, float pan, int volumePercent)
-        {
-            float scaledVolume = baseVolume * (volumePercent / 50.0f);
-            return GenerateLandingPing(frequency, totalDurationMs, pingDurationMs, scaledVolume, pan);
         }
 
         /// <summary>
@@ -282,7 +156,7 @@ namespace FFV_ScreenReader.Utils
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
             {
-                WriteWavHeader(writer, 2, sampleRate, SoundConstants.BITS_PER_SAMPLE, dataSize);
+                WriteWavHeader(writer, 2, dataSize);
 
                 int attackSamples = pingSamples / 8;
                 int decaySamples = pingSamples / 4;
@@ -317,62 +191,78 @@ namespace FFV_ScreenReader.Utils
         }
 
         /// <summary>
-        /// Mixes multiple 16-bit WAV files into a single stereo WAV.
-        /// Used for playing multiple wall tones in different directions simultaneously.
+        /// Converts a mono 16-bit WAV to stereo by duplicating each sample to both channels.
         /// </summary>
-        public static byte[] MixWavFiles(List<byte[]> wavFiles)
+        public static byte[] MonoToStereo(byte[] monoWav)
         {
-            if (wavFiles == null || wavFiles.Count == 0) return null;
+            if (monoWav == null || monoWav.Length < SoundConstants.WAV_HEADER_SIZE) return monoWav;
 
-            const int HEADER_SIZE = SoundConstants.WAV_HEADER_SIZE;
-
-            int maxDataLength = 0;
-            foreach (var wav in wavFiles)
+            using (var reader = new BinaryReader(new MemoryStream(monoWav)))
             {
-                if (wav.Length > HEADER_SIZE)
+                reader.ReadBytes(4);  // "RIFF"
+                reader.ReadInt32();   // file size
+                reader.ReadBytes(4);  // "WAVE"
+                reader.ReadBytes(4);  // "fmt "
+                int fmtSize = reader.ReadInt32();
+                reader.ReadInt16();   // audio format
+                int channels = reader.ReadInt16();
+                reader.ReadInt32();   // sample rate (always SAMPLE_RATE for our generated tones)
+                reader.ReadInt32();   // byte rate
+                reader.ReadInt16();   // block align
+                reader.ReadInt16();   // bits per sample
+
+                if (fmtSize > 16)
+                    reader.ReadBytes(fmtSize - 16);
+
+                reader.ReadBytes(4);  // "data"
+                int dataSize = reader.ReadInt32();
+
+                if (channels == 2) return monoWav;
+
+                byte[] monoData = reader.ReadBytes(dataSize);
+                int stereoDataSize = dataSize * 2;
+
+                using (var ms = new MemoryStream())
+                using (var writer = new BinaryWriter(ms))
                 {
-                    int dataLen = wav.Length - HEADER_SIZE;
-                    if (dataLen > maxDataLength)
-                        maxDataLength = dataLen;
+                    WriteWavHeader(writer, 2, stereoDataSize);
+
+                    // Copy 16-bit samples (2 bytes each) to both channels
+                    for (int i = 0; i < monoData.Length; i += 2)
+                    {
+                        writer.Write(monoData[i]);      // Left low byte
+                        writer.Write(monoData[i + 1]);  // Left high byte
+                        writer.Write(monoData[i]);      // Right low byte
+                        writer.Write(monoData[i + 1]);  // Right high byte
+                    }
+                    return ms.ToArray();
                 }
             }
+        }
 
-            if (maxDataLength == 0) return null;
+        /// <summary>
+        /// Writes a standard 44-byte WAV file header for 16-bit PCM audio.
+        /// </summary>
+        private static void WriteWavHeader(BinaryWriter writer, int numChannels, int dataSize)
+        {
+            int blockAlign = numChannels * 2; // 16-bit = 2 bytes per sample
+            int byteRate = SoundConstants.SAMPLE_RATE * blockAlign;
 
-            using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
-            {
-                WriteWavHeader(writer, 2, SoundConstants.SAMPLE_RATE, SoundConstants.BITS_PER_SAMPLE, maxDataLength);
+            writer.Write(new[] { 'R', 'I', 'F', 'F' });
+            writer.Write(36 + dataSize);
+            writer.Write(new[] { 'W', 'A', 'V', 'E' });
 
-                int sampleCount = maxDataLength / 2;
-                for (int i = 0; i < sampleCount; i++)
-                {
-                    int mixedValue = 0;
-                    int count = 0;
+            writer.Write(new[] { 'f', 'm', 't', ' ' });
+            writer.Write(16);                          // fmt chunk size
+            writer.Write((short)1);                    // PCM
+            writer.Write((short)numChannels);
+            writer.Write(SoundConstants.SAMPLE_RATE);
+            writer.Write(byteRate);
+            writer.Write((short)blockAlign);
+            writer.Write((short)16);                   // bits per sample
 
-                    foreach (var wav in wavFiles)
-                    {
-                        int pos = HEADER_SIZE + (i * 2);
-                        if (pos + 1 < wav.Length)
-                        {
-                            short sample = (short)(wav[pos] | (wav[pos + 1] << 8));
-                            mixedValue += sample;
-                            count++;
-                        }
-                    }
-
-                    if (count > 1)
-                    {
-                        double headroom = 1.0 / Math.Sqrt(count);
-                        mixedValue = (int)(mixedValue * headroom);
-                    }
-
-                    mixedValue = Math.Max(short.MinValue, Math.Min(short.MaxValue, mixedValue));
-                    writer.Write((short)mixedValue);
-                }
-
-                return ms.ToArray();
-            }
+            writer.Write(new[] { 'd', 'a', 't', 'a' });
+            writer.Write(dataSize);
         }
     }
 }

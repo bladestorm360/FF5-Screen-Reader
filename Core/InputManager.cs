@@ -26,23 +26,12 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
-        /// Registers a field-only binding with a "Not available in battle" fallback for the Battle context.
+        /// Registers a field-only binding. Off-field (menu/battle/title/dialogue) the active
+        /// context is never Field, so the binding has no match and dispatch silently does nothing.
         /// </summary>
         private void RegisterFieldWithBattleFeedback(KeyCode key, KeyModifier modifier, System.Action action, string description)
         {
             registry.Register(key, modifier, KeyContext.Field, action, description);
-            registry.Register(key, modifier, KeyContext.Battle, NotAvailableInBattle, description + " (battle blocked)");
-            registry.Register(key, modifier, KeyContext.Global, NotOnMap, description + " (no map)");
-        }
-
-        private static void NotAvailableInBattle()
-        {
-            FFV_ScreenReaderMod.SpeakText(T("Not available in battle"), interrupt: true);
-        }
-
-        private static void NotOnMap()
-        {
-            FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
         }
 
         private void InitializeBindings()
@@ -82,25 +71,16 @@ namespace FFV_ScreenReader.Core
             RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.Shift, mod.TogglePathfindingFilter, "Toggle pathfinding filter (alt)");
             RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity (alt)");
 
-            // --- Field: waypoint keys (with Global fallback) ---
+            // --- Field: waypoint keys (field-only; silent no-op off-field) ---
             registry.Register(KeyCode.Comma, KeyModifier.Shift, KeyContext.Field, mod.CyclePreviousWaypointCategory, "Previous waypoint category");
-            registry.Register(KeyCode.Comma, KeyModifier.Shift, KeyContext.Global, NotOnMap, "Previous waypoint category (no map)");
             registry.Register(KeyCode.Comma, KeyModifier.None, KeyContext.Field, mod.CyclePreviousWaypoint, "Previous waypoint");
-            registry.Register(KeyCode.Comma, KeyModifier.None, KeyContext.Global, NotOnMap, "Previous waypoint (no map)");
             registry.Register(KeyCode.Period, KeyModifier.Ctrl, KeyContext.Field, mod.RenameCurrentWaypoint, "Rename waypoint");
-            registry.Register(KeyCode.Period, KeyModifier.Ctrl, KeyContext.Global, NotOnMap, "Rename waypoint (no map)");
             registry.Register(KeyCode.Period, KeyModifier.Shift, KeyContext.Field, mod.CycleNextWaypointCategory, "Next waypoint category");
-            registry.Register(KeyCode.Period, KeyModifier.Shift, KeyContext.Global, NotOnMap, "Next waypoint category (no map)");
             registry.Register(KeyCode.Period, KeyModifier.None, KeyContext.Field, mod.CycleNextWaypoint, "Next waypoint");
-            registry.Register(KeyCode.Period, KeyModifier.None, KeyContext.Global, NotOnMap, "Next waypoint (no map)");
             registry.Register(KeyCode.Slash, KeyModifier.CtrlShift, KeyContext.Field, mod.ClearAllWaypointsForMap, "Clear all waypoints for map");
-            registry.Register(KeyCode.Slash, KeyModifier.CtrlShift, KeyContext.Global, NotOnMap, "Clear all waypoints (no map)");
             registry.Register(KeyCode.Slash, KeyModifier.Ctrl, KeyContext.Field, mod.RemoveCurrentWaypoint, "Remove current waypoint");
-            registry.Register(KeyCode.Slash, KeyModifier.Ctrl, KeyContext.Global, NotOnMap, "Remove waypoint (no map)");
             registry.Register(KeyCode.Slash, KeyModifier.Shift, KeyContext.Field, mod.AddNewWaypointWithNaming, "Add waypoint with name");
-            registry.Register(KeyCode.Slash, KeyModifier.Shift, KeyContext.Global, NotOnMap, "Add waypoint (no map)");
             registry.Register(KeyCode.Slash, KeyModifier.None, KeyContext.Field, mod.PathfindToCurrentWaypoint, "Pathfind to waypoint");
-            registry.Register(KeyCode.Slash, KeyModifier.None, KeyContext.Global, NotOnMap, "Pathfind to waypoint (no map)");
 
             // --- Field: teleport (Ctrl+Arrow, not on status screen — handled by context) ---
             float t = GameConstants.TILE_SIZE;
@@ -139,52 +119,94 @@ namespace FFV_ScreenReader.Core
 
         public void Update()
         {
-            // Handle confirmation dialog first (consumes all input when open)
-            if (ConfirmationDialog.HandleInput())
+            // Poll SDL3 gamepad + GetAsyncKeyState keyboard once per frame.
+            // Must come before any mod input handling so edge-detection state is fresh.
+            GamepadManager.Update();
+
+            // Suppress Unity legacy Input when the mod is consuming. Safe because the mod reads
+            // keyboard via GetAsyncKeyState (unaffected by ResetInputAxes). This + the
+            // InputPassthroughPatches = complete game keyboard suppression, and it works even
+            // when no gamepad is connected (the passthrough patches early-return without one).
+            if (ControllerRouter.SuppressGameInput)
+                Input.ResetInputAxes();
+
+            // Determine context AFTER polling so the router (and dispatch below) sees fresh
+            // input for this frame.
+            KeyContext activeContext = DetermineContext();
+
+            // Route controller inputs to the appropriate state-machine bucket. Runs every frame
+            // so the router can interrupt speech / drive nav even without a gamepad.
+            ControllerRouter.Update(activeContext);
+
+            if (GamepadManager.AnyKeyboardKeyDown())
+                ControllerRouter.NotifyKeyboardInput();
+
+            // Handle modal dialogs first (each consumes all input when open)
+            if (ConfirmationDialog.HandleInput()) return;
+            if (TextInputWindow.HandleInput()) return;
+            if (ModMenu.HandleInput()) return;
+            if (BattleResultNavigator.HandleInput()) return;
+
+            // Game-context hotkeys below only fire when the game window is the foreground
+            // window, so mod functions don't trigger while the player is in another app.
+            // Placed AFTER the modals so the now-virtual dialogs/menu keep working even when
+            // the game window isn't foreground.
+            if (!WindowsFocusHelper.IsGameWindowFocused())
                 return;
 
-            // Handle text input window next (consumes all input when open)
-            if (TextInputWindow.HandleInput())
+            if (!GamepadManager.AnyKeyboardKeyDown())
                 return;
 
-            // Handle mod menu next (consumes all input when open)
-            if (ModMenu.HandleInput())
-                return;
+            // Bare F-keys only fire with no modifier held, so OS shortcuts like Alt+F4
+            // (close window), Ctrl+F-keys and Shift+F-keys don't trigger the screen
+            // reader. Explicit Shift/Ctrl bindings still match via GetCurrentModifiers.
+            bool anyModifierHeld = IsAnyModifierHeld();
 
-            // Handle battle result navigator (consumes all input when open)
-            if (BattleResultNavigator.HandleInput())
-                return;
-
-            if (!Input.anyKeyDown)
-                return;
-
-            if (IsInputFieldFocused())
-                return;
-
-            // F8 to open mod menu (unavailable in battle, not on map guard)
-            if (Input.GetKeyDown(KeyCode.F8))
+            // F8 to open mod menu — gated to field-only via ControllerRouter.IsFieldActive
+            // (blocks battle, in-game menus, title screen). Rejection wording lives in
+            // ControllerRouter.SpeakModMenuUnavailable so Start-button and F8 stay in sync.
+            if (!anyModifierHeld && GamepadManager.IsKeyCodePressed(KeyCode.F8))
             {
-                if (IsInBattle())
-                    FFV_ScreenReaderMod.SpeakText(T("Unavailable in battle"), interrupt: true);
-                else if (!IsOnValidMap())
-                    FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
-                else
-                {
+                if (ControllerRouter.IsFieldActive)
                     ModMenu.Open();
-                    FFV_ScreenReaderMod.SpeakText(T("Mod menu"), interrupt: true);
-                }
+                else
+                    ControllerRouter.SpeakModMenuUnavailable();
                 return;
             }
 
-            // Determine active context
-            KeyContext activeContext = DetermineContext();
+            // Handle function keys (F1/F3/F5 — special coroutine/battle logic) — bare keypress only
+            if (!anyModifierHeld)
+                HandleFunctionKeyInput();
+
+            // Skip hotkeys when player is typing in a text field
+            if (IsInputFieldFocused()) return;
+
             KeyModifier currentModifiers = GetCurrentModifiers();
 
-            // Handle function keys (F1/F3/F5 — special coroutine/battle logic)
-            HandleFunctionKeyInput();
+            // Alt held with no registered Alt-binding → skip dispatch so Alt+<key> doesn't
+            // accidentally trigger the unmodified binding. (Shift/Ctrl are routed through
+            // currentModifiers and matched exactly by the registry, so they still work.)
+            if (IsAltHeld())
+                return;
 
             // Dispatch all registered bindings (includes V, I, and all other keys)
             DispatchRegisteredBindings(activeContext, currentModifiers);
+        }
+
+        private static bool IsAltHeld()
+        {
+            return GamepadManager.IsKeyCodeHeld(KeyCode.LeftAlt)
+                || GamepadManager.IsKeyCodeHeld(KeyCode.RightAlt);
+        }
+
+        private static bool IsAnyModifierHeld()
+        {
+            return GamepadManager.IsKeyCodeHeld(KeyCode.LeftShift)
+                || GamepadManager.IsKeyCodeHeld(KeyCode.RightShift)
+                || GamepadManager.IsKeyCodeHeld(KeyCode.LeftControl)
+                || GamepadManager.IsKeyCodeHeld(KeyCode.RightControl)
+                || GamepadManager.IsKeyCodeHeld(KeyCode.LeftAlt)
+                || GamepadManager.IsKeyCodeHeld(KeyCode.RightAlt);
         }
 
         /// <summary>
@@ -208,7 +230,10 @@ namespace FFV_ScreenReader.Core
             if (Patches.DialogueTracker.ValidateState() || Patches.ShopMenuTracker.IsInShopSession)
                 return KeyContext.Global;
 
-            if (IsOnValidMap())
+            // Field keys only fire while actively on a field map with no menu open.
+            // Otherwise fall through to Global so field/entity/waypoint/toggle hotkeys
+            // are silent no-ops off-field, while Global info keys still work everywhere.
+            if (IsOnValidMap() && !MenuStateRegistry.AnyActive())
                 return KeyContext.Field;
 
             // Fallback: neither field nor battle (e.g., menus, fading)
@@ -216,12 +241,13 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
-        /// Get the currently held modifier keys.
+        /// Get the currently held modifier keys. Uses SDL/GetAsyncKeyState so modifiers
+        /// register regardless of game window focus.
         /// </summary>
         private KeyModifier GetCurrentModifiers()
         {
-            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            bool shift = GamepadManager.IsKeyCodeHeld(KeyCode.LeftShift) || GamepadManager.IsKeyCodeHeld(KeyCode.RightShift);
+            bool ctrl = GamepadManager.IsKeyCodeHeld(KeyCode.LeftControl) || GamepadManager.IsKeyCodeHeld(KeyCode.RightControl);
 
             if (ctrl && shift) return KeyModifier.CtrlShift;
             if (ctrl) return KeyModifier.Ctrl;
@@ -233,7 +259,7 @@ namespace FFV_ScreenReader.Core
         {
             foreach (var key in registry.RegisteredKeys)
             {
-                if (Input.GetKeyDown(key))
+                if (GamepadManager.IsKeyCodePressed(key))
                     registry.TryExecute(key, currentModifiers, activeContext);
             }
         }
@@ -306,7 +332,7 @@ namespace FFV_ScreenReader.Core
         /// </summary>
         private void HandleFunctionKeyInput()
         {
-            if (Input.GetKeyDown(KeyCode.F1))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.F1))
             {
                 if (!IsOnValidMap())
                 {
@@ -317,7 +343,7 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.F3))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.F3))
             {
                 if (!IsOnValidMap())
                 {
@@ -328,19 +354,19 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.F5))
+            if (GamepadManager.IsKeyCodePressed(KeyCode.F5))
             {
-                if (IsInBattle())
+                if (ControllerRouter.IsFieldActive)
                 {
-                    int current = FFV_ScreenReaderMod.EnemyHPDisplay;
+                    int current = PreferencesManager.EnemyHPDisplay;
                     int next = (current + 1) % 3;
-                    FFV_ScreenReaderMod.SetEnemyHPDisplay(next);
+                    PreferencesManager.SetEnemyHPDisplay(next);
                     string[] options = { T("Numbers"), T("Percentage"), T("Hidden") };
                     FFV_ScreenReaderMod.SpeakText(string.Format(T("Enemy HP: {0}"), options[next]), interrupt: true);
                 }
                 else
                 {
-                    FFV_ScreenReaderMod.SpeakText(T("Only available in battle"), interrupt: true);
+                    ControllerRouter.SpeakModMenuUnavailable();
                 }
             }
         }

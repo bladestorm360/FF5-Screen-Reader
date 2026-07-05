@@ -503,9 +503,11 @@ namespace FFV_ScreenReader.Patches
 
             try
             {
-                string slotInfo = ReadSaveSlotInfo(controllerPtr, index, isKeyInput: true);
+                string slotInfo = ReadSaveSlotInfo(controllerPtr, index, isKeyInput: true, out int count);
                 if (!string.IsNullOrEmpty(slotInfo))
                 {
+                    // Append slot position last (after all slot details).
+                    slotInfo = MenuPosition.Format(slotInfo, index, count);
                     FFV_ScreenReaderMod.SpeakText(slotInfo, interrupt: true);
                 }
             }
@@ -521,9 +523,11 @@ namespace FFV_ScreenReader.Patches
 
             try
             {
-                string slotInfo = ReadSaveSlotInfo(controllerPtr, index, isKeyInput: false);
+                string slotInfo = ReadSaveSlotInfo(controllerPtr, index, isKeyInput: false, out int count);
                 if (!string.IsNullOrEmpty(slotInfo))
                 {
+                    // Append slot position last (after all slot details).
+                    slotInfo = MenuPosition.Format(slotInfo, index, count);
                     FFV_ScreenReaderMod.SpeakText(slotInfo, interrupt: true);
                 }
             }
@@ -537,8 +541,9 @@ namespace FFV_ScreenReader.Patches
         /// Reads save slot information from SaveListController.contentList[index].
         /// Format: "Quick Save, 01/26/2026 17:09, Tule - Armor Shop, Bartz Level 7, Time 03:03"
         /// </summary>
-        private static string ReadSaveSlotInfo(IntPtr controllerPtr, int index, bool isKeyInput)
+        private static string ReadSaveSlotInfo(IntPtr controllerPtr, int index, bool isKeyInput, out int count)
         {
+            count = 0;
             try
             {
                 int contentListOffset = isKeyInput ? KEYINPUT_LIST_CONTENT_LIST : TOUCH_LIST_CONTENT_LIST;
@@ -551,6 +556,7 @@ namespace FFV_ScreenReader.Patches
 
                 // IL2CPP List: _size at 0x18, _items at 0x10
                 int size = Marshal.ReadInt32(contentListPtr + 0x18);
+                count = size;
                 if (index < 0 || index >= size)
                     return null;
 

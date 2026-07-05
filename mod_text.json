@@ -49,6 +49,21 @@
     "de": "Landepings", "es": "Pings de aterrizaje", "ko": "착륙 핑", "zht": "降落提示音",
     "zhc": "降落提示音", "ru": "Сигналы посадки", "th": "เสียงลงจอด", "pt": "Pings de pouso"
   },
+  "Beacon Destination Announcement": {
+    "en": "Beacon Destination Announcement", "ja": "ビーコン目的地アナウンス", "fr": "Annonce de destination de balise", "it": "Annuncio destinazione segnale",
+    "de": "Signal-Zielansage", "es": "Anuncio de destino de baliza", "ko": "비콘 목적지 안내", "zht": "信標目的地播報",
+    "zhc": "信标目的地播报", "ru": "Объявление пункта назначения маяка", "th": "ประกาศจุดหมายสัญญาณ", "pt": "Anúncio de destino do sinal"
+  },
+  "Menu Position Announcements": {
+    "en": "Menu Position Announcements", "ja": "メニュー位置アナウンス", "fr": "Annonces de position dans les menus", "it": "Annunci posizione menu",
+    "de": "Menüpositionsansagen", "es": "Anuncios de posición en menús", "ko": "메뉴 위치 안내", "zht": "選單位置播報",
+    "zhc": "菜单位置播报", "ru": "Объявление позиции в меню", "th": "ประกาศตำแหน่งในเมนู", "pt": "Anúncios de posição no menu"
+  },
+  "Auto Detail": {
+    "en": "Auto Detail", "ja": "詳細自動読み上げ", "fr": "Détails automatiques", "it": "Dettagli automatici",
+    "de": "Automatische Details", "es": "Detalles automáticos", "ko": "자동 상세 정보", "zht": "自動詳細資訊",
+    "zhc": "自动详细信息", "ru": "Автоматические детали", "th": "รายละเอียดอัตโนมัติ", "pt": "Detalhes automáticos"
+  },
   "Volume Controls": {
     "en": "Volume Controls", "ja": "音量コントロール", "fr": "Contrôles de volume", "it": "Controlli volume",
     "de": "Lautstärkeregler", "es": "Controles de volumen", "ko": "볼륨 조절", "zht": "音量控制",
@@ -138,6 +153,21 @@
     "en": "Hidden", "ja": "非表示", "fr": "Masqué", "it": "Nascosto",
     "de": "Versteckt", "es": "Oculto", "ko": "숨김", "zht": "隱藏",
     "zhc": "隐藏", "ru": "Скрыто", "th": "ซ่อน", "pt": "Oculto"
+  },
+  "Multi-hit Damage": {
+    "en": "Multi-hit Damage", "ja": "連続ヒットダメージ", "fr": "Dégâts multi-coups", "it": "Danno multi-colpo",
+    "de": "Mehrfachtreffer-Schaden", "es": "Daño de golpes múltiples", "ko": "다단히트 대미지", "zht": "多段傷害",
+    "zhc": "多段伤害", "ru": "Урон многоударных атак", "th": "ความเสียหายหลายครั้ง", "pt": "Dano de múltiplos golpes"
+  },
+  "Total only": {
+    "en": "Total only", "ja": "合計のみ", "fr": "Total uniquement", "it": "Solo totale",
+    "de": "Nur Gesamt", "es": "Solo total", "ko": "합계만", "zht": "僅總計",
+    "zhc": "仅总计", "ru": "Только итог", "th": "เฉพาะยอดรวม", "pt": "Apenas total"
+  },
+  "With hit count": {
+    "en": "With hit count", "ja": "ヒット数付き", "fr": "Avec nombre de coups", "it": "Con numero di colpi",
+    "de": "Mit Trefferzahl", "es": "Con número de golpes", "ko": "히트 수 포함", "zht": "含命中次數",
+    "zhc": "含命中次数", "ru": "С числом ударов", "th": "พร้อมจำนวนครั้งที่โจมตี", "pt": "Com contagem de golpes"
   },
   "Close Menu": {
     "en": "Close Menu", "ja": "メニューを閉じる", "fr": "Fermer le menu", "it": "Chiudi menu",

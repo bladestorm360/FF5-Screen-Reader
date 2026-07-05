@@ -1,9 +1,10 @@
-**/claude/
+**/.claude/
 **/bin/
-**/docs/scripts
 **/obj/
 **/Releases/
+**/docs/scripts/
+**/scripts/
 build_log.txt
-Nul
 nul
 NUL
+NUL.*

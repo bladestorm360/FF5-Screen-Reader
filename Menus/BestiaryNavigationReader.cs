@@ -170,7 +170,8 @@ namespace FFV_ScreenReader.Menus
             }
 
             var entry = statBuffer[currentIndex];
-            FFV_ScreenReaderMod.SpeakText(entry.ToString(), true);
+            string announcement = FFV_ScreenReader.Utils.MenuPosition.Format(entry.ToString(), currentIndex, statBuffer.Count);
+            FFV_ScreenReaderMod.SpeakText(announcement, true);
         }
 
         /// <summary>
@@ -188,7 +189,8 @@ namespace FFV_ScreenReader.Menus
 
             var entry = statBuffer[currentIndex];
             string groupName = GetGroupDisplayName(entry.Group);
-            FFV_ScreenReaderMod.SpeakText($"{groupName}. {entry}", true);
+            string announcement = FFV_ScreenReader.Utils.MenuPosition.Format($"{groupName}. {entry}", currentIndex, statBuffer.Count);
+            FFV_ScreenReaderMod.SpeakText(announcement, true);
         }
 
         /// <summary>

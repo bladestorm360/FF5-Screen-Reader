@@ -197,7 +197,8 @@ namespace FFV_ScreenReader.Patches
                 if (targetCharacter == null) return;
 
                 // Get released (unlocked) jobs
-                var job = SelectContentHelper.TryGetItem(__instance.GetReleaseJobs(), index);
+                var releaseJobs = __instance.GetReleaseJobs();
+                var job = SelectContentHelper.TryGetItem(releaseJobs, index);
                 if (job == null) return;
 
                 // Get job name from message manager
@@ -237,10 +238,18 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
+                // Append list position last.
+                announcement = MenuPosition.Format(announcement, index, releaseJobs != null ? releaseJobs.Count : 0);
+
                 // Skip duplicate announcements
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SELECT, announcement)) return;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
+
+                // Auto Detail: queue the job description after the name (same reader as the details key).
+                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                if (PreferencesManager.AutoDetailEnabled)
+                    JobDetailsAnnouncer.AnnounceCurrentJobDetails(interrupt: false, announceIfEmpty: false);
             }
             catch (Exception ex)
             {
@@ -271,11 +280,13 @@ namespace FFV_ScreenReader.Patches
                 var contentView = SelectContentHelper.TryGetItem(__instance.contentList, index);
                 if (contentView == null) return;
 
+                int slotCount = __instance.contentList != null ? __instance.contentList.Count : 0;
+
                 // Get the command from the content view
                 var command = contentView.Command;
                 if (command == null)
                 {
-                    string emptyAnnouncement = "Empty slot";
+                    string emptyAnnouncement = MenuPosition.Format("Empty slot", index, slotCount);
                     if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_COMMAND_SLOT, emptyAnnouncement)) return;
 
                     FFV_ScreenReaderMod.SpeakText(emptyAnnouncement);
@@ -289,7 +300,7 @@ namespace FFV_ScreenReader.Patches
                 string commandName = messageManager.GetMessage(command.MesIdName);
                 if (string.IsNullOrWhiteSpace(commandName)) return;
 
-                string announcement = commandName;
+                string announcement = MenuPosition.Format(commandName, index, slotCount);
 
                 // Skip duplicate announcements
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_COMMAND_SLOT, announcement)) return;
@@ -445,6 +456,11 @@ namespace FFV_ScreenReader.Patches
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, announcement)) return;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
+
+                // Auto Detail: queue the ability description after the name (same reader as the details key).
+                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                if (PreferencesManager.AutoDetailEnabled)
+                    AbilityEquipDetailsAnnouncer.AnnounceCurrentDetails(interrupt: false, announceIfEmpty: false);
             }
             catch (Exception ex)
             {
@@ -531,6 +547,11 @@ namespace FFV_ScreenReader.Patches
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_EQUIP_COMMAND, announcement)) return;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
+
+                // Auto Detail: queue the command-slot description after the name (same reader as the details key).
+                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                if (PreferencesManager.AutoDetailEnabled)
+                    AbilitySlotDetailsAnnouncer.AnnounceCurrentDetails(interrupt: false, announceIfEmpty: false);
             }
             catch (Exception ex)
             {
@@ -568,6 +589,9 @@ namespace FFV_ScreenReader.Patches
                 // Build announcement with HP, MP, and status conditions
                 string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
 
+                // Append target position last.
+                announcement = MenuPosition.Format(announcement, index, __instance.contentList != null ? __instance.contentList.Count : 0);
+
                 // Skip duplicates
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_USE_TARGET, announcement)) return;
 
@@ -597,6 +621,7 @@ namespace FFV_ScreenReader.Patches
                 if (__instance == null || targetCursor == null) return;
 
                 int index = targetCursor.Index;
+                int spellCount = 0;
                 OwnedAbility ability = null;
                 unsafe
                 {
@@ -604,6 +629,7 @@ namespace FFV_ScreenReader.Patches
                     if (contentListPtr != IntPtr.Zero)
                     {
                         var contentList = new Il2CppSystem.Collections.Generic.List<BattleAbilityInfomationContentController>(contentListPtr);
+                        spellCount = contentList.Count;
                         if (index >= 0 && index < contentList.Count)
                         {
                             var controller = contentList[index];
@@ -616,7 +642,7 @@ namespace FFV_ScreenReader.Patches
                 // Handle empty slots
                 if (ability == null)
                 {
-                    string emptyAnnouncement = "Empty";
+                    string emptyAnnouncement = MenuPosition.Format("Empty", index, spellCount);
                     if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SPELL_LIST, emptyAnnouncement)) return;
                     FFV_ScreenReaderMod.SpeakText(emptyAnnouncement);
                     return;
@@ -666,6 +692,9 @@ namespace FFV_ScreenReader.Patches
                     // CanUseMenuAbility check failed, continue without it
                 }
 
+                // Append list position last (after MP / learned status).
+                announcement = MenuPosition.Format(announcement, index, spellCount);
+
                 // Skip duplicate announcements
                 if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SPELL_LIST, announcement)) return;
 
@@ -690,6 +719,11 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
+
+                // Auto Detail: queue the spell description after the name (same reader as the details key).
+                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                if (PreferencesManager.AutoDetailEnabled)
+                    AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails(interrupt: false, announceIfEmpty: false);
             }
             catch (Exception ex)
             {
@@ -703,7 +737,7 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class JobDetailsAnnouncer
     {
-        public static void AnnounceCurrentJobDetails()
+        public static void AnnounceCurrentJobDetails(bool interrupt = true, bool announceIfEmpty = true)
         {
             try
             {
@@ -751,10 +785,11 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(announcement))
                 {
+                    if (!announceIfEmpty) return;
                     announcement = T("No description available");
                 }
 
-                FFV_ScreenReaderMod.SpeakText(announcement);
+                FFV_ScreenReaderMod.SpeakText(announcement, interrupt);
             }
             catch (Exception ex)
             {
@@ -768,7 +803,7 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class AbilityDetailsAnnouncer
     {
-        public static void AnnounceCurrentAbilityDetails()
+        public static void AnnounceCurrentAbilityDetails(bool interrupt = true, bool announceIfEmpty = true)
         {
             try
             {
@@ -783,11 +818,12 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    FFV_ScreenReaderMod.SpeakText(T("No description available"));
+                    if (!announceIfEmpty) return;
+                    FFV_ScreenReaderMod.SpeakText(T("No description available"), interrupt);
                     return;
                 }
 
-                FFV_ScreenReaderMod.SpeakText(description);
+                FFV_ScreenReaderMod.SpeakText(description, interrupt);
             }
             catch (Exception ex)
             {
@@ -801,7 +837,7 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class AbilitySlotDetailsAnnouncer
     {
-        public static void AnnounceCurrentDetails()
+        public static void AnnounceCurrentDetails(bool interrupt = true, bool announceIfEmpty = true)
         {
             try
             {
@@ -816,11 +852,12 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    FFV_ScreenReaderMod.SpeakText(T("No description available"));
+                    if (!announceIfEmpty) return;
+                    FFV_ScreenReaderMod.SpeakText(T("No description available"), interrupt);
                     return;
                 }
 
-                FFV_ScreenReaderMod.SpeakText(description);
+                FFV_ScreenReaderMod.SpeakText(description, interrupt);
             }
             catch (Exception ex)
             {
@@ -834,7 +871,7 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class AbilityEquipDetailsAnnouncer
     {
-        public static void AnnounceCurrentDetails()
+        public static void AnnounceCurrentDetails(bool interrupt = true, bool announceIfEmpty = true)
         {
             try
             {
@@ -849,11 +886,12 @@ namespace FFV_ScreenReader.Patches
 
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    FFV_ScreenReaderMod.SpeakText(T("No description available"));
+                    if (!announceIfEmpty) return;
+                    FFV_ScreenReaderMod.SpeakText(T("No description available"), interrupt);
                     return;
                 }
 
-                FFV_ScreenReaderMod.SpeakText(description);
+                FFV_ScreenReaderMod.SpeakText(description, interrupt);
             }
             catch (Exception ex)
             {

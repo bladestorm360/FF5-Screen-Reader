@@ -14,6 +14,7 @@ Screen-reader/accessibility mod for FF5 Remaster. MelonLoader + Harmony patches 
 | 5: No PowerShell Edits | Never use PowerShell scripts to edit files containing non-ASCII characters (e.g., arrows →, Japanese text). They corrupt the encoding. Use the Edit tool instead. |
 | 6: No Large Files | Never load `GameAssembly.dll.c` or other large files directly — use Grep. Max 50 lines from `GameAssembly.dll.c`/`dump.cs` unless user permits. |
 | 7: Logs First | Always check game logs before debugging. |
+| 8: Game-Specific Translations | Translations are game-specific; never copy or reference another FF mod's translation strings (phrasing/presentation differ per game, and are not likely to repeat). When a string has no translation, translate it live yourself and add a self-contained entry to this mod's `translation.json`. |
 
 ## General Rules
 - **Reference FF4 mod** (`ff4/ff4-screen-reader`) — port shared patterns, only generate FF5-specific

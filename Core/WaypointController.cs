@@ -53,6 +53,7 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
+            NavigationTargetTracker.MarkWaypoint();
             FFV_ScreenReaderMod.SpeakText(waypointNavigator.FormatCurrentWaypoint());
         }
 
@@ -68,6 +69,7 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
+            NavigationTargetTracker.MarkWaypoint();
             FFV_ScreenReaderMod.SpeakText(waypointNavigator.FormatCurrentWaypoint());
         }
 
@@ -75,6 +77,7 @@ namespace FFV_ScreenReader.Core
         {
             string mapId = GetCurrentMapIdString();
             waypointNavigator.CycleNextCategory(mapId);
+            NavigationTargetTracker.MarkWaypoint();
             FFV_ScreenReaderMod.SpeakText(waypointNavigator.GetCategoryAnnouncement());
         }
 
@@ -82,6 +85,7 @@ namespace FFV_ScreenReader.Core
         {
             string mapId = GetCurrentMapIdString();
             waypointNavigator.CyclePreviousCategory(mapId);
+            NavigationTargetTracker.MarkWaypoint();
             FFV_ScreenReaderMod.SpeakText(waypointNavigator.GetCategoryAnnouncement());
         }
 
@@ -109,6 +113,11 @@ namespace FFV_ScreenReader.Core
                 playerController.mapHandle,
                 playerController.fieldPlayer
             );
+
+            NavigationTargetTracker.MarkWaypoint();
+            // Beacon mode: re-ping immediately so the player gets feedback after pressing pathfind.
+            if (FFV_ScreenReaderMod.AudioBeaconsEnabled)
+                FFV_ScreenReaderMod.Instance?.RestartBeacon();
 
             if (pathInfo.Success)
             {

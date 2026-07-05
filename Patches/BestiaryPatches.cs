@@ -336,8 +336,8 @@ namespace FFV_ScreenReader.Patches
                 var party = partyList[partyIndex];
                 string announcement = BestiaryReader.ReadFormation(partyIndex, party);
 
-                if (partyList.Count > 1)
-                    announcement += $" ({partyIndex + 1} of {partyList.Count})";
+                // Append formation position last (localized + toggle-aware).
+                announcement = MenuPosition.Format(announcement, partyIndex, partyList.Count);
 
                 AnnouncementDeduplicator.AnnounceIfNew(
                     AnnouncementContexts.BESTIARY_FORMATION, announcement, true);

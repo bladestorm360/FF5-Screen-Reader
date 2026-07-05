@@ -24,7 +24,7 @@ namespace FFV_ScreenReader.Patches
         /// Announces which unlocked jobs can equip the currently selected item.
         /// Only announces for weapons and armor, silent for other items.
         /// </summary>
-        public static void AnnounceEquipRequirements()
+        public static void AnnounceEquipRequirements(bool interrupt = true)
         {
             try
             {
@@ -93,7 +93,7 @@ namespace FFV_ScreenReader.Patches
                     announcement = "Can equip: " + string.Join(", ", canEquipNames);
                 }
 
-                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(announcement, interrupt);
             }
             catch (Exception ex)
             {

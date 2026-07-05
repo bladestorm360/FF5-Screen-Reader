@@ -51,7 +51,7 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class ShopDetailsAnnouncer
     {
-        public static void AnnounceCurrentItemDetails()
+        public static void AnnounceCurrentItemDetails(bool interrupt = true)
         {
             try
             {
@@ -82,7 +82,7 @@ namespace FFV_ScreenReader.Patches
 
                 if (!string.IsNullOrEmpty(announcement))
                 {
-                        FFV_ScreenReaderMod.SpeakText(announcement);
+                        FFV_ScreenReaderMod.SpeakText(announcement, interrupt);
                 }
             }
             catch (Exception ex)
@@ -134,6 +134,10 @@ namespace FFV_ScreenReader.Patches
                 string commandText = content.view.nameText.text;
                 if (string.IsNullOrEmpty(commandText))
                     return;
+
+                // Append list position last (Buy / Sell / Back command bar).
+                int commandCount = __instance.contentList != null ? __instance.contentList.Count : 0;
+                commandText = MenuPosition.Format(commandText, index, commandCount);
 
                 CoroutineManager.StartManaged(DelayedAnnounceShopCommand(commandText));
             }
@@ -302,6 +306,11 @@ namespace FFV_ScreenReader.Patches
         {
             yield return null; // Wait one frame for UI to update
             FFV_ScreenReaderMod.SpeakText($"{itemText}");
+
+            // Auto Detail: queue the item description/MP after the name+price (same reader as the details key).
+            // The one-frame wait lets ShopInfoController.SetDescription populate the description first.
+            if (PreferencesManager.AutoDetailEnabled)
+                ShopDetailsAnnouncer.AnnounceCurrentItemDetails(interrupt: false);
         }
 
         internal static IEnumerator DelayedAnnounceQuantity(string quantityText)

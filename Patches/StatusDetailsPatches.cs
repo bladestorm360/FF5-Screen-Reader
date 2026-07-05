@@ -142,6 +142,8 @@ namespace FFV_ScreenReader.Patches
 
                 if (!string.IsNullOrWhiteSpace(characterInfo))
                 {
+                    // Append list position last (character index within the party list).
+                    characterInfo = MenuPosition.Format(characterInfo, index, contents.Count);
                     FFV_ScreenReaderMod.SpeakText(characterInfo);
                 }
             }
