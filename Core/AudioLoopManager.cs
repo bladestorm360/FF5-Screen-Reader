@@ -379,6 +379,10 @@ namespace FFV_ScreenReader.Core
                             nextBeaconTime = Time.time + 0.2f;
                             continue;
                         }
+                        // Player moved back out of the stop radius — release the arrival-silence
+                        // latch so the beacon resumes pinging when they walk away from a reached,
+                        // still-selected target (previously it stayed silent permanently).
+                        beaconSilenced = false;
                         float t = Mathf.Clamp01((distTiles - MODE_A_NEAR_TILES) /
                                                 (MODE_A_FAR_TILES - MODE_A_NEAR_TILES));
                         interval = Mathf.Lerp(MODE_A_INTERVAL_NEAR, MODE_A_INTERVAL_FAR, t);

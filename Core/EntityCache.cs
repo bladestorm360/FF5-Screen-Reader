@@ -187,7 +187,10 @@ namespace FFV_ScreenReader.Core
 
             lastScannedMapId = currentMapId;
             sw.Stop();
-            MelonLogger.Msg($"[EntityCache] Scan: {currentFieldEntities.Count} field entities, +{addedCount} new, -{toRemove.Count} stale, took {sw.ElapsedMilliseconds}ms");
+            // Only log when the scan actually changed the cache — Scan() runs on every navigation
+            // keypress, so an unconditional log spams one line per keypress on the hot path.
+            if (addedCount > 0 || toRemove.Count > 0)
+                MelonLogger.Msg($"[EntityCache] Scan: {currentFieldEntities.Count} field entities, +{addedCount} new, -{toRemove.Count} stale, took {sw.ElapsedMilliseconds}ms");
         }
 
         /// <summary>

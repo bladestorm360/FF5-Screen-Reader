@@ -71,14 +71,16 @@ namespace FFV_ScreenReader.Patches
 
         private static void GetKeyDown_Postfix(int __0, ref bool __result)
         {
-            if (!GamepadManager.IsAvailable) return;
-
-            // Full suppression when mod is consuming all input
+            // Full suppression when mod is consuming all input. This MUST run before the
+            // gamepad-availability check so keyboard-only users (no controller) also get game
+            // input blocked while a mod dialog/menu is open — the mod no longer steals OS focus.
             if (ControllerRouter.SuppressGameInput)
             {
                 __result = false;
                 return;
             }
+
+            if (!GamepadManager.IsAvailable) return;
 
             // If keyboard already returned true, keep it (game keyboard works normally)
             if (__result) return;
@@ -93,13 +95,13 @@ namespace FFV_ScreenReader.Patches
 
         private static void GetKey_Postfix(int __0, ref bool __result)
         {
-            if (!GamepadManager.IsAvailable) return;
-
             if (ControllerRouter.SuppressGameInput)
             {
                 __result = false;
                 return;
             }
+
+            if (!GamepadManager.IsAvailable) return;
 
             if (__result) return;
 
@@ -112,13 +114,13 @@ namespace FFV_ScreenReader.Patches
 
         private static void GetKeyUp_Postfix(int __0, ref bool __result)
         {
-            if (!GamepadManager.IsAvailable) return;
-
             if (ControllerRouter.SuppressGameInput)
             {
                 __result = false;
                 return;
             }
+
+            if (!GamepadManager.IsAvailable) return;
 
             if (__result) return;
 
@@ -131,13 +133,13 @@ namespace FFV_ScreenReader.Patches
 
         private static void GetAnyKey_Postfix(ref bool __result)
         {
-            if (!GamepadManager.IsAvailable) return;
-
             if (ControllerRouter.SuppressGameInput)
             {
                 __result = false;
                 return;
             }
+
+            if (!GamepadManager.IsAvailable) return;
 
             if (__result) return;
 
