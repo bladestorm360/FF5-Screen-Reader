@@ -76,6 +76,37 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
 
     /// <summary>
+    /// Announce helper for the status character-select list, shared by the navigation postfix and
+    /// the initial-focus path (FieldStatusReannouncePatches) so both produce the same string.
+    /// Returns TRUE when it spoke and FALSE when the row isn't readable yet, which is what lets
+    /// the MenuFocusAnnouncer settle loop retry until the list is built.
+    /// </summary>
+    public static class StatusMenuState
+    {
+        // The list can be re-driven on the same row while the window settles.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a menu (re)entry announces even on the same character.</summary>
+        public static void ClearLast() => _lastIndex = -1;
+
+        public static bool AnnounceCharacterRow(UnityEngine.Transform contentTransform, int index, int count)
+        {
+            if (contentTransform == null) return false;
+
+            // Use CharacterSelectionReader to get character info from text components
+            string characterInfo = CharacterSelectionReader.TryReadCharacterSelection(contentTransform, index);
+            if (string.IsNullOrWhiteSpace(characterInfo)) return false;
+
+            if (index == _lastIndex) return false;
+            _lastIndex = index;
+
+            // Append list position last (character index within the party list).
+            FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(characterInfo, index, count));
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Patch for character selection list navigation.
     /// Announces character names when navigating up/down in the status character list.
     /// </summary>
@@ -137,15 +168,7 @@ namespace FFV_ScreenReader.Patches
                     yield break;
                 }
 
-                // Use CharacterSelectionReader to get character info from text components
-                string characterInfo = CharacterSelectionReader.TryReadCharacterSelection(selectedContent.transform, index);
-
-                if (!string.IsNullOrWhiteSpace(characterInfo))
-                {
-                    // Append list position last (character index within the party list).
-                    characterInfo = MenuPosition.Format(characterInfo, index, contents.Count);
-                    FFV_ScreenReaderMod.SpeakText(characterInfo);
-                }
+                StatusMenuState.AnnounceCharacterRow(selectedContent.transform, index, contents.Count);
             }
             catch (Exception ex)
             {

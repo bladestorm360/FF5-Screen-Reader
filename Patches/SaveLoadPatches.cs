@@ -538,6 +538,27 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
+        /// Clears the last announced slot so the next SelectContent announces even on the same row.
+        /// </summary>
+        internal static void ResetLastAnnouncedIndex() => lastAnnouncedIndex = -1;
+
+        /// <summary>
+        /// Reads and speaks one save slot immediately (no frame delay — callers that need one
+        /// provide it). Returns true when it spoke. Used by SaveListPatches for the initial-focus
+        /// read on menu open; priming lastAnnouncedIndex stops the SelectContent nav postfix from
+        /// repeating the same slot right afterwards.
+        /// </summary>
+        internal static bool AnnounceSlotAtIndex(IntPtr controllerPtr, int index, bool isKeyInput)
+        {
+            string slotInfo = ReadSaveSlotInfo(controllerPtr, index, isKeyInput, out int count);
+            if (string.IsNullOrEmpty(slotInfo)) return false;
+
+            lastAnnouncedIndex = index;
+            FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(slotInfo, index, count), interrupt: true);
+            return true;
+        }
+
+        /// <summary>
         /// Reads save slot information from SaveListController.contentList[index].
         /// Format: "Quick Save, 01/26/2026 17:09, Tule - Armor Shop, Bartz Level 7, Time 03:03"
         /// </summary>

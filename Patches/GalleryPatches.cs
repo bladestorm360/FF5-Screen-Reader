@@ -30,8 +30,6 @@ namespace FFV_ScreenReader.Patches
             CachedFocusedPtr = IntPtr.Zero;
             PreviousState = 0;
             MenuStateRegistry.Reset(MenuStateRegistry.GALLERY);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.GALLERY_LIST_ENTRY);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.TITLE_MENU_COMMAND);
         }
     }
 
@@ -57,10 +55,8 @@ namespace FFV_ScreenReader.Patches
                             MenuStateRegistry.SetActiveExclusive(MenuStateRegistry.GALLERY);
                             CoroutineManager.StartManaged(AnnounceGalleryEntry());
                         }
-                        else if (GalleryStateTracker.PreviousState == 2) // Returning from Details
-                        {
-                            AnnouncementDeduplicator.Reset(AnnouncementContexts.GALLERY_LIST_ENTRY);
-                        }
+                        // Returning from Details (state 2) needs nothing: SetFocusContent fires
+                        // again on the way back and is the sole announcer for the list entry.
                         GalleryStateTracker.PreviousState = 1;
                         break;
 
@@ -152,8 +148,7 @@ namespace FFV_ScreenReader.Patches
                 string entry = GalleryReader.ReadListEntry(number, name);
                 if (!string.IsNullOrEmpty(entry))
                 {
-                    AnnouncementDeduplicator.AnnounceIfNew(
-                        AnnouncementContexts.GALLERY_LIST_ENTRY, entry);
+                    FFV_ScreenReaderMod.SpeakText(entry);
                 }
             }
             catch (Exception ex)

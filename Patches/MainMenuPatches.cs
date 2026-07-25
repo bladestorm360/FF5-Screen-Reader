@@ -10,58 +10,15 @@ namespace FFV_ScreenReader.Patches
 {
     /// <summary>
     /// Patches for the in-game main menu (Items/Magic/Equip/Status/etc.).
-    /// CommandMenuController.SetFocus reads menu item names.
     /// MainMenuController.Show clears stale tracker state on menu open.
+    ///
+    /// Note: CommandMenuController.SetFocus is deliberately NOT patched. The game re-asserts it
+    /// on the focused command (nav echo, confirm-into-submenu, return-from-submenu), which is
+    /// indistinguishable from its arguments, so it cannot tell "moved here" from "still here".
+    /// Navigation is owned by the generic cursor reader (Cursor.NextIndex -> MenuTextDiscovery,
+    /// which has a main-menu strategy) and menu open / return-from-submenu by FieldMenuPatches.
+    /// The two fire on disjoint events, so neither needs to suppress the other.
     /// </summary>
-    [HarmonyPatch(typeof(Il2CppLast.UI.CommandMenuController), nameof(Il2CppLast.UI.CommandMenuController.SetFocus))]
-    public static class CommandMenuController_SetFocus_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(Il2CppLast.UI.CommandMenuController __instance, Il2CppLast.Defaine.MenuCommandId id)
-        {
-            try
-            {
-                if (__instance == null) return;
-
-                var contents = __instance.contents;
-                if (contents == null) return;
-
-                // Find the content view matching the focused command ID
-                for (int i = 0; i < contents.Count; i++)
-                {
-                    var content = contents[i];
-                    if (content == null) continue;
-
-                    if (content.Data != null && content.Data.Id == id)
-                    {
-                        if (content.NameText != null && !string.IsNullOrEmpty(content.NameText.text))
-                        {
-                            string menuText = content.NameText.text.Trim();
-                            if (!string.IsNullOrEmpty(menuText))
-                            {
-                                bool shouldAnnounce = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.MAIN_MENU_SET_FOCUS, menuText);
-                                if (shouldAnnounce)
-                                {
-                                    // Append list position last (i is the focused command's index).
-                                    FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(menuText, i, contents.Count), interrupt: true);
-                                }
-                                else
-                                {
-                                    // Already announced by cursor nav. Reset so return-from-submenu can re-announce.
-                                    AnnouncementDeduplicator.Reset(AnnouncementContexts.MAIN_MENU_SET_FOCUS);
-                                }
-                            }
-                        }
-                        return;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[MainMenu] Error in SetFocus patch: {ex.Message}");
-            }
-        }
-    }
 
     /// <summary>
     /// Clears stale menu tracker state when the main menu opens.
@@ -85,10 +42,6 @@ namespace FFV_ScreenReader.Patches
                 SaveLoadMenuState.ResetState();
                 ConfigMenuState.ClearState();
                 GameObjectCache.ClearAll();
-
-                // Reset announcement deduplicator for main menu to allow re-reading
-                AnnouncementDeduplicator.Reset(AnnouncementContexts.MAIN_MENU_SET_FOCUS);
-
             }
             catch (Exception ex)
             {

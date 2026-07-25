@@ -39,7 +39,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static bool ValidateState()
         {
-            if (IsJobMenuActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
+            if (IsJobMenuActive && !UnityHelpers.IsControllerActive(ActiveController))
             {
                 IsJobMenuActive = false;
                 ActiveController = null;
@@ -71,7 +71,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static bool ValidateState()
         {
-            if (IsAbilityMenuActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
+            if (IsAbilityMenuActive && !UnityHelpers.IsControllerActive(ActiveController))
             {
                 ClearState();
                 return false;
@@ -104,7 +104,7 @@ namespace FFV_ScreenReader.Patches
 
         public static bool ValidateState()
         {
-            if (IsActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
+            if (IsActive && !UnityHelpers.IsControllerActive(ActiveController))
             {
                 ClearState();
                 return false;
@@ -154,7 +154,7 @@ namespace FFV_ScreenReader.Patches
 
         public static bool ValidateState()
         {
-            if (IsActive && !AnnouncementDeduplicator.IsControllerActive(ActiveController))
+            if (IsActive && !UnityHelpers.IsControllerActive(ActiveController))
             {
                 ClearState();
                 return false;
@@ -179,12 +179,29 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController), "SelectContent")]
     public static class JobChangeWindowController_SelectContent_Patch
     {
+        // Scroll-view re-fire on the same row. Index-keyed rather than text-keyed so two jobs
+        // that happen to read alike still both announce. Also debounces Auto Detail, whose
+        // queued (interrupt:false) description would otherwise play twice back to back.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a menu (re)entry announces even on the same row.</summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController __instance, int index, CustomScrollView.WithinRangeType scrollType)
         {
+            Announce(__instance, index);
+        }
+
+        /// <summary>
+        /// Announces one job row. Shared by navigation and the initial-focus path; returns true
+        /// when it spoke and false when the data isn't usable yet (so the settle loop retries).
+        /// </summary>
+        public static bool Announce(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController __instance, int index)
+        {
             try
             {
-                if (__instance == null) return;
+                if (__instance == null) return false;
 
                 // Track that job menu is active and clear other menu trackers
                 ItemMenuTracker.ClearState();
@@ -194,24 +211,24 @@ namespace FFV_ScreenReader.Patches
 
                 // Get character and job data using the public method
                 var targetCharacter = __instance.GetTargetCharacterData();
-                if (targetCharacter == null) return;
+                if (targetCharacter == null) return false;
 
                 // Get released (unlocked) jobs
                 var releaseJobs = __instance.GetReleaseJobs();
                 var job = SelectContentHelper.TryGetItem(releaseJobs, index);
-                if (job == null) return;
+                if (job == null) return false;
 
                 // Get job name from message manager
                 var messageManager = MessageManager.Instance;
-                if (messageManager == null) return;
+                if (messageManager == null) return false;
 
                 string jobName = messageManager.GetMessage(job.MesIdName);
-                if (string.IsNullOrWhiteSpace(jobName)) return;
+                if (string.IsNullOrWhiteSpace(jobName)) return false;
 
                 // Read level, mastered status, and ABP from UI text fields
                 // (data-based OwnedJob.Level returns wrong values for level 0 jobs)
                 var view = __instance.view;
-                if (view == null) return;
+                if (view == null) return false;
 
                 string levelText = view.InfoSkillLevelValueText?.text?.Trim() ?? "";
                 bool isMastered = view.InfoJobLevelMasterText?.gameObject?.activeInHierarchy == true;
@@ -241,20 +258,23 @@ namespace FFV_ScreenReader.Patches
                 // Append list position last.
                 announcement = MenuPosition.Format(announcement, index, releaseJobs != null ? releaseJobs.Count : 0);
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SELECT, announcement)) return;
+                if (index == _lastIndex) return false;
+                _lastIndex = index;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
 
                 // Auto Detail: queue the job description after the name (same reader as the details key).
-                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                // Reached only when the row actually changed (guard above), giving a same-index debounce.
                 if (PreferencesManager.AutoDetailEnabled)
                     JobDetailsAnnouncer.AnnounceCurrentJobDetails(interrupt: false, announceIfEmpty: false);
+
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in JobChangeWindowController.SelectContent patch: {ex.Message}");
             }
+            return false;
         }
     }
 
@@ -270,15 +290,31 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController), nameof(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController.SelectContent))]
     public static class AbilityCommandController_SelectContent_Patch
     {
+        // Scroll-view re-fire on the same slot. Index-keyed so consecutive empty slots each
+        // announce — otherwise moving the cursor across them would be silent.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a menu (re)entry announces even on the same slot.</summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController __instance, int index)
         {
+            Announce(__instance, index);
+        }
+
+        /// <summary>
+        /// Announces one command slot. Shared by navigation and the initial-focus path; returns
+        /// true when it spoke and false when the data isn't usable yet.
+        /// </summary>
+        public static bool Announce(Il2CppSerial.FF5.UI.KeyInput.AbilityCommandController __instance, int index)
+        {
             try
             {
-                if (__instance == null) return;
+                if (__instance == null) return false;
 
                 var contentView = SelectContentHelper.TryGetItem(__instance.contentList, index);
-                if (contentView == null) return;
+                if (contentView == null) return false;
 
                 int slotCount = __instance.contentList != null ? __instance.contentList.Count : 0;
 
@@ -286,31 +322,31 @@ namespace FFV_ScreenReader.Patches
                 var command = contentView.Command;
                 if (command == null)
                 {
-                    string emptyAnnouncement = MenuPosition.Format("Empty slot", index, slotCount);
-                    if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_COMMAND_SLOT, emptyAnnouncement)) return;
+                    if (index == _lastIndex) return false;
+                    _lastIndex = index;
 
-                    FFV_ScreenReaderMod.SpeakText(emptyAnnouncement);
-                    return;
+                    FFV_ScreenReaderMod.SpeakText(MenuPosition.Format("Empty slot", index, slotCount));
+                    return true;
                 }
 
                 // Get command name
                 var messageManager = MessageManager.Instance;
-                if (messageManager == null) return;
+                if (messageManager == null) return false;
 
                 string commandName = messageManager.GetMessage(command.MesIdName);
-                if (string.IsNullOrWhiteSpace(commandName)) return;
+                if (string.IsNullOrWhiteSpace(commandName)) return false;
 
-                string announcement = MenuPosition.Format(commandName, index, slotCount);
+                if (index == _lastIndex) return false;
+                _lastIndex = index;
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_COMMAND_SLOT, announcement)) return;
-
-                FFV_ScreenReaderMod.SpeakText(announcement);
+                FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(commandName, index, slotCount));
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in AbilityCommandController.SelectContent patch: {ex.Message}");
             }
+            return false;
         }
     }
 
@@ -322,18 +358,47 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController), "SelectContent")]
     public static class AbilityChangeController_SelectContent_Patch
     {
+        // Scroll-view re-fire on the same row (SelectContent carries a WithinRangeType).
+        // Index-keyed so moving across consecutive empty slots announces each one, and so the
+        // Auto Detail description below is queued at most once per row.
+        private static int _lastIndex = -1;
+
+        // AbilityChangeController has NO cursor field (dump.cs 286594) — the focused index only
+        // ever arrives as a SelectContent parameter, so remember it for the initial-focus path.
+        private static int _cachedIndex;
+
+        /// <summary>Index last focused, for the initial-focus read. 0 is the game's own default.</summary>
+        public static int CachedIndex => _cachedIndex;
+
+        /// <summary>
+        /// Clears the re-fire guard so a (re)entry announces even on the same row. Deliberately
+        /// does NOT reset _cachedIndex: with no cursor to read, the last focused row is the best
+        /// estimate of where the game restores the cursor on re-entry.
+        /// </summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController __instance, int index, CustomScrollView.WithinRangeType scrollType)
         {
+            _cachedIndex = index;
+            Announce(__instance, index);
+        }
+
+        /// <summary>
+        /// Announces one ability-equip row. Shared by navigation and the initial-focus path;
+        /// returns true when it spoke and false when the data isn't usable yet.
+        /// </summary>
+        public static bool Announce(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController __instance, int index)
+        {
             try
             {
-                if (__instance == null) return;
+                if (__instance == null) return false;
 
                 var view = __instance.view;
-                if (view == null) return;
+                if (view == null) return false;
 
                 var scrollView = view.ScrollView;
-                if (scrollView == null) return;
+                if (scrollView == null) return false;
 
                 // Search all visible content controllers for the one with focused data
                 AbilityEquipData abilityEquipData = null;
@@ -372,16 +437,15 @@ namespace FFV_ScreenReader.Patches
 
                 if (abilityEquipData == null)
                 {
-                    string emptyText = "Empty";
-                    if (AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, emptyText))
-                    {
-                        FFV_ScreenReaderMod.SpeakText(emptyText);
-                    }
-                    return;
+                    if (index == _lastIndex) return false;
+                    _lastIndex = index;
+
+                    FFV_ScreenReaderMod.SpeakText("Empty");
+                    return true;
                 }
 
                 var messageManager = MessageManager.Instance;
-                if (messageManager == null) return;
+                if (messageManager == null) return false;
 
                 // Clear other menu trackers for mutual exclusion
                 AbilitySlotMenuTracker.ClearState();
@@ -406,24 +470,22 @@ namespace FFV_ScreenReader.Patches
                 // Check for null NameMessageId first (empty/unlocked slots)
                 if (string.IsNullOrEmpty(abilityEquipData.NameMessageId))
                 {
-                    string emptyText = "Empty";
-                    if (AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, emptyText))
-                    {
-                        FFV_ScreenReaderMod.SpeakText(emptyText);
-                    }
-                    return;
+                    if (index == _lastIndex) return false;
+                    _lastIndex = index;
+
+                    FFV_ScreenReaderMod.SpeakText("Empty");
+                    return true;
                 }
 
                 // Get ability name
                 string abilityName = messageManager.GetMessage(abilityEquipData.NameMessageId);
                 if (string.IsNullOrWhiteSpace(abilityName))
                 {
-                    string emptyText = "Empty";
-                    if (AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, emptyText))
-                    {
-                        FFV_ScreenReaderMod.SpeakText(emptyText);
-                    }
-                    return;
+                    if (index == _lastIndex) return false;
+                    _lastIndex = index;
+
+                    FFV_ScreenReaderMod.SpeakText("Empty");
+                    return true;
                 }
 
                 // Build announcement
@@ -452,20 +514,23 @@ namespace FFV_ScreenReader.Patches
                     // MP cost not available, continue without it
                 }
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_ABILITY_EQUIP, announcement)) return;
+                if (index == _lastIndex) return false;
+                _lastIndex = index;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
 
                 // Auto Detail: queue the ability description after the name (same reader as the details key).
-                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                // Reached only when the row actually changed (guard above), giving a same-index debounce.
                 if (PreferencesManager.AutoDetailEnabled)
                     AbilityEquipDetailsAnnouncer.AnnounceCurrentDetails(interrupt: false, announceIfEmpty: false);
+
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in AbilityChangeController.SelectContent patch: {ex.Message}");
             }
+            return false;
         }
     }
 
@@ -476,15 +541,40 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController), nameof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController.SelectCommand))]
     public static class AbilityChangeController_SelectCommand_Patch
     {
+        // SelectCommand re-fires on the same slot when the panel is rebuilt.
+        private static int _lastIndex = -1;
+
+        // Like SelectContent above, AbilityChangeController exposes no cursor — cache the index.
+        private static int _cachedIndex;
+
+        /// <summary>Index last focused, for the initial-focus read.</summary>
+        public static int CachedIndex => _cachedIndex;
+
+        /// <summary>
+        /// Clears the re-fire guard so a (re)entry announces even on the same slot. Deliberately
+        /// does NOT reset _cachedIndex — see AbilityChangeController_SelectContent_Patch.
+        /// </summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController __instance, int index)
         {
+            _cachedIndex = index;
+            Announce(__instance, index);
+        }
+
+        /// <summary>
+        /// Announces one command slot. Shared by navigation and the initial-focus path; returns
+        /// true when it spoke and false when the data isn't usable yet.
+        /// </summary>
+        public static bool Announce(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController __instance, int index)
+        {
             try
             {
-                if (__instance == null) return;
+                if (__instance == null) return false;
 
                 var view = __instance.view;
-                if (view == null) return;
+                if (view == null) return false;
 
                 // Clear other menu trackers for mutual exclusion
                 AbilityEquipMenuTracker.ClearState();
@@ -543,20 +633,23 @@ namespace FFV_ScreenReader.Patches
                 // Format: "Slot 1: White Magic" or "Slot 1: empty"
                 string announcement = $"Slot {index + 1}: {slotContent}";
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_EQUIP_COMMAND, announcement)) return;
+                if (index == _lastIndex) return false;
+                _lastIndex = index;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
 
                 // Auto Detail: queue the command-slot description after the name (same reader as the details key).
-                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                // Reached only when the row actually changed (guard above), giving a same-index debounce.
                 if (PreferencesManager.AutoDetailEnabled)
                     AbilitySlotDetailsAnnouncer.AnnounceCurrentDetails(interrupt: false, announceIfEmpty: false);
+
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in AbilityChangeController.SelectCommand patch: {ex.Message}");
             }
+            return false;
         }
     }
 
@@ -569,22 +662,37 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppSystem.Collections.Generic.IEnumerable<ItemTargetSelectContentController>), typeof(GameCursor) })]
     public static class AbilityUseContentListController_SelectContent_Patch
     {
+        // Cursor-settle re-fire on the same target character.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a menu (re)entry announces even on the same target.</summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController __instance,
             Il2CppSystem.Collections.Generic.IEnumerable<ItemTargetSelectContentController> targetContents,
             GameCursor targetCursor)
         {
+            if (targetCursor == null) return;
+            Announce(__instance, targetCursor.Index);
+        }
+
+        /// <summary>
+        /// Announces one ability target. Shared by navigation and the initial-focus path; returns
+        /// true when it spoke and false when the data isn't usable yet.
+        /// </summary>
+        public static bool Announce(Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController __instance, int index)
+        {
             try
             {
-                if (__instance == null || targetCursor == null) return;
+                if (__instance == null) return false;
 
-                int index = targetCursor.Index;
                 var selectedController = SelectContentHelper.TryGetItem(__instance.contentList, index);
-                if (selectedController == null || selectedController.CurrentData == null) return;
+                if (selectedController == null || selectedController.CurrentData == null) return false;
 
                 var data = selectedController.CurrentData;
                 string characterName = data.Name;
-                if (string.IsNullOrEmpty(characterName)) return;
+                if (string.IsNullOrEmpty(characterName)) return false;
 
                 // Build announcement with HP, MP, and status conditions
                 string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
@@ -592,15 +700,17 @@ namespace FFV_ScreenReader.Patches
                 // Append target position last.
                 announcement = MenuPosition.Format(announcement, index, __instance.contentList != null ? __instance.contentList.Count : 0);
 
-                // Skip duplicates
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_USE_TARGET, announcement)) return;
+                if (index == _lastIndex) return false;
+                _lastIndex = index;
 
                 FFV_ScreenReaderMod.SpeakText(announcement);
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in AbilityUseContentListController.SelectContent patch: {ex.Message}");
             }
+            return false;
         }
     }
 
@@ -612,15 +722,31 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(GameCursor), typeof(bool), typeof(CustomScrollView.WithinRangeType), typeof(bool) })]
     public static class AbilityContentListController_SetCursor_Patch
     {
+        // SetCursor carries a WithinRangeType — re-fires on scroll-range recalculation.
+        // Index-keyed so consecutive empty spell rows each announce.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a menu (re)entry announces even on the same spell.</summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController __instance,
             GameCursor targetCursor, bool isScroll, CustomScrollView.WithinRangeType type, bool pageSkip)
         {
+            if (targetCursor == null) return;
+            Announce(__instance, targetCursor.Index);
+        }
+
+        /// <summary>
+        /// Announces one spell row. Shared by navigation and the initial-focus path; returns true
+        /// when it spoke and false when the data is not usable yet.
+        /// </summary>
+        public static bool Announce(Il2CppSerial.FF5.UI.KeyInput.AbilityContentListController __instance, int index)
+        {
             try
             {
-                if (__instance == null || targetCursor == null) return;
+                if (__instance == null) return false;
 
-                int index = targetCursor.Index;
                 int spellCount = 0;
                 OwnedAbility ability = null;
                 unsafe
@@ -642,18 +768,19 @@ namespace FFV_ScreenReader.Patches
                 // Handle empty slots
                 if (ability == null)
                 {
-                    string emptyAnnouncement = MenuPosition.Format("Empty", index, spellCount);
-                    if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SPELL_LIST, emptyAnnouncement)) return;
-                    FFV_ScreenReaderMod.SpeakText(emptyAnnouncement);
-                    return;
+                    if (index == _lastIndex) return false;
+                    _lastIndex = index;
+
+                    FFV_ScreenReaderMod.SpeakText(MenuPosition.Format("Empty", index, spellCount));
+                    return true;
                 }
 
                 // Get ability name from message manager
                 var messageManager = MessageManager.Instance;
-                if (messageManager == null) return;
+                if (messageManager == null) return false;
 
                 string abilityName = messageManager.GetMessage(ability.MesIdName);
-                if (string.IsNullOrWhiteSpace(abilityName)) return;
+                if (string.IsNullOrWhiteSpace(abilityName)) return false;
 
                 // Strip icon tags like <IC_WMGC>, <IC_BMGC>, etc.
                 abilityName = System.Text.RegularExpressions.Regex.Replace(abilityName, @"<[^>]+>", "").Trim();
@@ -695,8 +822,8 @@ namespace FFV_ScreenReader.Patches
                 // Append list position last (after MP / learned status).
                 announcement = MenuPosition.Format(announcement, index, spellCount);
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.JOB_SPELL_LIST, announcement)) return;
+                if (index == _lastIndex) return false;
+                _lastIndex = index;
 
                 // Clear other menu trackers for mutual exclusion
                 AbilitySlotMenuTracker.ClearState();
@@ -721,14 +848,17 @@ namespace FFV_ScreenReader.Patches
                 FFV_ScreenReaderMod.SpeakText(announcement);
 
                 // Auto Detail: queue the spell description after the name (same reader as the details key).
-                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
+                // Reached only when the row actually changed (guard above), giving a same-index debounce.
                 if (PreferencesManager.AutoDetailEnabled)
                     AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails(interrupt: false, announceIfEmpty: false);
+
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in AbilityContentListController.SetCursor patch: {ex.Message}");
             }
+            return false;
         }
     }
 
@@ -902,4 +1032,220 @@ namespace FFV_ScreenReader.Patches
 
     // NOTE: OnHide method does not exist in FF5's JobChangeWindowController
     // Job menu state is now cleared via other means or when menu visibility changes
+
+    /// <summary>
+    /// Announces the initially-focused row when a job or ability screen is entered or returned to.
+    /// SelectContent / SetCursor only fire on cursor movement, so the row the game starts on was
+    /// silent. Hooks the state-entry *Init methods, which the navigation path never fires — the
+    /// two are disjoint, so neither needs to suppress the other.
+    ///
+    /// Manual patching because every target is private or protected override.
+    /// </summary>
+    public static class FieldJobAbilityReannouncePatches
+    {
+        // AbilityWindowController (dump.cs 286011): commandController 0x60, listController 0x70,
+        //   useController 0x78
+        // AbilityCommandController (280453): contentList 0x28, selectCursor 0x38
+        // AbilityContentListController (285082): selectCursor 0x38, contentList 0x50
+        // AbilityUseContentListController (285635): contentList 0x48, selectCursor 0x50
+        // JobChangeWindowBaseController (292203): jobSelectCursor 0x40
+        // AbilityChangeController (286594): NO cursor field — index comes from the cache in
+        //   AbilityChangeController_SelectContent_Patch / _SelectCommand_Patch.
+        // All read typed below; offsets documented for traceability only.
+
+        private static readonly Type AbilityWindowType = typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController);
+        private static readonly Type AbilityChangeType = typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController);
+        private static readonly Type AbilityUseListType = typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController);
+        private static readonly Type JobChangeType = typeof(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController);
+
+        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        {
+            Patch(harmony, JobChangeType, "SelectJobInit", nameof(JobSelect_Init_Postfix));
+
+            Patch(harmony, AbilityWindowType, "CommandInit", nameof(AbilityCommand_Init_Postfix));
+            Patch(harmony, AbilityWindowType, "UseListInit", nameof(SpellList_Init_Postfix));
+            Patch(harmony, AbilityWindowType, "UseTargetInit", nameof(UseTarget_Init_Postfix));
+
+            // AbilityWindowController.NonInit has a real body at its own unique address, so it is
+            // safe to hook and serves as the single exit point for this whole family.
+            Patch(harmony, AbilityWindowType, "NonInit", nameof(Exit_Init_Postfix));
+
+            // The target list also has its own Single/All states reached from UseTargetInit.
+            Patch(harmony, AbilityUseListType, "SingleInit", nameof(UseTargetList_Init_Postfix));
+            Patch(harmony, AbilityUseListType, "AllInit", nameof(UseTargetList_Init_Postfix));
+
+            Patch(harmony, AbilityChangeType, "SelectCommandInit", nameof(EquipCommand_Init_Postfix));
+            Patch(harmony, AbilityChangeType, "SelectListInit", nameof(EquipList_Init_Postfix));
+
+            // JobChangeWindowController.NoneInit and AbilityChangeController.NoneInit are
+            // deliberately NOT patched: both bodies are empty, and IL2CPP folds every empty method
+            // in the game onto ONE shared native address (2561440 here, backing 4398 methods; the
+            // job one shares 4886656). Patching a folded stub detours all of them at once and
+            // hard-crashes on launch with no managed exception. Verify with script.json before
+            // hooking any *Init: two entries sharing an "Address" means it is a folded stub.
+            // AbilityWindowController.NonInit above already covers the exit cleanup.
+        }
+
+        /// <summary>Any window left its panes — drop pending reads and clear the cached positions.</summary>
+        public static void Exit_Init_Postfix()
+        {
+            MenuFocusAnnouncer.Cancel();
+            AbilityChangeController_SelectContent_Patch.ClearLast();
+            AbilityChangeController_SelectCommand_Patch.ClearLast();
+        }
+
+        public static void JobSelect_Init_Postfix(object __instance)
+        {
+            var controller = __instance as Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController;
+            if (controller == null) return;
+
+            JobChangeWindowController_SelectContent_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("JobSelect", () =>
+            {
+                if (!IsUsable(controller)) return false;
+
+                var cursor = controller.jobSelectCursor;    // inherited from JobChangeWindowBaseController
+                if (cursor == null) return false;
+
+                return JobChangeWindowController_SelectContent_Patch.Announce(controller, cursor.Index);
+            });
+        }
+
+        public static void AbilityCommand_Init_Postfix(object __instance)
+        {
+            var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
+            if (window == null) return;
+
+            AbilityCommandController_SelectContent_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("AbilityCommand", () =>
+            {
+                if (!IsUsable(window)) return false;
+
+                var commandController = window.commandController;
+                if (commandController == null) return false;
+
+                var cursor = commandController.selectCursor;    // Cursor @ 0x38
+                if (cursor == null) return false;
+
+                return AbilityCommandController_SelectContent_Patch.Announce(commandController, cursor.Index);
+            });
+        }
+
+        public static void SpellList_Init_Postfix(object __instance)
+        {
+            var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
+            if (window == null) return;
+
+            AbilityContentListController_SetCursor_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("SpellList", () =>
+            {
+                if (!IsUsable(window)) return false;
+
+                var listController = window.listController;
+                if (listController == null) return false;
+
+                var cursor = listController.selectCursor;
+                if (cursor == null) return false;
+
+                return AbilityContentListController_SetCursor_Patch.Announce(listController, cursor.Index);
+            });
+        }
+
+        public static void UseTarget_Init_Postfix(object __instance)
+        {
+            var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
+            if (window == null) return;
+
+            AbilityUseContentListController_SelectContent_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("AbilityTarget", () =>
+            {
+                if (!IsUsable(window)) return false;
+
+                var useController = window.useController;
+                return useController != null && AnnounceUseTarget(useController);
+            });
+        }
+
+        public static void UseTargetList_Init_Postfix(object __instance)
+        {
+            var useController = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController;
+            if (useController == null) return;
+
+            AbilityUseContentListController_SelectContent_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("AbilityTarget", () =>
+            {
+                if (!MenuFocusAnnouncer.IsAlive(useController)) return false;
+                if (BattleState.IsInBattle) return false;    // battle targeting has its own reader
+                if (!MenuFocusAnnouncer.IsMenuOpen()) return false;
+
+                return AnnounceUseTarget(useController);
+            });
+        }
+
+        public static void EquipCommand_Init_Postfix(object __instance)
+        {
+            var controller = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController;
+            if (controller == null) return;
+
+            AbilityChangeController_SelectCommand_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("AbilityEquipCommand", () =>
+            {
+                if (!IsUsable(controller)) return false;
+
+                // No cursor field on this controller — use the cached position (0 on first entry,
+                // which is the game's own default).
+                return AbilityChangeController_SelectCommand_Patch.Announce(
+                    controller, AbilityChangeController_SelectCommand_Patch.CachedIndex);
+            });
+        }
+
+        public static void EquipList_Init_Postfix(object __instance)
+        {
+            var controller = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController;
+            if (controller == null) return;
+
+            AbilityChangeController_SelectContent_Patch.ClearLast();
+            MenuFocusAnnouncer.Request("AbilityEquipList", () =>
+            {
+                if (!IsUsable(controller)) return false;
+
+                return AbilityChangeController_SelectContent_Patch.Announce(
+                    controller, AbilityChangeController_SelectContent_Patch.CachedIndex);
+            });
+        }
+
+        private static bool AnnounceUseTarget(Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController useController)
+        {
+            var cursor = useController.selectCursor;
+            if (cursor == null) return false;
+
+            return AbilityUseContentListController_SelectContent_Patch.Announce(useController, cursor.Index);
+        }
+
+        private static bool IsUsable(UnityEngine.Component controller)
+        {
+            if (!MenuFocusAnnouncer.IsAlive(controller)) return false;
+            return MenuFocusAnnouncer.IsMenuOpen();
+        }
+
+        private static void Patch(HarmonyLib.Harmony harmony, Type type, string methodName, string postfixName)
+        {
+            try
+            {
+                var target = AccessTools.Method(type, methodName);
+                if (target == null)
+                {
+                    MelonLogger.Warning($"[JobAbility] {type.Name}.{methodName} not found");
+                    return;
+                }
+
+                harmony.Patch(target, postfix: new HarmonyMethod(
+                    typeof(FieldJobAbilityReannouncePatches).GetMethod(postfixName)));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[JobAbility] Failed to patch {type.Name}.{methodName}: {ex.Message}");
+            }
+        }
+    }
 }

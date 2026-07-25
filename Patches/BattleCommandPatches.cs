@@ -30,6 +30,11 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(BattleCommandSelectController), nameof(BattleCommandSelectController.SetCommandData))]
     public static class BattleCommandSelectController_SetCommandData_Patch
     {
+        // Id of the character whose turn was last announced. Never reset — the next turn always
+        // belongs to a different character, and a re-show of the same character's window is
+        // exactly the case this suppresses.
+        private static int _lastCharacterId = -1;
+
         [HarmonyPostfix]
         public static void Postfix(BattleCommandSelectController __instance, OwnedCharacterData data)
         {
@@ -46,9 +51,12 @@ namespace FFV_ScreenReader.Patches
                     BattleState.SetActive();
                 }
 
-                // Only announce if it's a different character than last time
+                // The game re-invokes SetCommandData for the SAME character whenever the command
+                // window is rebuilt — notably after cancelling out of target selection — so
+                // announce the turn only when the character actually changes.
                 int characterId = data.Id;
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_CHARACTER_ID, characterId)) return;
+                if (characterId == _lastCharacterId) return;
+                _lastCharacterId = characterId;
 
                 string characterName = data.Name;
                 if (string.IsNullOrEmpty(characterName)) return;
@@ -70,6 +78,10 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(BattleCommandSelectController), nameof(BattleCommandSelectController.SetCursor))]
     public static class BattleCommandSelectController_SetCursor_Patch
     {
+        // SetCursor re-fires with an unchanged index when the command window is re-shown
+        // (cancel-back from targeting), so track the last announced position.
+        private static int _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(BattleCommandSelectController __instance, int index)
         {
@@ -82,8 +94,8 @@ namespace FFV_ScreenReader.Patches
                 // This avoids expensive FindObjectOfType calls on every cursor movement
                 if (BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive) return;
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_INDEX, index)) return;
+                if (index == _lastIndex) return;
+                _lastIndex = index;
 
                 var contentController = SelectContentHelper.TryGetItem(__instance.contentList, index);
                 if (contentController == null || contentController.TargetCommand == null) return;
@@ -131,6 +143,10 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppLast.UI.Cursor), typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class BattleItemInfomationController_SelectContent_Patch
     {
+        // SelectContent carries a WithinRangeType — the scroll view re-fires it on range
+        // recalculation with an unchanged row, so compare the built string.
+        private static string _lastAnnouncement;
+
         [HarmonyPostfix]
         public static void Postfix(BattleItemInfomationController __instance, Il2CppLast.UI.Cursor targetCursor)
         {
@@ -205,7 +221,8 @@ namespace FFV_ScreenReader.Patches
                 // Append list position last (after quantity / description).
                 announcement = MenuPosition.Format(announcement, index, activeList != null ? activeList.Count : 0);
 
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_ITEM_SELECT, announcement)) return;
+                if (announcement == _lastAnnouncement) return;
+                _lastAnnouncement = announcement;
 
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }
@@ -223,6 +240,9 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppLast.UI.Cursor), typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class BattleQuantityAbilityInfomationController_SelectContent_Patch
     {
+        // Same scroll-view re-fire as the item list above.
+        private static string _lastAnnouncement;
+
         [HarmonyPostfix]
         public static void Postfix(BattleQuantityAbilityInfomationController __instance, Il2CppLast.UI.Cursor targetCursor)
         {
@@ -265,7 +285,8 @@ namespace FFV_ScreenReader.Patches
                 // Append list position last (after description).
                 announcement = MenuPosition.Format(announcement, index, __instance.contentList != null ? __instance.contentList.Count : 0);
 
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_COMMAND_ABILITY_SELECT, announcement)) return;
+                if (announcement == _lastAnnouncement) return;
+                _lastAnnouncement = announcement;
 
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }

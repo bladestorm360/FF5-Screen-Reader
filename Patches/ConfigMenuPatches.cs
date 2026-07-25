@@ -26,14 +26,14 @@ namespace FFV_ScreenReader.Patches
         public static void ClearState()
         {
             IsActive = false;
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_COMMAND);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_KEYS_SETTING);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_ARROW_VALUE);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_SLIDER_CONTROLLER);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_SLIDER_PERCENTAGE);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_TOUCH_ARROW_VALUE);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_TOUCH_SLIDER_CONTROLLER);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_TOUCH_SLIDER_PERCENTAGE);
+
+            // Clear every config re-fire guard so re-entering the menu re-announces the focused row.
+            ConfigCommandController_SetFocus_Patch.ResetLastCommand();
+            ConfigKeysSettingController_SelectContent_Patch.ResetLastRow();
+            ConfigActualDetails_SwitchArrowSelectType_Patch.ResetLastValue();
+            ConfigActualDetails_SwitchSliderType_Patch.ResetLastSlider();
+            ConfigActualDetailsTouch_SwitchArrowType_Patch.ResetLastValue();
+            ConfigActualDetailsTouch_SwitchSliderType_Patch.ResetLastSlider();
         }
     }
 
@@ -44,27 +44,41 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigCommandController), nameof(Il2CppLast.UI.KeyInput.ConfigCommandController.SetFocus))]
     public static class ConfigCommandController_SetFocus_Patch
     {
+        // SetFocus is re-asserted on the focused controller rather than fired once per cursor
+        // move, so hold the last option name spoken. Cleared on menu exit (ConfigMenuState) and
+        // when a confirmation popup closes, so the same row can be re-announced.
+        private static string _lastCommand;
+
+        /// <summary>Clears the last announced option so it can be re-announced.</summary>
+        public static void ResetLastCommand() => _lastCommand = null;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.ConfigCommandController __instance, bool isFocus)
         {
+            // Only announce when gaining focus (not losing it)
+            if (!isFocus) return;
+            Announce(__instance);
+        }
+
+        /// <summary>
+        /// Announces one config row as "Name: Value, (X of Y)". Shared by SetFocus (navigation) and
+        /// the title-screen Options initial-focus path; returns true when it spoke and false when
+        /// the row isn't readable yet, so a settle loop can retry.
+        /// </summary>
+        public static bool Announce(Il2CppLast.UI.KeyInput.ConfigCommandController __instance)
+        {
             try
             {
-                // Only announce when gaining focus (not losing it)
-                if (!isFocus)
-                {
-                    return;
-                }
-
                 // Safety checks
                 if (__instance == null)
                 {
-                    return;
+                    return false;
                 }
 
                 // Don't announce if controller is not active (prevents announcements during scene loading)
                 if (!__instance.gameObject.activeInHierarchy)
                 {
-                    return;
+                    return false;
                 }
 
                 // Mark config menu as active so TryReadFromConfigController works
@@ -74,7 +88,7 @@ namespace FFV_ScreenReader.Patches
                 if (PopupState.IsConfirmationPopupActive)
                 {
                     PopupState.Clear();
-                    AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_COMMAND);
+                    ResetLastCommand();
                 }
 
                 // Clear all other menu trackers so I key falls through to config tooltip
@@ -85,23 +99,20 @@ namespace FFV_ScreenReader.Patches
                 var view = __instance.view;
                 if (view == null)
                 {
-                    return;
+                    return false;
                 }
 
                 // Get the name text (localized)
                 var nameText = view.nameText;
                 if (nameText == null || string.IsNullOrWhiteSpace(nameText.text))
                 {
-                    return;
+                    return false;
                 }
 
                 string menuText = nameText.text.Trim();
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_COMMAND, menuText))
-                {
-                    return;
-                }
+                if (menuText == _lastCommand) return false;
+                _lastCommand = menuText;
 
                 // Also try to get the current value for this config option
                 string configValue = ConfigMenuReader.FindConfigValueFromController(__instance);
@@ -118,11 +129,13 @@ namespace FFV_ScreenReader.Patches
                 announcement = MenuPosition.Format(announcement, cfgIndex, cfgCount);
 
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in ConfigCommandController.SetFocus patch: {ex.Message}");
             }
+            return false;
         }
 
         /// <summary>
@@ -165,6 +178,13 @@ namespace FFV_ScreenReader.Patches
                      typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class ConfigKeysSettingController_SelectContent_Patch
     {
+        // SelectContent carries a WithinRangeType — the scroll view re-invokes it on range
+        // recalculation with an unchanged row.
+        private static string _lastRow;
+
+        /// <summary>Clears the last announced remap row.</summary>
+        public static void ResetLastRow() => _lastRow = null;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.UI.KeyInput.ConfigKeysSettingController __instance, int index,
             Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ConfigControllCommandController> contentList)
@@ -226,11 +246,8 @@ namespace FFV_ScreenReader.Patches
                 int count = listCast != null ? listCast.Count : 0;
                 announcement = MenuPosition.Format(announcement, index, count);
 
-                // Skip duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_KEYS_SETTING, announcement))
-                {
-                    return;
-                }
+                if (announcement == _lastRow) return;
+                _lastRow = announcement;
 
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
             }
@@ -332,6 +349,13 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase), "SwitchArrowSelectTypeProcess")]
     public static class ConfigActualDetails_SwitchArrowSelectType_Patch
     {
+        // Fires on EVERY Left/Right press, including at the ends of the option range where the
+        // value does not actually change — hold the last value so the ends stay quiet.
+        private static string _lastValue;
+
+        /// <summary>Clears the last announced arrow value.</summary>
+        public static void ResetLastValue() => _lastValue = null;
+
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase __instance,
@@ -359,7 +383,8 @@ namespace FFV_ScreenReader.Patches
                                 textValue != "\u2190" && textValue != "\u2192")
                             {
                                 // Only announce if value changed
-                                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_ARROW_VALUE, textValue)) return;
+                                if (textValue == _lastValue) return;
+                                _lastValue = textValue;
 
                                 FFV_ScreenReaderMod.SpeakText(textValue, interrupt: true);
                                 return;
@@ -382,6 +407,20 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase), "SwitchSliderTypeProcess")]
     public static class ConfigActualDetails_SwitchSliderType_Patch
     {
+        // Not a plain guard — these two ARE the logic. The game re-invokes this on the focused
+        // slider to keep the visual in sync, so: same slider + same value = silent; a DIFFERENT
+        // slider = the row just gained focus and ConfigCommandController.SetFocus already said
+        // "Name: Value", so stay quiet; same slider + new value = speak the value alone.
+        private static object _lastSliderController;
+        private static string _lastSliderValue;
+
+        /// <summary>Clears the tracked slider so the next adjustment announces fresh.</summary>
+        public static void ResetLastSlider()
+        {
+            _lastSliderController = null;
+            _lastSliderValue = null;
+        }
+
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase __instance,
@@ -400,14 +439,16 @@ namespace FFV_ScreenReader.Patches
                 if (string.IsNullOrEmpty(displayValue)) return;
 
                 // Track controller and value separately
-                bool controllerChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_CONTROLLER, controller);
-                bool valueChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_SLIDER_PERCENTAGE, displayValue);
+                bool controllerChanged = !ReferenceEquals(controller, _lastSliderController);
+                bool valueChanged = displayValue != _lastSliderValue;
+                _lastSliderController = controller;
+                _lastSliderValue = displayValue;
 
                 // Both unchanged - skip
                 if (!controllerChanged && !valueChanged) return;
 
-                // If we moved to a different controller (different option), don't announce
-                // Let MenuTextDiscovery handle the full "Name: Value" announcement
+                // Newly focused slider: ConfigCommandController.SetFocus already announced the
+                // full "Name: Value", so only adjustments after this point should speak.
                 if (controllerChanged) return;
 
                 // Same controller, value changed - announce just the new value
@@ -427,6 +468,13 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase), "SwitchArrowTypeProcess")]
     public static class ConfigActualDetailsTouch_SwitchArrowType_Patch
     {
+        // Touch-mode clone of the arrow guard above. Never fires on a keyboard/gamepad build,
+        // kept so both input paths stay structurally identical.
+        private static string _lastValue;
+
+        /// <summary>Clears the last announced arrow value.</summary>
+        public static void ResetLastValue() => _lastValue = null;
+
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase __instance,
@@ -452,7 +500,8 @@ namespace FFV_ScreenReader.Patches
                                 textValue != "\u2190" && textValue != "\u2192")
                             {
                                 // Only announce if value changed
-                                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_ARROW_VALUE, textValue)) return;
+                                if (textValue == _lastValue) return;
+                                _lastValue = textValue;
 
                                 FFV_ScreenReaderMod.SpeakText(textValue, interrupt: true);
                                 return;
@@ -475,6 +524,18 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase), "SwitchSliderTypeProcess")]
     public static class ConfigActualDetailsTouch_SwitchSliderType_Patch
     {
+        // Touch-mode clone of the slider state machine above. Never fires on a keyboard/gamepad
+        // build, kept so both input paths stay structurally identical.
+        private static object _lastSliderController;
+        private static string _lastSliderValue;
+
+        /// <summary>Clears the tracked slider so the next adjustment announces fresh.</summary>
+        public static void ResetLastSlider()
+        {
+            _lastSliderController = null;
+            _lastSliderValue = null;
+        }
+
         [HarmonyPostfix]
         public static void Postfix(
             Il2CppLast.UI.Touch.ConfigActualDetailsControllerBase __instance,
@@ -497,14 +558,16 @@ namespace FFV_ScreenReader.Patches
                 if (string.IsNullOrEmpty(displayValue)) return;
 
                 // Track controller and value separately
-                bool controllerChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_CONTROLLER, controller);
-                bool valueChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.CONFIG_TOUCH_SLIDER_PERCENTAGE, displayValue);
+                bool controllerChanged = !ReferenceEquals(controller, _lastSliderController);
+                bool valueChanged = displayValue != _lastSliderValue;
+                _lastSliderController = controller;
+                _lastSliderValue = displayValue;
 
                 // Both unchanged - skip
                 if (!controllerChanged && !valueChanged) return;
 
-                // If we moved to a different controller (different option), don't announce
-                // Let MenuTextDiscovery handle the full "Name: Value" announcement
+                // Newly focused slider: ConfigCommandController.SetFocus already announced the
+                // full "Name: Value", so only adjustments after this point should speak.
                 if (controllerChanged) return;
 
                 // Same controller, value changed - announce just the new value
@@ -574,6 +637,13 @@ namespace FFV_ScreenReader.Patches
             }
 
             PatchOption("SetDropDownItemFocus", nameof(SetDropDownItemFocus_Postfix));
+
+            // NOTE: OptionController.ShowConfig / InitializeConfigList are deliberately NOT hooked
+            // for initial focus. The config settings screen already announces its focused row on
+            // entry via ConfigCommandController.SetFocus. Worse than merely duplicating, an entry
+            // hook that cleared the SetFocus guard let the game's own second SetFocus through, so
+            // entering Config spoke "Language: English" twice. Same call FF1 makes for its in-game
+            // ConfigController.
 
             // Remap assign-flow speaking (ConfigKeysSettingController, all real-bodied methods).
             // KeyboardSettingInit / GamePadSettingInit fire on entering assign mode → "press a

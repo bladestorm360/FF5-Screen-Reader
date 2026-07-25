@@ -92,13 +92,6 @@ namespace FFV_ScreenReader.Patches
                 MenuStateRegistry.BESTIARY_MAP);
             BestiaryNavigationTracker.Instance.Reset();
             LibraryMenuController_UpdateController_Patch.ResetState();
-            AnnouncementDeduplicator.Reset(
-                AnnouncementContexts.BESTIARY_LIST_ENTRY,
-                AnnouncementContexts.BESTIARY_DETAIL_STAT,
-                AnnouncementContexts.BESTIARY_FORMATION,
-                AnnouncementContexts.BESTIARY_MAP,
-                AnnouncementContexts.BESTIARY_STATE);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.TITLE_MENU_COMMAND);
         }
     }
 
@@ -153,7 +146,6 @@ namespace FFV_ScreenReader.Patches
                                     reannounce = BestiaryReader.ReadListEntry(data.pictureBookData);
                             }
                             BestiaryNavigationTracker.Instance.Reset();
-                            AnnouncementDeduplicator.Reset(AnnouncementContexts.BESTIARY_LIST_ENTRY);
                             if (!string.IsNullOrEmpty(reannounce))
                                 FFV_ScreenReaderMod.SpeakText(reannounce, true);
                         }
@@ -187,7 +179,6 @@ namespace FFV_ScreenReader.Patches
 
                     case 5: // ArTop (Formation)
                         MenuStateRegistry.SetActive(MenuStateRegistry.BESTIARY_FORMATION, true);
-                        AnnouncementDeduplicator.Reset(AnnouncementContexts.BESTIARY_FORMATION);
                         CoroutineManager.StartManaged(AnnounceFormation());
                         break;
 
@@ -215,8 +206,7 @@ namespace FFV_ScreenReader.Patches
                     string summary = BestiaryReader.ReadEncounterSummary(list);
                     if (!string.IsNullOrEmpty(summary))
                     {
-                        AnnouncementDeduplicator.AnnounceIfNew(
-                            AnnouncementContexts.BESTIARY_STATE, summary);
+                        FFV_ScreenReaderMod.SpeakText(summary);
                     }
                 }
             }
@@ -270,8 +260,7 @@ namespace FFV_ScreenReader.Patches
                 if (cached != null && cached.Count > 0)
                 {
                     string announcement = string.Format(T("Map open: {0}"), cached[0]);
-                    AnnouncementDeduplicator.AnnounceIfNew(
-                        AnnouncementContexts.BESTIARY_MAP, announcement);
+                    FFV_ScreenReaderMod.SpeakText(announcement);
                 }
                 else
                 {
@@ -339,8 +328,10 @@ namespace FFV_ScreenReader.Patches
                 // Append formation position last (localized + toggle-aware).
                 announcement = MenuPosition.Format(announcement, partyIndex, partyList.Count);
 
-                AnnouncementDeduplicator.AnnounceIfNew(
-                    AnnouncementContexts.BESTIARY_FORMATION, announcement, true);
+                // Unconditional: the only two callers are AnnounceFormation (a settle loop that
+                // stops the moment it succeeds) and ReannounceFormation (an explicit user request),
+                // so neither can produce a repeat.
+                FFV_ScreenReaderMod.SpeakText(announcement, true);
             }
             catch (Exception ex)
             {
@@ -361,7 +352,6 @@ namespace FFV_ScreenReader.Patches
                 var controller = UnityEngine.Object.FindObjectOfType<ArBattleTopController>();
                 if (controller != null)
                 {
-                    AnnouncementDeduplicator.Reset(AnnouncementContexts.BESTIARY_FORMATION);
                     ReadCurrentFormation(controller);
                 }
             }
@@ -388,23 +378,11 @@ namespace FFV_ScreenReader.Patches
             {
                 if (selectData == null) return;
 
-                // Always cache data — Show fires inside ChangeState before our
-                // ChangeState postfix sets IsInList, so caching must be ungated
+                // Cache only — Show and OnContentSelected both fire for one cursor move, so
+                // OnContentSelected is the sole announcer and this keeps CurrentMonsterData fresh.
+                // The caching must stay ungated: Show fires inside ChangeState, before our
+                // ChangeState postfix sets IsInList.
                 BestiaryNavigationTracker.Instance.CurrentMonsterData = selectData;
-
-                // Only announce when state has been set and not suppressed
-                if (!BestiaryStateTracker.IsInList) return;
-                if (BestiaryStateTracker.SuppressNextListEntry) return;
-
-                var pbData = selectData.pictureBookData;
-                if (pbData == null) return;
-
-                string entry = BestiaryReader.ReadListEntry(pbData);
-                if (!string.IsNullOrEmpty(entry))
-                {
-                    AnnouncementDeduplicator.AnnounceIfNew(
-                        AnnouncementContexts.BESTIARY_LIST_ENTRY, entry);
-                }
             }
             catch (Exception ex)
             {
@@ -441,8 +419,7 @@ namespace FFV_ScreenReader.Patches
                 string entry = BestiaryReader.ReadListEntry(pbData);
                 if (!string.IsNullOrEmpty(entry))
                 {
-                    AnnouncementDeduplicator.AnnounceIfNew(
-                        AnnouncementContexts.BESTIARY_LIST_ENTRY, entry);
+                    FFV_ScreenReaderMod.SpeakText(entry);
                 }
             }
             catch (Exception ex)
@@ -871,7 +848,6 @@ namespace FFV_ScreenReader.Patches
                     else if (previousBestiaryState == 4) // Returning from detail
                     {
                         BestiaryNavigationTracker.Instance.Reset();
-                        AnnouncementDeduplicator.Reset(AnnouncementContexts.BESTIARY_LIST_ENTRY);
 
                         // Re-announce current entry
                         var listController = UnityEngine.Object.FindObjectOfType<LibraryMenuListController_KeyInput>();

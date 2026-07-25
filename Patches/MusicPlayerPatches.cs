@@ -31,8 +31,6 @@ namespace FFV_ScreenReader.Patches
             SuppressContentChange = false;
             CachedFocusedPtr = IntPtr.Zero;
             MenuStateRegistry.Reset(MenuStateRegistry.MUSIC_PLAYER);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.MUSIC_LIST_ENTRY);
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.TITLE_MENU_COMMAND);
         }
     }
 
@@ -151,8 +149,7 @@ namespace FFV_ScreenReader.Patches
                 string entry = MusicPlayerReader.ReadSongEntry(musicName, bgmId, index, playTime);
                 if (!string.IsNullOrEmpty(entry))
                 {
-                    AnnouncementDeduplicator.AnnounceIfNew(
-                        AnnouncementContexts.MUSIC_LIST_ENTRY, entry);
+                    FFV_ScreenReaderMod.SpeakText(entry);
                 }
             }
             catch (Exception ex)
@@ -218,7 +215,6 @@ namespace FFV_ScreenReader.Patches
                 FFV_ScreenReaderMod.SpeakText(toggleLabel, true);
 
                 // Read and announce current song from cached focused pointer
-                AnnouncementDeduplicator.Reset(AnnouncementContexts.MUSIC_LIST_ENTRY);
                 IntPtr focusedPtr = MusicPlayerStateTracker.CachedFocusedPtr;
                 if (focusedPtr != IntPtr.Zero &&
                     MusicPlayerReader.ReadContentFromPointer(focusedPtr, out string name, out int bgmId, out int idx, out int pt))

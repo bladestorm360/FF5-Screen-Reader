@@ -54,6 +54,98 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
+    /// Announce helpers shared by the navigation postfixes and the initial-focus path
+    /// (FieldItemReannouncePatches), so both produce exactly the same string. Each returns TRUE
+    /// when it spoke and FALSE when the data isn't usable yet, which is what lets the
+    /// MenuFocusAnnouncer settle loop retry until the list is built.
+    /// </summary>
+    public static class ItemMenuState
+    {
+        // SelectContent carries a WithinRangeType — the scroll view re-invokes it on range
+        // recalculation with an unchanged row. Also debounces Auto Detail, whose queued
+        // (interrupt:false) description would otherwise play twice back to back.
+        private static string _lastItemAnnouncement;
+        private static string _lastTargetAnnouncement;
+
+        /// <summary>
+        /// Clears the guards so a menu (re)entry always announces, even when the focused row is
+        /// the one that was last spoken before leaving.
+        /// </summary>
+        public static void ClearLastAnnouncements()
+        {
+            _lastItemAnnouncement = null;
+            _lastTargetAnnouncement = null;
+        }
+
+        /// <summary>Announces one item list row. Returns true when it spoke.</summary>
+        public static bool AnnounceItemListData(ItemListContentData itemData, int index, int count)
+        {
+            if (itemData == null) return false;
+
+            // Track for I key equipment compatibility lookup
+            ItemMenuTracker.IsActive = true;
+            ItemMenuTracker.LastSelectedItem = itemData;
+            JobAbilityTrackerHelper.ClearAllTrackers();
+
+            string itemName = StripIconMarkup(itemData.Name);
+            if (string.IsNullOrEmpty(itemName)) return false;
+
+            // Build announcement with item details
+            string announcement = itemName;
+
+            // Add quantity if available
+            int quantity = itemData.Count;
+            if (quantity > 0)
+            {
+                announcement += $", {quantity}";
+            }
+
+            // Add description if available
+            string description = StripIconMarkup(itemData.Description);
+            if (!string.IsNullOrEmpty(description))
+            {
+                announcement += $", {description}";
+            }
+
+            // Append list position last (after quantity/description).
+            announcement = MenuPosition.Format(announcement, index, count);
+
+            if (announcement == _lastItemAnnouncement) return false;
+            _lastItemAnnouncement = announcement;
+
+            FFV_ScreenReaderMod.SpeakText(announcement);
+
+            // Auto Detail: queue equip-requirements after the name (same reader as the details key).
+            // Reached only when the name actually announced (guard above), giving a same-row debounce.
+            if (PreferencesManager.AutoDetailEnabled)
+                ItemDetailsAnnouncer.AnnounceEquipRequirements(interrupt: false);
+
+            return true;
+        }
+
+        /// <summary>Announces one item-use target character. Returns true when it spoke.</summary>
+        public static bool AnnounceItemUseTarget(ItemTargetSelectContentController content, int index, int count)
+        {
+            if (content == null || content.CurrentData == null) return false;
+
+            var data = content.CurrentData;
+            string characterName = data.Name;
+            if (string.IsNullOrEmpty(characterName)) return false;
+
+            string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
+
+            // Append target position last.
+            announcement = MenuPosition.Format(announcement, index, count);
+
+            if (announcement == _lastTargetAnnouncement) return false;
+            _lastTargetAnnouncement = announcement;
+
+            FFV_ScreenReaderMod.SpeakText(announcement);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Patches for item and equipment menu navigation in FF5.
     /// Announces item/equipment name, quantity, and description when browsing.
     /// </summary>
@@ -76,86 +168,14 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (targets == null)
-                {
-                    return;
-                }
+                if (targets == null) return;
 
                 // Convert IEnumerable to List for indexed access
                 var targetList = new Il2CppSystem.Collections.Generic.List<ItemListContentData>(targets);
-                if (targetList == null || targetList.Count == 0)
-                {
-                    return;
-                }
+                if (targetList == null || targetList.Count == 0) return;
+                if (index < 0 || index >= targetList.Count) return;
 
-                if (index < 0 || index >= targetList.Count)
-                {
-                    return;
-                }
-
-                var itemData = targetList[index];
-                if (itemData == null)
-                {
-                    return;
-                }
-
-                // Track for I key equipment compatibility lookup
-                ItemMenuTracker.IsActive = true;
-                ItemMenuTracker.LastSelectedItem = itemData;
-                JobAbilityTrackerHelper.ClearAllTrackers();
-
-                string itemName = itemData.Name;
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    return;
-                }
-
-                // Remove icon markup from name
-                itemName = StripIconMarkup(itemName);
-
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    return;
-                }
-
-                // Build announcement with item details
-                string announcement = itemName;
-
-                // Add quantity if available
-                int count = itemData.Count;
-                if (count > 0)
-                {
-                    announcement += $", {count}";
-                }
-
-                // Add description if available
-                string description = itemData.Description;
-                if (!string.IsNullOrEmpty(description))
-                {
-                    // Remove icon markup
-                    description = StripIconMarkup(description);
-
-                    if (!string.IsNullOrEmpty(description))
-                    {
-                        announcement += $", {description}";
-                    }
-                }
-
-                // Append list position last (after quantity/description).
-                announcement = MenuPosition.Format(announcement, index, targetList.Count);
-
-                // Skip duplicates or rapid re-announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_LIST, announcement))
-                {
-                    return;
-                }
-
-                FFV_ScreenReaderMod.SpeakText(announcement);
-
-                // Auto Detail: queue equip-requirements after the name (same reader as the details key).
-                // Reached only when the name actually announced (dedup gate above), giving a same-index debounce.
-                if (PreferencesManager.AutoDetailEnabled)
-                    ItemDetailsAnnouncer.AnnounceEquipRequirements(interrupt: false);
+                ItemMenuState.AnnounceItemListData(targetList[index], index, targetList.Count);
             }
             catch (Exception ex)
             {
@@ -164,200 +184,7 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // Patch EquipmentSelectWindowController.SetCursor to announce equipment when navigating
-    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.EquipmentSelectWindowController), "SetCursor", new Type[] {
-        typeof(Il2CppLast.UI.Cursor),
-        typeof(bool),
-        typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType)
-    })]
-    public static class EquipmentSelectWindowController_SetCursor_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(
-            Il2CppLast.UI.KeyInput.EquipmentSelectWindowController __instance,
-            Il2CppLast.UI.Cursor targetCursor)
-        {
-            try
-            {
-                if (targetCursor == null)
-                {
-                    return;
-                }
-
-                var contentList = __instance.ContentDataList;
-                if (contentList == null || contentList.Count == 0)
-                {
-                    return;
-                }
-
-                int index = targetCursor.Index;
-                if (index < 0 || index >= contentList.Count)
-                {
-                    return;
-                }
-
-                var equipmentData = contentList[index];
-                if (equipmentData == null)
-                {
-                    return;
-                }
-
-                string itemName = equipmentData.Name;
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    return;
-                }
-
-                // Remove icon markup from name
-                itemName = StripIconMarkup(itemName);
-
-                if (string.IsNullOrEmpty(itemName))
-                {
-                    return;
-                }
-
-                // Build announcement with equipment details
-                string announcement = itemName;
-
-                // Add mechanical info (ATK +15, DEF +8, etc.)
-                string paramMessage = equipmentData.ParameterMessage;
-                if (!string.IsNullOrEmpty(paramMessage))
-                {
-                    // Remove icon markup
-                    paramMessage = StripIconMarkup(paramMessage);
-
-                    if (!string.IsNullOrEmpty(paramMessage))
-                    {
-                        announcement += $", {paramMessage}";
-                    }
-                }
-
-                // Add description if available
-                string description = equipmentData.Description;
-                if (!string.IsNullOrEmpty(description))
-                {
-                    // Remove icon markup
-                    description = StripIconMarkup(description);
-
-                    if (!string.IsNullOrEmpty(description))
-                    {
-                        announcement += $", {description}";
-                    }
-                }
-
-                // Append list position last (after mechanical info/description).
-                announcement = MenuPosition.Format(announcement, index, contentList.Count);
-
-                // Skip duplicates or rapid re-announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_EQUIP_SELECT, announcement))
-                {
-                    return;
-                }
-
-                FFV_ScreenReaderMod.SpeakText(announcement);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in EquipmentSelectWindowController.SetCursor patch: {ex.Message}");
-            }
-        }
-    }
-
-    // Patch EquipmentInfoWindowController.SelectContent to announce equipment slots when navigating
-    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.EquipmentInfoWindowController), "SelectContent", new Type[] {
-        typeof(Il2CppLast.UI.Cursor)
-    })]
-    public static class EquipmentInfoWindowController_SelectContent_Patch
-    {
-        [HarmonyPostfix]
-        public static void Postfix(
-            Il2CppLast.UI.KeyInput.EquipmentInfoWindowController __instance,
-            Il2CppLast.UI.Cursor targetCursor)
-        {
-            try
-            {
-                if (targetCursor == null)
-                {
-                    return;
-                }
-
-                int index = targetCursor.Index;
-
-                // Get slot name and equipped item from contentList
-                string slotName = null;
-                string equippedItem = null;
-                if (__instance.contentList != null && index >= 0 && index < __instance.contentList.Count)
-                {
-                    var contentView = __instance.contentList[index];
-                    if (contentView != null)
-                    {
-                        // Get slot name from partText
-                        if (contentView.partText != null)
-                        {
-                            slotName = contentView.partText.text;
-                        }
-
-                        // Get item data from Data property
-                        var itemData = contentView.Data;
-                        if (itemData != null)
-                        {
-                            equippedItem = itemData.Name;
-
-                            // Get parameter message (ATK +15, DEF +8, etc.)
-                            string paramMessage = itemData.ParameterMessage;
-                            if (!string.IsNullOrEmpty(paramMessage))
-                            {
-                                equippedItem += ", " + paramMessage;
-                            }
-                        }
-                    }
-                }
-
-                // Build announcement
-                string announcement = "";
-                if (!string.IsNullOrEmpty(slotName))
-                {
-                    announcement = slotName;
-                }
-
-                if (!string.IsNullOrEmpty(equippedItem))
-                {
-                    if (!string.IsNullOrEmpty(announcement))
-                    {
-                        announcement += ": " + equippedItem;
-                    }
-                    else
-                    {
-                        announcement = equippedItem;
-                    }
-                }
-
-                if (string.IsNullOrEmpty(announcement))
-                {
-                    return;
-                }
-
-                // Filter icon markup
-                announcement = StripIconMarkup(announcement);
-
-                // Append slot position last.
-                int slotCount = __instance.contentList != null ? __instance.contentList.Count : 0;
-                announcement = MenuPosition.Format(announcement, index, slotCount);
-
-                // Skip duplicates or rapid re-announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_EQUIP_SLOT, announcement))
-                {
-                    return;
-                }
-
-                FFV_ScreenReaderMod.SpeakText(announcement);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in EquipmentInfoWindowController.SelectContent patch: {ex.Message}");
-            }
-        }
-    }
+    // Equipment patches live in EquipMenuPatches.cs (EquipMenuState + the three pane readers).
 
     // Patch ItemUseController.SelectContent to announce character stats when selecting item targets
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ItemUseController), "SelectContent", new Type[] { typeof(Il2CppSystem.Collections.Generic.IEnumerable<Il2CppLast.UI.KeyInput.ItemTargetSelectContentController>), typeof(Il2CppLast.UI.Cursor) })]
@@ -368,47 +195,15 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (__instance == null || targetCursor == null)
-                {
-                    return;
-                }
+                if (__instance == null || targetCursor == null) return;
 
                 var contentList = __instance.contentList;
-                if (contentList == null || contentList.Count == 0)
-                {
-                    return;
-                }
+                if (contentList == null || contentList.Count == 0) return;
 
                 int index = targetCursor.Index;
-                if (index < 0 || index >= contentList.Count)
-                {
-                    return;
-                }
+                if (index < 0 || index >= contentList.Count) return;
 
-                var selectedController = contentList[index];
-                if (selectedController == null || selectedController.CurrentData == null)
-                {
-                    return;
-                }
-
-                var data = selectedController.CurrentData;
-                string characterName = data.Name;
-                if (string.IsNullOrEmpty(characterName))
-                {
-                    return;
-                }
-
-                string announcement = characterName + CharacterStatusHelper.GetFullStatus(data.Parameter);
-
-                // Append target position last.
-                announcement = MenuPosition.Format(announcement, index, contentList.Count);
-
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.ITEM_USE_TARGET, announcement))
-                {
-                    return;
-                }
-
-                FFV_ScreenReaderMod.SpeakText(announcement);
+                ItemMenuState.AnnounceItemUseTarget(contentList[index], index, contentList.Count);
             }
             catch (Exception ex)
             {
@@ -436,6 +231,122 @@ namespace FFV_ScreenReader.Patches
         public static void Postfix()
         {
             ItemUseTracker.IsItemUseActive = false;
+            MenuFocusAnnouncer.Cancel();
+        }
+    }
+
+    /// <summary>
+    /// Announces the initially-focused row when an item screen is entered or returned to.
+    /// SelectContent only fires on cursor movement, so the row the game starts on was silent.
+    ///
+    /// Hooks the state-entry *Init methods, which the navigation path never fires — the two are
+    /// disjoint, so neither needs to suppress the other. Manual patching because every target is
+    /// private.
+    ///
+    /// Patch ONLY ItemListController and ItemUseController: ItemWindowController (dump.cs 468479)
+    /// has its own CommandSelectInit / UseSelectInit / ... state machine that drives these, so
+    /// hooking it too would request two reads per entry.
+    /// </summary>
+    public static class FieldItemReannouncePatches
+    {
+        // ItemListController (KeyInput, dump.cs 466795): selectCursor 0x60, dataList 0x78
+        // ItemUseController (KeyInput, dump.cs 467916): contentList 0x40, selectCursor 0x50
+        // Both read typed below; offsets documented for traceability only.
+
+        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        {
+            // CommandSelectInit is the Use / Key Items / Sort row — the FIRST thing focused when
+            // Items opens. The others are the list states reached from it.
+            foreach (var method in new[] { "CommandSelectInit", "UseSelectInit", "ImportantSelectInit",
+                                           "OrganizeSelectInit", "SortSelectInit" })
+            {
+                Patch(harmony, typeof(Il2CppLast.UI.KeyInput.ItemListController), method,
+                      nameof(ItemList_Init_Postfix));
+            }
+
+            foreach (var method in new[] { "SingleInit", "AllInit" })
+            {
+                Patch(harmony, typeof(Il2CppLast.UI.KeyInput.ItemUseController), method,
+                      nameof(ItemTarget_Init_Postfix));
+            }
+        }
+
+        public static void ItemList_Init_Postfix(object __instance)
+        {
+            var controller = __instance as Il2CppLast.UI.KeyInput.ItemListController;
+            if (controller == null) return;
+
+            // A state (re)entry is authoritative: clear the nav guard so the focused row speaks
+            // even when it is the row that was last announced before leaving.
+            ItemMenuState.ClearLastAnnouncements();
+            MenuFocusAnnouncer.Request("ItemMenu", () => TryAnnounceItemListInitial(controller));
+        }
+
+        public static void ItemTarget_Init_Postfix(object __instance)
+        {
+            var controller = __instance as Il2CppLast.UI.KeyInput.ItemUseController;
+            if (controller == null) return;
+
+            ItemMenuState.ClearLastAnnouncements();
+            MenuFocusAnnouncer.Request("ItemTarget", () => TryAnnounceItemTargetInitial(controller));
+        }
+
+        private static bool TryAnnounceItemListInitial(Il2CppLast.UI.KeyInput.ItemListController controller)
+        {
+            if (!MenuFocusAnnouncer.IsAlive(controller)) return false;
+            if (!MenuFocusAnnouncer.IsMenuOpen()) return false; // false during a map/asset load
+
+            var dataList = controller.dataList;
+            if (dataList == null) return false;
+
+            var list = new Il2CppSystem.Collections.Generic.List<ItemListContentData>(dataList);
+            if (list == null || list.Count == 0) return false;
+
+            var cursor = controller.selectCursor;
+            if (cursor == null) return false;
+
+            int index = cursor.Index;
+            if (index < 0 || index >= list.Count) return false;
+
+            return ItemMenuState.AnnounceItemListData(list[index], index, list.Count);
+        }
+
+        private static bool TryAnnounceItemTargetInitial(Il2CppLast.UI.KeyInput.ItemUseController controller)
+        {
+            if (!MenuFocusAnnouncer.IsAlive(controller)) return false;
+            if (BattleState.IsInBattle) return false;   // battle item targeting has its own reader
+            if (!MenuFocusAnnouncer.IsMenuOpen()) return false;
+
+            var contentList = controller.contentList;
+            if (contentList == null || contentList.Count == 0) return false;
+
+            var cursor = controller.selectCursor;
+            if (cursor == null) return false;
+
+            int index = cursor.Index;
+            if (index < 0 || index >= contentList.Count) return false;
+
+            return ItemMenuState.AnnounceItemUseTarget(contentList[index], index, contentList.Count);
+        }
+
+        private static void Patch(HarmonyLib.Harmony harmony, Type type, string methodName, string postfixName)
+        {
+            try
+            {
+                var target = AccessTools.Method(type, methodName);
+                if (target == null)
+                {
+                    MelonLogger.Warning($"[ItemMenu] {type.Name}.{methodName} not found");
+                    return;
+                }
+
+                harmony.Patch(target, postfix: new HarmonyMethod(
+                    typeof(FieldItemReannouncePatches).GetMethod(postfixName)));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[ItemMenu] Failed to patch {type.Name}.{methodName}: {ex.Message}");
+            }
         }
     }
 

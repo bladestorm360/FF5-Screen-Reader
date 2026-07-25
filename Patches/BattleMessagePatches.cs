@@ -24,53 +24,32 @@ using Il2CppLast.Data.User;
 namespace FFV_ScreenReader.Patches
 {
     /// <summary>
-    /// Global message deduplication to prevent the same message being spoken by multiple patches
-    /// </summary>
-    public static class GlobalBattleMessageTracker
-    {
-        /// <summary>
-        /// Try to announce a message, returning false if it was recently announced
-        /// </summary>
-        public static bool TryAnnounce(string message)
-        {
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                return false;
-            }
-
-            string cleanMessage = message.Trim();
-
-            if (!FFV_ScreenReader.Utils.AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_MESSAGE, cleanMessage))
-            {
-                return false;
-            }
-
-            FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false);
-            return true;
-        }
-
-        /// <summary>
-        /// Reset tracking (e.g., when battle ends)
-        /// </summary>
-        public static void Reset()
-        {
-            FFV_ScreenReader.Utils.AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_MESSAGE);
-        }
-    }
-
-    /// <summary>
     /// Patches for message display methods - View layer and scrolling messages in Battle
     /// </summary>
 
     [HarmonyPatch(typeof(ScrollMessageManager), nameof(ScrollMessageManager.Play))]
     public static class ScrollMessageManager_Play_Patch
     {
+        // ScrollMessageManager.Play re-fires with the same text while a scroll message is on
+        // screen, so hold the last one spoken. Cleared each turn by SetCommandSelectTarget so a
+        // repeated system message ("Preemptive Strike" two battles running) still announces.
+        private static string _lastScrollMessage;
+
+        /// <summary>Clears the last scroll message so it can be announced again.</summary>
+        public static void ResetLastMessage() => _lastScrollMessage = null;
+
         [HarmonyPostfix]
         public static void Postfix(ScrollMessageClient.ScrollType type, string message)
         {
             try
             {
-                GlobalBattleMessageTracker.TryAnnounce(message);
+                if (string.IsNullOrWhiteSpace(message)) return;
+
+                string cleanMessage = message.Trim();
+                if (cleanMessage == _lastScrollMessage) return;
+                _lastScrollMessage = cleanMessage;
+
+                FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false);
             }
             catch (Exception ex)
             {
@@ -86,7 +65,22 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(ParameterActFunctionManagment), nameof(ParameterActFunctionManagment.CreateActFunction))]
     public static class ParameterActFunctionManagment_CreateActFunction_Patch
     {
+        // Two guards, different jobs:
+        //  _lastActDataPtr  — CreateActFunction is invoked more than once for the SAME BattleActData
+        //                     (per-target / per-hit function creation). Keyed on the INSTANCE, not the
+        //                     text, so two goblins both attacking produce distinct pointers and both
+        //                     announce (a string compare would swallow the second).
+        //  _lastSpokenActorName — ally dual-wield: a second, different BattleActData for the same ally
+        //                     swinging again. Only suppressed for direct attacks.
+        private static IntPtr _lastActDataPtr = IntPtr.Zero;
         private static string _lastSpokenActorName;
+
+        /// <summary>Clears both guards so a repeated action announces fresh next turn.</summary>
+        public static void ResetLastAction()
+        {
+            _lastActDataPtr = IntPtr.Zero;
+            _lastSpokenActorName = null;
+        }
 
         [HarmonyPostfix]
         public static void Postfix(BattleActData battleActData)
@@ -103,12 +97,8 @@ namespace FFV_ScreenReader.Patches
 
                 if (!string.IsNullOrEmpty(actorName))
                 {
-                    // Object-based dedup: each BattleActData is a unique instance,
-                    // so two goblins both attacking produce distinct objects and are
-                    // both announced (string dedup would suppress the second).
-                    if (!AnnouncementDeduplicator.ShouldAnnounce(
-                            AnnouncementContexts.BATTLE_ACTION, battleActData))
-                        return;
+                    if (battleActData.Pointer == _lastActDataPtr) return;
+                    _lastActDataPtr = battleActData.Pointer;
 
                     string announcement;
                     if (!string.IsNullOrEmpty(actionName))
@@ -311,12 +301,12 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Reset target tracking for new turn
+                // New turn: clear every "already said this" guard so the same message,
+                // action or status can be announced again this turn.
                 BattleTargetPatches.ResetState();
-                // Also reset global message tracker so turn announcements can repeat
-                GlobalBattleMessageTracker.Reset();
-                // Reset object-based action dedup so repeat actions are announced fresh
-                AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_ACTION);
+                ScrollMessageManager_Play_Patch.ResetLastMessage();
+                ParameterActFunctionManagment_CreateActFunction_Patch.ResetLastAction();
+                BattleConditionController_Add_Patch.ResetLastCondition();
             }
             catch (Exception ex)
             {
@@ -328,7 +318,7 @@ namespace FFV_ScreenReader.Patches
     // Note: Removed redundant BattleUIManager and BattleMenuController patches
     // The ActFunctionProvider.ViewMessage patch now handles actor+action announcements
     // The ScrollMessageManager.Play patch handles system messages like "Preemptive Strike"
-    // All use GlobalBattleMessageTracker for deduplication
+    // Each patch owns its own re-fire guard, cleared per turn by SetCommandSelectTarget above
 
     /// <summary>
     /// Patch BattleStealItemPlug.StealItem to announce when items are stolen
@@ -393,6 +383,15 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.Battle.BattleConditionController), nameof(Il2CppLast.Battle.BattleConditionController.Add))]
     public static class BattleConditionController_Add_Patch
     {
+        // Add() is invoked once per target of a multi-target status spell AND re-invoked while a
+        // persistent condition (poison, sleep) stays applied, so hold the last "{target}: {condition}"
+        // spoken. Cleared each turn by SetCommandSelectTarget so re-applying the same status to the
+        // same unit on a later turn still announces.
+        private static string _lastCondition;
+
+        /// <summary>Clears the last condition so it can be announced again.</summary>
+        public static void ResetLastCondition() => _lastCondition = null;
+
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id)
         {
@@ -459,11 +458,8 @@ namespace FFV_ScreenReader.Patches
 
                 string announcement = $"{targetName}: {conditionName}";
 
-                // Skip duplicates
-                if (!FFV_ScreenReader.Utils.AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_MESSAGE_CONDITION, announcement))
-                {
-                    return;
-                }
+                if (announcement == _lastCondition) return;
+                _lastCondition = announcement;
 
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
             }

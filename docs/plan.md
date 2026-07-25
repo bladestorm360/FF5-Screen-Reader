@@ -23,9 +23,11 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Gallery (Extra Gallery)**: Screen reader support for the image gallery extras screen. List navigation with item number and name. "Image open" announcement on detail view. Automatic item re-announcement when returning from detail view. State cleanup on exit.
 
+**Initial focus**: Every menu announces its already-focused row on open and on return from a sub-menu. State-entry `*Init` hooks feed `MenuFocusAnnouncer`, a frame-bounded settle coroutine with a generation latch. Covers field menu, item list, item-use targets, all three equipment panes, job change, ability command/spell/target/equip, status character-select, and save/load slots. See `docs/debug.md` for the hook table.
+
 ### Known Limitations
 - **Key help (Shift+I)**: Reads only the currently displayed page of controls. Menus with paginated controls (e.g., Music Player with 2 pages) will only read the visible page. This is a limitation of reading live UI state — the off-screen page's controllers aren't populated with current toggle state.
-- **Menu entry announcement timing**: When entering or returning to a menu, the focused item is announced slightly before cursor control is active (~1 frame). No game-side input-readiness hook exists to defer further without polling (Rule 2) or timers (Rule 3).
+- **Ability equip screens**: `AbilityChangeController` exposes no cursor field, so the initial-focus read uses the index cached by the navigation postfix (0 on first entry, which is the game's own default).
 
 ## Completion Status
 
@@ -50,6 +52,8 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
 | Entity labels translated into all 12 languages + promoted to embedded translation.json | Done |
 | Battle targeting status effects (Poison, Blind, etc.) | Done |
+| Initial-focus announcements (all menus, MenuFocusAnnouncer) | Done (pending in-game verification) |
+| AnnouncementDeduplicator removal (105 sites → ~20 local guards) | Done (pending in-game verification) |
 | Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
 | Bestiary (Picture Book) accessibility | Done (extras + config menu) |
 | Music Player (Extra Sound) accessibility | Done (duration fix applied) |

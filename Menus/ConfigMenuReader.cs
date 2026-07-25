@@ -159,6 +159,31 @@ namespace FFV_ScreenReader.Menus
         }
 
         /// <summary>
+        /// True when this config row is the Language selector. Checks the command's config type
+        /// first, then falls back to LanguageContentData, which only the language row carries and
+        /// which survives on screens where ConfigCommandsData is not wired up.
+        /// </summary>
+        private static bool IsLanguageRow(ConfigCommandController_KeyInput command)
+        {
+            try
+            {
+                var cmdData = command.ConfigCommandsData;
+                if (cmdData != null && cmdData.ConfigCommandType == Il2CppLast.UI.ConfigCommandType.Language)
+                    return true;
+            }
+            catch { }
+
+            try
+            {
+                return command.LanguageContentData != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Gets the value from a KeyInput ConfigCommandController.
         /// </summary>
         private static string GetValueFromKeyInputCommand(ConfigCommandController_KeyInput command)
@@ -168,11 +193,17 @@ namespace FFV_ScreenReader.Menus
 
             var view = command.view;
 
-            // Language row: its dropdown OptionData text is empty while the popup is closed, so read
-            // the current language straight from the game → "Language: <current>". Identified by the
-            // command's config type (not a localized string match).
-            var cmdData = command.ConfigCommandsData;
-            if (cmdData != null && cmdData.ConfigCommandType == Il2CppLast.UI.ConfigCommandType.Language)
+            // Language row: its dropdown OptionData text is EMPTY for the currently-selected
+            // language (the game blanks the current item's label), so read the current language
+            // straight from MessageManager → "Language: <current>".
+            //
+            // Identified two ways, never by a localized string match. ConfigCommandsData is the
+            // primary signal, but it is a separate MonoBehaviour reference that is not always
+            // wired up — notably on the title-screen Options list — so LanguageContentData (which
+            // only the language row carries) is checked as well. Without the second check the row
+            // fell through to the dropdown branch below, read the blank label, and announced just
+            // "Language" with no value.
+            if (IsLanguageRow(command))
             {
                 string lang = GetCurrentLanguageDisplayName();
                 if (!string.IsNullOrEmpty(lang))
@@ -216,6 +247,14 @@ namespace FFV_ScreenReader.Menus
                             return dropdownText;
                         }
                     }
+                }
+
+                // A dropdown row whose selected label is blank is the language selector — the game
+                // blanks the CURRENT item's label. Safety net for the IsLanguageRow checks above.
+                string currentLang = GetCurrentLanguageDisplayName();
+                if (!string.IsNullOrEmpty(currentLang))
+                {
+                    return currentLang;
                 }
             }
 

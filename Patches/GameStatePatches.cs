@@ -192,6 +192,13 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
+        // Map id of the last transition handled. -1 means "never ran", which suppresses the very
+        // first announcement on game load. NOT just a speech guard: one door transition invokes
+        // CheckMapTransition 3-4 times (three ChangeState values plus the FieldReady backup), and
+        // the side effects below — MoveStateHelper, ResetVehicleTypeMap, ScheduleDeferredEntityScan
+        // — must run exactly once per map.
+        private static int _lastAnnouncedMapId = -1;
+
         /// <summary>
         /// Checks if the map has changed and announces the new map name.
         /// Called from ChangeState_Postfix on field state transitions, and from
@@ -206,9 +213,9 @@ namespace FFV_ScreenReader.Patches
 
                 int currentMapId = userDataManager.CurrentMapId;
 
-                int lastMapId = AnnouncementDeduplicator.GetLastIndex(AnnouncementContexts.GAME_STATE_MAP_ID);
-                bool isFirstRun = (lastMapId == -1);
-                bool mapChanged = AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.GAME_STATE_MAP_ID, currentMapId);
+                bool isFirstRun = (_lastAnnouncedMapId == -1);
+                bool mapChanged = (currentMapId != _lastAnnouncedMapId);
+                _lastAnnouncedMapId = currentMapId;
 
                 if (!isFirstRun && mapChanged)
                 {

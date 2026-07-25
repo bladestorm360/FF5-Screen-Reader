@@ -33,16 +33,22 @@ namespace FFV_ScreenReader.Patches
             private set => MenuStateRegistry.SetActive(MenuStateRegistry.BATTLE_TARGET, value);
         }
 
+        /// <summary>
+        /// Which kind of target the cursor is currently on. Single-target and all-target
+        /// announcements are mutually exclusive, so one mode + index describes the whole
+        /// selection: moving single-&gt;all-&gt;single changes the mode and re-announces.
+        /// </summary>
+        private enum TargetMode { None, SinglePlayer, SingleEnemy, AllPlayers, AllEnemies }
+
+        // The game re-invokes SelectContent / PlayerAllInit / EnemyAllInit on every refresh while
+        // the target window is up, not just on cursor movement. Announce only when (mode, index)
+        // actually changes. Reset on every ShowWindow (open AND close) so a new selection always speaks.
+        private static TargetMode _mode = TargetMode.None;
+        private static int _index = -1;
+
         static BattleTargetPatches()
         {
-            MenuStateRegistry.RegisterResetHandler(MenuStateRegistry.BATTLE_TARGET, () =>
-            {
-                AnnouncementDeduplicator.Reset(
-                    AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX,
-                    AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX,
-                    AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS,
-                    AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES);
-            });
+            MenuStateRegistry.RegisterResetHandler(MenuStateRegistry.BATTLE_TARGET, ResetState);
         }
 
         /// <summary>
@@ -50,11 +56,20 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void ResetState()
         {
-            AnnouncementDeduplicator.Reset(
-                AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX,
-                AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX,
-                AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS,
-                AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES);
+            _mode = TargetMode.None;
+            _index = -1;
+        }
+
+        /// <summary>
+        /// Returns true if the focused target changed since the last announcement, recording the
+        /// new position. Index is ignored for the all-target modes (they have no cursor).
+        /// </summary>
+        private static bool TargetChanged(TargetMode mode, int index = -1)
+        {
+            if (_mode == mode && _index == index) return false;
+            _mode = mode;
+            _index = index;
+            return true;
         }
 
         /// <summary>
@@ -280,9 +295,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Prevent duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX, index)) return;
-                AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS);
+                if (!TargetChanged(TargetMode.SinglePlayer, index)) return;
 
                 var selectedPlayer = GetPlayerAtIndex(list, index);
                 if (selectedPlayer == null) return;
@@ -309,9 +322,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Prevent duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX, index)) return;
-                AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES);
+                if (!TargetChanged(TargetMode.SingleEnemy, index)) return;
 
                 var selectedEnemy = GetEnemyAtIndex(list, index);
                 if (selectedEnemy == null) return;
@@ -336,8 +347,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void AnnounceAllPlayers()
         {
-            if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ALL_PLAYERS, "all")) return;
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_PLAYER_INDEX);
+            if (!TargetChanged(TargetMode.AllPlayers)) return;
 
             FFV_ScreenReaderMod.SpeakText(T("All allies"));
         }
@@ -347,8 +357,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void AnnounceAllEnemies()
         {
-            if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.BATTLE_TARGET_ALL_ENEMIES, "all")) return;
-            AnnouncementDeduplicator.Reset(AnnouncementContexts.BATTLE_TARGET_ENEMY_INDEX);
+            if (!TargetChanged(TargetMode.AllEnemies)) return;
 
             FFV_ScreenReaderMod.SpeakText(T("All enemies"));
         }

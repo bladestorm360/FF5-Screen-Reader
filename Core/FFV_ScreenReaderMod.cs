@@ -150,6 +150,14 @@ namespace FFV_ScreenReader.Core
 
             // SDL controller passthrough — postfix InputSystemManager.GetKeyDown/GetKey/...
             InputPassthroughPatches.ApplyPatches(harmony);
+
+            // Initial-focus announcements: read the already-focused row on menu open / return.
+            // Targets are private state-entry *Init methods, so they need manual patching.
+            FieldItemReannouncePatches.ApplyPatches(harmony);
+            FieldEquipReannouncePatches.ApplyPatches(harmony);
+            FieldJobAbilityReannouncePatches.ApplyPatches(harmony);
+            FieldStatusReannouncePatches.ApplyPatches(harmony);
+            TitleListFocusPatches.ApplyPatches(harmony);
         }
 
         private void UnsubscribeSceneHandler()

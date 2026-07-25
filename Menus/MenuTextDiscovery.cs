@@ -173,8 +173,6 @@ namespace FFV_ScreenReader.Menus
                     string text = content.NameText.text?.Trim();
                     if (!string.IsNullOrEmpty(text))
                     {
-                        // Register with shared dedup so SetFocus won't re-announce on confirm
-                        AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.MAIN_MENU_SET_FOCUS, text);
                         return text;
                     }
                 }

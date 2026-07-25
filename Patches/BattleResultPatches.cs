@@ -25,6 +25,33 @@ namespace FFV_ScreenReader.Patches
         // True only while EXP counter sound is actually playing.
         internal static bool ExpCounterPlaying;
 
+        // Per-result-sequence one-shots. Each phase's *Init can fire more than once while its
+        // screen is up, so the phase announces the first time and stays quiet afterwards.
+        // All cleared by ShowPointsInit, which always fires first in a result sequence.
+        internal static bool PointsAnnounced;
+        internal static bool ItemsAnnounced;
+
+        // Ability text already read this sequence. ShowGetAbilitysInit and ShowLevelUpAbilitysInit
+        // read the SAME skillController transform, so the level-up phase would otherwise re-read
+        // whatever the skill-point phase already announced. Keyed on the text so the level-up
+        // phase announces only what is genuinely new.
+        internal static readonly HashSet<string> AnnouncedAbilityTexts = new HashSet<string>();
+
+        // Level-up lines already read, keyed per character — the natural key here is WHICH
+        // character leveled, and ResultStatusUpController.SetData can be invoked twice for one.
+        internal static readonly HashSet<string> AnnouncedLevelUps = new HashSet<string>();
+
+        /// <summary>
+        /// Clears every per-sequence announcement guard. Called from ShowPointsInit.
+        /// </summary>
+        internal static void ResetSequence()
+        {
+            PointsAnnounced = false;
+            ItemsAnnounced = false;
+            AnnouncedAbilityTexts.Clear();
+            AnnouncedLevelUps.Clear();
+        }
+
         /// <summary>
         /// Stops the EXP counter sound if it is currently playing.
         /// Safe to call from any phase-init postfix; the flag ensures it only fires once.
@@ -54,12 +81,8 @@ namespace FFV_ScreenReader.Patches
                 var data = __instance.targetData;
                 if (data == null) return;
 
-                // Reset all result-phase dedup for the new result sequence
-                AnnouncementDeduplicator.Reset(
-                    AnnouncementContexts.BATTLE_RESULT_POINTS,
-                    AnnouncementContexts.BATTLE_RESULT_LEVELUP,
-                    AnnouncementContexts.BATTLE_RESULT_ABILITIES,
-                    AnnouncementContexts.BATTLE_RESULT_ITEMS);
+                // New result sequence — re-arm every phase one-shot
+                BattleResultState.ResetSequence();
 
                 // Gather totals
                 int totalExp = data.GetExp;
@@ -136,9 +159,11 @@ namespace FFV_ScreenReader.Patches
                 string announcement = string.Join(", ", parts);
                 MelonLogger.Msg($"[BattleResult] Points: {announcement}");
 
-                if (AnnouncementDeduplicator.ShouldAnnounce(
-                        AnnouncementContexts.BATTLE_RESULT_POINTS, announcement))
+                if (!BattleResultState.PointsAnnounced)
+                {
+                    BattleResultState.PointsAnnounced = true;
                     FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                }
 
                 // Start EXP counter sound if enabled
                 if (FFV_ScreenReaderMod.ExpCounterEnabled && totalExp > 0)
@@ -272,9 +297,7 @@ namespace FFV_ScreenReader.Patches
                 var skillCtrl = __instance.skillController;
                 if (skillCtrl == null) return;
                 CoroutineManager.StartUntracked(
-                    AnnounceFromTransformCoroutine(skillCtrl.transform,
-                        AnnouncementContexts.BATTLE_RESULT_ABILITIES,
-                        "ShowGetAbilitys"));
+                    AnnounceFromTransformCoroutine(skillCtrl.transform, "ShowGetAbilitys"));
             }
             catch (Exception ex)
             {
@@ -287,15 +310,18 @@ namespace FFV_ScreenReader.Patches
         /// components under <paramref name="root"/>, announces once.
         /// </summary>
         internal static IEnumerator AnnounceFromTransformCoroutine(
-            Transform root, string dedupContext, string logTag)
+            Transform root, string logTag)
         {
             yield return null; // let UI populate
 
+            // Both ability phases read this same transform. Keep only the lines that have not
+            // already been announced this sequence, so the level-up phase does not repeat the
+            // skill-point phase's list when a battle produces both.
             var texts = new List<string>();
             ForEachTextInChildren(root, t =>
             {
                 string v = GetTextSafe(t);
-                if (!string.IsNullOrEmpty(v))
+                if (!string.IsNullOrEmpty(v) && BattleResultState.AnnouncedAbilityTexts.Add(v))
                     texts.Add(v);
             }, includeInactive: false);
 
@@ -304,8 +330,7 @@ namespace FFV_ScreenReader.Patches
             string announcement = string.Join(", ", texts);
             MelonLogger.Msg($"[BattleResult] {logTag}: {announcement}");
 
-            if (AnnouncementDeduplicator.ShouldAnnounce(dedupContext, announcement))
-                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+            FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
         }
     }
 
@@ -325,9 +350,7 @@ namespace FFV_ScreenReader.Patches
                 if (skillCtrl == null) return;
                 CoroutineManager.StartUntracked(
                     ResultMenuController_ShowGetAbilitysInit_Patch.AnnounceFromTransformCoroutine(
-                        skillCtrl.transform,
-                        AnnouncementContexts.BATTLE_RESULT_ABILITIES,
-                        "ShowLevelUpAbilitys"));
+                        skillCtrl.transform, "ShowLevelUpAbilitys"));
             }
             catch (Exception ex)
             {
@@ -374,9 +397,11 @@ namespace FFV_ScreenReader.Patches
                 string announcement = $"{received}: {string.Join(", ", parts)}";
                 MelonLogger.Msg($"[BattleResult] Items: {announcement}");
 
-                if (AnnouncementDeduplicator.ShouldAnnounce(
-                        AnnouncementContexts.BATTLE_RESULT_ITEMS, announcement))
+                if (!BattleResultState.ItemsAnnounced)
+                {
+                    BattleResultState.ItemsAnnounced = true;
                     FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                }
             }
             catch (Exception ex)
             {
@@ -601,8 +626,7 @@ namespace FFV_ScreenReader.Patches
             string announcement = $"{statData.Name}: {string.Join(", ", parts)}";
             MelonLogger.Msg($"[BattleResult] StatusUp (from data): {announcement}");
 
-            if (AnnouncementDeduplicator.ShouldAnnounce(
-                    AnnouncementContexts.BATTLE_RESULT_LEVELUP, announcement))
+            if (BattleResultState.AnnouncedLevelUps.Add(announcement))
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
         }
 
@@ -666,8 +690,7 @@ namespace FFV_ScreenReader.Patches
                     string announcement = $"{charName}: {string.Join(", ", statParts)}";
                     MelonLogger.Msg($"[BattleResult] StatusUp: {announcement}");
 
-                    if (AnnouncementDeduplicator.ShouldAnnounce(
-                            AnnouncementContexts.BATTLE_RESULT_LEVELUP, announcement))
+                    if (BattleResultState.AnnouncedLevelUps.Add(announcement))
                         FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
                     yield break;
                 }
@@ -702,8 +725,7 @@ namespace FFV_ScreenReader.Patches
 
             MelonLogger.Msg($"[BattleResult] StatusUp: {fallbackAnnouncement}");
 
-            if (AnnouncementDeduplicator.ShouldAnnounce(
-                    AnnouncementContexts.BATTLE_RESULT_LEVELUP, fallbackAnnouncement))
+            if (BattleResultState.AnnouncedLevelUps.Add(fallbackAnnouncement))
                 FFV_ScreenReaderMod.SpeakText(fallbackAnnouncement, interrupt: false);
         }
 

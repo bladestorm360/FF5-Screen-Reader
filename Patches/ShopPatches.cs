@@ -33,7 +33,7 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static bool ValidateState()
         {
-            if (IsShopMenuActive && !AnnouncementDeduplicator.IsControllerActive(ActiveInfoController))
+            if (IsShopMenuActive && !UnityHelpers.IsControllerActive(ActiveInfoController))
             {
                 IsShopMenuActive = false;
                 ActiveInfoController = null;
@@ -273,6 +273,11 @@ namespace FFV_ScreenReader.Patches
         /// Announces equipment command bar options (Equip, Strongest, Remove Everything)
         /// per-view during navigation. This fires for each view as the cursor moves,
         /// unlike the controller-level SetFocus which only fires once on entry.
+        ///
+        /// Main-menu path only. Reached from the SHOP the view-level SetFocus does not fire, so
+        /// CursorExclusionHelper deliberately lets the generic cursor reader through instead
+        /// (the "shop" bypass keyed on EnteredEquipmentFromShop). Returning early here keeps the
+        /// two paths mutually exclusive so one cursor move never produces two announcements.
         /// </summary>
         [HarmonyPatch(typeof(EquipmentCommandView), nameof(EquipmentCommandView.SetFocus))]
         [HarmonyPostfix]
@@ -281,12 +286,11 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 if (!isFocus) return;
+                if (ShopMenuTracker.EnteredEquipmentFromShop) return;
                 if (__instance?.Data == null) return;
 
                 string commandName = __instance.Data.Name;
                 if (string.IsNullOrEmpty(commandName)) return;
-
-                if (!AnnouncementDeduplicator.ShouldAnnounce(AnnouncementContexts.SHOP_EQUIPMENT_COMMAND, commandName)) return;
 
                 FFV_ScreenReaderMod.SpeakText(commandName);
             }

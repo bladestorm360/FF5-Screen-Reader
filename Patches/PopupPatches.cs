@@ -432,8 +432,8 @@ namespace FFV_ScreenReader.Patches
                 if (PopupState.IsConfirmationPopupActive)
                 {
                     PopupState.Clear();
-                    // Reset config dedup so option can be re-announced after popup dismissal
-                    AnnouncementDeduplicator.Reset(AnnouncementContexts.CONFIG_COMMAND);
+                    // Clear the config guard so the option under the popup re-announces on dismissal
+                    ConfigCommandController_SetFocus_Patch.ResetLastCommand();
                 }
             }
             catch (Exception ex)

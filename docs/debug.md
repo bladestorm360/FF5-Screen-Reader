@@ -23,9 +23,13 @@
 - `BattleTargetPatches` — Battle target selection
 - `BattleMessagePatches` — Damage/heal/status + BattleCommandMessagePatches (defeat)
 - `BattleResultPatches` — Per-phase: ShowPointsInit (totals), ShowPointsExit (counter stop), SetData (stat diffs), abilities, items, EndWaitInit (cleanup)
-- `ItemMenuPatches` — Item menu + ItemMenuTracker + ItemUseTracker
+- `ItemMenuPatches` — Item menu + ItemMenuState (shared announce helpers) + ItemMenuTracker + ItemUseTracker + FieldItemReannouncePatches
+- `EquipMenuPatches` — Equipment command bar / slot list / item select + EquipMenuState + FieldEquipReannouncePatches
 - `ItemDetailsAnnouncer` — I key equipment compatibility
-- `JobAbilityPatches` — Job/ability menus + JobAbilityTrackerHelper
+- `JobAbilityPatches` — Job/ability menus + JobAbilityTrackerHelper + FieldJobAbilityReannouncePatches
+- `FieldMenuPatches` — Field (main) menu initial focus: Show + InitNone
+- `SaveListPatches` — Save/load slot initial focus: SaveListController.SetActive
+- `StatusMenuFocusPatches` — Status character-select initial focus: ListInit / SelectInit
 - `ConfigMenuPatches` — Config menu
 - `MovementSpeechPatches` — Movement announcements + vehicle state transitions
 - `MovementSoundPatches` — Footstep audio
@@ -63,7 +67,8 @@
 - `GameConstants` — Audio, tile size, direction vectors, map IDs
 - `GameObjectCache` — Cached lookups (Get/Refresh pattern)
 - `TextUtils`, `CollectionHelper`, `DirectionHelper`, `PlayerPositionHelper`
-- `AnnouncementDeduplicator` + `AnnouncementContexts` — Dedup (string/int/object)
+- `MenuFocusAnnouncer` — Initial-focus reads: frame-bounded settle coroutine + generation latch, `IsMenuOpen()` / `IsAlive()` gates
+- `UnityHelpers` — `IsControllerActive()` null-safe `activeInHierarchy` check
 - `LocalizationHelper` — MessageManager wrapper + 12-language mod string dictionary
 - `BattleResultDataStore` — Static data store for navigator (points + stats)
 - `BattleUnitHelper`, `CharacterStatusHelper`, `SelectContentHelper`
@@ -119,9 +124,161 @@
 - **Caching**: `GameObjectCache.Get<T>()` with `Refresh<T>()` fallback
 - **Coroutines**: `CoroutineManager.StartManaged()`
 - **Speech**: `SpeakText(text, interrupt)` / `SpeakTextDelayed(text, 0.3f)` for post-focus-change
-- **Dedup**: `AnnouncementDeduplicator.ShouldAnnounce(context, value)`
+- **Initial focus**: `MenuFocusAnnouncer.Request(tag, () => TryAnnounceX())`
 - **Content access**: `SelectContentHelper.TryGetItem(list, index)`
 - **FieldController access**: `GameObjectCache.Get<FieldMap>()?.fieldController` (NOT direct Get<FieldController>)
+
+---
+
+## No-Dedup Policy
+
+There is **no central deduplicator** (matching FF1, which has none either). `AnnouncementDeduplicator`
+and `AnnouncementContexts` were deleted; 105 call sites became ~20 local guards.
+
+**When speech doubles, fix the redundant call — do not add a dedup net.** Decision order:
+
+1. **Does a once-per-event method exist?** Hook that; delete the per-frame patch.
+2. **Two patches announcing the same fact?** Delete one; the loser updates state only.
+   (`LibraryMenuController.Show` now caches `CurrentMonsterData` and stays silent — `OnContentSelected`
+   is the sole announcer.)
+3. **Same-frame open double?** Generation latch (`MenuFocusAnnouncer._gen`), never text comparison.
+4. **Right strings, wrong order?** One-shot suppression bool, cleared in `finally`
+   (`SuppressContentChange`, `SuppressNextListEntry`).
+5. **Phase/state overlap?** State gate (`EnteredEquipmentFromShop`, `IsInShopSession`).
+6. **Only if 1–5 fail:** a local static in that patch class, with a comment naming what re-fires.
+
+**Surviving local guards** (each is a genuine same-event re-fire, not deduplication):
+scroll-view `SelectContent`/`SetCursor` carrying a `WithinRangeType` (item list, equip panes, job,
+ability, spell list, config remap rows) · `BattleCommandSelectController.SetCommandData`/`SetCursor`
+(re-invoked on cancel-back from targeting) · `BattleTargetPatches` `TargetMode` enum + index (replaced
+four contexts and their cross-resets) · `ConfigActualDetails*` slider pair — *the check IS the logic*,
+not a guard · config arrow value (fires at range ends where nothing changes) ·
+`ParameterActFunctionManagment` `_lastActDataPtr` — **pointer** identity so two goblins attacking both
+announce · `BattleConditionController` `_lastCondition` (per-target + persistent re-application) ·
+`GameStatePatches._lastAnnouncedMapId` — guards **side effects**, not just speech (one door transition
+invokes `CheckMapTransition` 3–4×). Battle-scoped guards are cleared each turn by
+`BattleMenuController.SetCommandSelectTarget`; result-phase one-shots by `ShowPointsInit`.
+
+## Initial-Focus Announcements
+
+Navigation fires on cursor movement; the game's **initial cursor placement fires nothing**, so menu
+entry and return-from-submenu were silent.
+
+`Utils/MenuFocusAnnouncer.cs` — `Request(tag, Func<bool> tryAnnounce)` starts a **frame-bounded settle
+coroutine** (`MaxSettleFrames`, 6) that calls `tryAnnounce` once per frame until it returns true. The
+cap is a **timeout, not a delay** — a ready menu costs exactly one frame. It was 30 (~0.5s); at that
+size a slow read still fired long after the cursor had moved, which reads as lag. A read needing more
+than 2 frames logs `initial focus read took N frames`, and a timeout logs `gave up after N frames` —
+if either shows up repeatedly the menu is gated on the wrong readiness signal (usually `IsMenuOpen()`
+on a screen that is not a MenuManager menu), which is the thing to fix rather than raising the cap.
+
+Not a poll
+and not a timer: no standing per-frame Harmony hooks (Rule 2), budget in `yield return null` frames
+rather than `WaitForSeconds` (Rule 3). Same shape as the existing Gallery/MusicPlayer entry coroutines,
+tightened from seconds to frames. `yield` sits **outside** the `try` (yield-in-try-with-catch is illegal).
+
+A single global generation latch (`_gen`) collapses the `Show`+`InitNone` double on open (later wins)
+and caps concurrent settle coroutines at ~1 — important given `CoroutineManager`'s 20-coroutine limit
+with oldest-first eviction. `Cancel()` on menu close drops pending reads.
+
+**`tryAnnounce` returns true when it SPOKE**, false while data isn't ready (which is what drives the
+retry). Each menu's helper is shared with its navigation postfix so both produce the same string; the
+state-entry hook clears that helper's local guard first, so re-entry on the same row always speaks.
+
+**Structural separation is what prevents doubles** — navigation hooks (`SelectContent`/`SetCursor`/
+`SetFocus`) never fire on state entry, and the `*Init` hooks never fire on cursor movement.
+
+| Screen | State-entry hook | Cursor source |
+|---|---|---|
+| Field menu | `KeyInput.MainMenuController.Show(bool)` + `InitNone` | `commandMenuController.selectCursor` (0x38) |
+| Item list | `ItemListController` `CommandSelectInit`/`UseSelectInit`/`ImportantSelectInit`/`OrganizeSelectInit`/`SortSelectInit` | `selectCursor` 0x60, `dataList` 0x78 |
+| Item-use target | `ItemUseController.SingleInit`/`AllInit` | `contentList` 0x40, `selectCursor` 0x50 |
+| Equip (3 panes) | `EquipmentWindowController.CommandInit`/`InfoInit`/`SelectInit` | each pane's own `selectCursor` |
+| Job change | `JobChangeWindowController.SelectJobInit` | `jobSelectCursor` 0x40 (base) |
+| Ability command / spell / target | `AbilityWindowController.CommandInit`/`UseListInit`/`UseTargetInit` (+ `AbilityUseContentListController.SingleInit`/`AllInit`) | each sub-controller's `selectCursor` |
+| Ability equip | `AbilityChangeController.SelectCommandInit`/`SelectListInit` | **no cursor field** — cached index from the nav postfix, default 0 |
+| Status char-select | `StatusWindowController.ListInit`/`SelectInit` | `selectCursor` 0x40 (base), `contentList` 0xC8 |
+| Save/load slots | `KeyInput.SaveListController.SetActive(bool,bool,bool)` | `selectCursor` 0x58 |
+| Title Options list | `KeyInput.TitleWindowController.InitializeOption` | `commandController` 0x50 → `selectCursor` 0x30, `activeContents` 0x28 |
+
+> **Two different screens, easily confused.** The title **Options list** (Config / Privacy Policy / …)
+> is a `TitleWindowController` command list driven by `TitleMenuCommandController`. `OptionController`
+> is the **settings** screen you reach after choosing Config inside it. Hooking `OptionController`
+> does nothing for the Options list — the patch applies and simply never fires.
+>
+> **Touch vs KeyInput naming differs here.** The KeyInput controller uses `InitializeOption` /
+> `InitializeExtra`; the Touch variant uses `InitOption`. `dump.cs` lists the Touch class first, so
+> reading the wrong one yields a name that patches cleanly and never fires. Confirm the namespace in
+> `script.json` (`Last.UI.KeyInput.*` vs `Last.UI.Touch.*`) before hooking.
+
+**Gates.** Field-menu-family helpers gate on `MenuFocusAnnouncer.IsMenuOpen()` (`MenuManager.IsOpen`,
+reliably false during a map/asset load — this is what keeps scene construction silent). Equipment
+accepts `IsMenuOpen() || ShopMenuTracker.IsInShopSession` because that window is shared by the field
+menu and the shop. Item/ability target readers bail on `BattleState.IsInBattle`. `SaveListPatches`
+uses `ShouldReadSaveSlot()` = `IsMenuOpen() || LoadGameWindowController active`, which excludes the
+**background autosave** whose `SaveListController` is briefly active during a map load.
+
+### Never patch a folded empty-body stub (launch crash)
+
+IL2CPP folds **every empty method body in the game onto one shared native address**. In FF5 that is
+`2561440`, backing **4398** methods. Patching it installs a detour on all of them at once and hard
+crashes during `OnInitializeMelon` — MelonLoader logs nothing after the previous patch line, so the
+symptom is a silent truncated `Latest.log`, not an exception.
+
+This bit `EquipmentWindowController.NoneInit`, `AbilityChangeController.NoneInit` (both 2561440) and
+`JobChangeWindowController.NoneInit` (4886656, shared with 1 other). All three are now unpatched.
+Same failure FF1 records for `OptionController.UpdateSelectLanguage`.
+
+**Check before hooking any `*Init` / empty-looking method** — `dump.cs` shows `{ }` for every body,
+so it cannot tell you; use `script.json`, where a duplicated `"Address"` means a folded stub:
+
+```
+python -c "import re,io,collections; addr=None; c=collections.Counter(); rows=[]
+for l in io.open('script.json',encoding='utf-8'):
+    m=re.search(r'\"Address\": (\d+)',l)
+    if m: addr=int(m.group(1)); continue
+    m=re.search(r'\"Name\": \"(.+?)\"',l)
+    if m and addr is not None: c[addr]+=1; rows.append((addr,m.group(1))); addr=None
+print([ (a,n) for a,n in rows if 'YourController' in n and 'Init' in n and c[a]>1 ])"
+```
+
+Verified-unique (safe) exit hooks in use: `AbilityWindowController.NonInit` (10203056),
+`StatusWindowController.NonInit` (6570528), `MainMenuController.Close` (6928816).
+
+The Options list has no `MenuManager` gate — the list being populated is the readiness signal — and
+it announces through `TitleMenuCommandController_SetCursor_Patch.Queue` rather than speaking
+directly, so a `SetCursor` in the same frame coalesces instead of doubling.
+
+**The Options list is the ONLY title list hooked.** `InitSelect` (main title list) is not: the game
+already fires `SetCursor` there, both on first appearance and on back-out from a sub-list. Hooking it
+produced a second announcement one frame later — `MenuFocusAnnouncer` yields a frame before reading,
+which puts it outside the one-frame coalesce window, so "Load Game" and "Options" were each spoken
+twice. `InitializeExtra` is not hooked either: the Extras list already announced correctly.
+Diagnosis: identical text ~17 ms apart (one frame) in the speech log means two coroutines, not one.
+
+**Deliberately NOT hooked:** the main menu's `CommandMenuController.SetFocus` (deleted — the game
+re-asserts it on nav echo / confirm / return, indistinguishable from its arguments; navigation is
+owned by the generic cursor reader and entry by `FieldMenuPatches`); `TitleWindowController.InitSelect`
+(see above); **all** config settings screens — the in-game `ConfigController.InitializeSelect` and the
+title-screen `OptionController.ShowConfig` / `InitializeConfigList` both already announce via
+`ConfigCommandController.SetFocus`, and an entry hook there was worse than a plain duplicate: clearing
+the `SetFocus` guard let the game's own second `SetFocus` through, so entering Config spoke
+"Language: English" twice; and the shop
+(`ShopCommandMenuController.SetCursor`, `ShopListItemContentController.SetFocus` already fire on
+entry); title, battle, bestiary, music player and gallery, which already announce.
+
+### Language row reads blank
+
+The Language config row's dropdown label is **empty for the currently-selected language** — the game
+blanks the current item (its native name is a sprite). Reading the dropdown therefore yields nothing
+and the row announced as just "Language". `ConfigMenuReader.GetCurrentLanguageDisplayName()` maps
+`MessageManager.currentLanguage` (FF5 `Language` enum, `Ja=1 … Pt=12`) through a self-contained
+table instead; never use the game's `GetLanguageMessage`, which returns empty for the current language.
+
+The row is identified by `ConfigCommandsData.ConfigCommandType == Language` **or** by
+`LanguageContentData != null` — `ConfigCommandsData` is a separate MonoBehaviour reference that is
+not always wired up (notably on the title-screen Options list), which is what made the row fall
+through to the dropdown branch. A blank-label dropdown row also falls back to the current language.
 
 ---
 

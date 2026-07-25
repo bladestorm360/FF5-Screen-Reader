@@ -21,7 +21,11 @@ namespace FFV_ScreenReader.Patches
     public static class NamingPatches
     {
         private static bool isPatched = false;
-        private const string DEDUP_CONTEXT = AnnouncementContexts.NAMING_SELECT;
+
+        // ChangeNameController.SelectContent re-fires with the same cursor index while the grid
+        // settles, so track the last position announced. Reset on every entry/exit so reopening
+        // the naming screen on the same character always speaks.
+        private static int _lastCursorIndex = -1;
 
         // Memory offsets from dump.cs (KeyInput versions)
         // ChangeNameController: contentList at 0x30
@@ -44,7 +48,7 @@ namespace FFV_ScreenReader.Patches
         {
             MenuStateRegistry.RegisterResetHandler(MenuStateRegistry.NAMING_MENU, () =>
             {
-                AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
+                _lastCursorIndex = -1;
             });
         }
 
@@ -145,7 +149,7 @@ namespace FFV_ScreenReader.Patches
         public static void ClearState()
         {
             IsNamingMenuActive = false;
-            AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
+            _lastCursorIndex = -1;
         }
 
         public static bool ShouldSuppress() => IsNamingMenuActive;
@@ -156,7 +160,7 @@ namespace FFV_ScreenReader.Patches
         public static void Open_Postfix()
         {
             IsNamingMenuActive = true;
-            AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
+            _lastCursorIndex = -1;
         }
 
         /// <summary>
@@ -165,7 +169,7 @@ namespace FFV_ScreenReader.Patches
         public static void Close_Postfix()
         {
             IsNamingMenuActive = false;
-            AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
+            _lastCursorIndex = -1;
         }
 
         /// <summary>
@@ -177,7 +181,9 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null) return;
 
-                AnnouncementDeduplicator.Reset(DEDUP_CONTEXT);
+                // Cleared so the SelectContent that lands right after this also speaks: this
+                // announces "Name: {character}", that one speaks the focused grid entry.
+                _lastCursorIndex = -1;
 
                 var controller = __instance;
 
@@ -208,11 +214,8 @@ namespace FFV_ScreenReader.Patches
 
                 int cursorIndex = targetCursor.Index;
 
-                // Avoid duplicate announcements
-                if (!AnnouncementDeduplicator.ShouldAnnounce(DEDUP_CONTEXT, cursorIndex))
-                {
-                    return;
-                }
+                if (cursorIndex == _lastCursorIndex) return;
+                _lastCursorIndex = cursorIndex;
 
                 // Get character name from contentList at cursor index
                 string characterName = GetCharacterNameAtIndex(__instance, cursorIndex);
