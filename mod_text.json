@@ -64,6 +64,26 @@
     "de": "Automatische Details", "es": "Detalles automáticos", "ko": "자동 상세 정보", "zht": "自動詳細資訊",
     "zhc": "自动详细信息", "ru": "Автоматические детали", "th": "รายละเอียดอัตโนมัติ", "pt": "Detalhes automáticos"
   },
+  "Auto Detail on": {
+    "en": "Auto Detail on", "ja": "詳細自動読み上げ オン", "fr": "Détails automatiques activés", "it": "Dettagli automatici attivati",
+    "de": "Automatische Details ein", "es": "Detalles automáticos activados", "ko": "자동 상세 정보 켜짐", "zht": "自動詳細資訊 開啟",
+    "zhc": "自动详细信息 开启", "ru": "Автоматические детали вкл", "th": "รายละเอียดอัตโนมัติ เปิด", "pt": "Detalhes automáticos ligados"
+  },
+  "Auto Detail off": {
+    "en": "Auto Detail off", "ja": "詳細自動読み上げ オフ", "fr": "Détails automatiques désactivés", "it": "Dettagli automatici disattivati",
+    "de": "Automatische Details aus", "es": "Detalles automáticos desactivados", "ko": "자동 상세 정보 꺼짐", "zht": "自動詳細資訊 關閉",
+    "zhc": "自动详细信息 关闭", "ru": "Автоматические детали выкл", "th": "รายละเอียดอัตโนมัติ ปิด", "pt": "Detalhes automáticos desligados"
+  },
+  "Can equip: {0}": {
+    "en": "Can equip: {0}", "ja": "装備可能: {0}", "fr": "Peut équiper : {0}", "it": "Può equipaggiare: {0}",
+    "de": "Ausrüstbar von: {0}", "es": "Pueden equipar: {0}", "ko": "장비 가능: {0}", "zht": "可裝備：{0}",
+    "zhc": "可装备：{0}", "ru": "Могут экипировать: {0}", "th": "สวมใส่ได้: {0}", "pt": "Pode equipar: {0}"
+  },
+  "No unlocked jobs can equip": {
+    "en": "No unlocked jobs can equip", "ja": "装備可能なジョブはありません", "fr": "Aucun métier débloqué ne peut l'équiper", "it": "Nessuna classe sbloccata può equipaggiarlo",
+    "de": "Keine freigeschaltete Klasse kann dies ausrüsten", "es": "Ningún trabajo desbloqueado puede equiparlo", "ko": "장비할 수 있는 개방된 잡이 없습니다", "zht": "沒有已解鎖的職業可裝備",
+    "zhc": "没有已解锁的职业可装备", "ru": "Нет открытых профессий, которые могут это экипировать", "th": "ไม่มีอาชีพที่ปลดล็อกแล้วที่สวมใส่ได้", "pt": "Nenhum trabalho desbloqueado pode equipar"
+  },
   "Volume Controls": {
     "en": "Volume Controls", "ja": "音量コントロール", "fr": "Contrôles de volume", "it": "Controlli volume",
     "de": "Lautstärkeregler", "es": "Controles de volumen", "ko": "볼륨 조절", "zht": "音量控制",
@@ -398,6 +418,16 @@
     "en": "Unavailable in battle", "ja": "戦闘中は利用不可", "fr": "Indisponible en combat", "it": "Non utilizzabile in battaglia",
     "de": "Im Kampf nicht nutzbar", "es": "No utilizable en batalla", "ko": "전투 중 이용 불가", "zht": "戰鬥中無法使用",
     "zhc": "战斗中无法使用", "ru": "Недоступно в бою", "th": "ใช้ไม่ได้ในการต่อสู้", "pt": "Indisponível em batalha"
+  },
+  "Unavailable in menu": {
+    "en": "Unavailable in menu", "ja": "メニュー中は利用不可", "fr": "Indisponible dans les menus", "it": "Non utilizzabile nei menu",
+    "de": "Im Menü nicht nutzbar", "es": "No utilizable en el menú", "ko": "메뉴에서는 이용 불가", "zht": "選單中無法使用",
+    "zhc": "菜单中无法使用", "ru": "Недоступно в меню", "th": "ใช้ไม่ได้ในเมนู", "pt": "Indisponível no menu"
+  },
+  "Unavailable here": {
+    "en": "Unavailable here", "ja": "ここでは利用不可", "fr": "Indisponible ici", "it": "Non utilizzabile qui",
+    "de": "Hier nicht nutzbar", "es": "No utilizable aquí", "ko": "여기서는 이용 불가", "zht": "此處無法使用",
+    "zhc": "此处无法使用", "ru": "Недоступно здесь", "th": "ใช้ไม่ได้ที่นี่", "pt": "Indisponível aqui"
   },
   "Only available in battle": {
     "en": "Only available in battle", "ja": "戦闘中のみ使用可能", "fr": "Disponible uniquement en combat", "it": "Disponibile solo in battaglia",
@@ -958,5 +988,265 @@
     "en": "Landing Pings {0}", "ja": "着陸ピング {0}", "fr": "Pings d'atterrissage {0}", "it": "Ping di atterraggio {0}",
     "de": "Landepings {0}", "es": "Pings de aterrizaje {0}", "ko": "착륙 핑 {0}", "zht": "降落提示音 {0}",
     "zhc": "降落提示音 {0}", "ru": "Сигналы посадки {0}", "th": "เสียงลงจอด {0}", "pt": "Pings de pouso {0}"
+  },
+  "{0}: {1} damage": {
+    "en": "{0}: {1} damage", "ja": "{0}: {1} のダメージ", "fr": "{0} : {1} dégâts", "it": "{0}: {1} danni",
+    "de": "{0}: {1} Schaden", "es": "{0}: {1} de daño", "ko": "{0}: {1} 데미지", "zht": "{0}：{1} 傷害",
+    "zhc": "{0}：{1} 伤害", "ru": "{0}: {1} урона", "th": "{0}: ความเสียหาย {1}", "pt": "{0}: {1} de dano"
+  },
+  "{0}: Miss": {
+    "en": "{0}: Miss", "ja": "{0}: ミス", "fr": "{0} : Raté", "it": "{0}: Mancato",
+    "de": "{0}: Verfehlt", "es": "{0}: Fallo", "ko": "{0}: 빗나감", "zht": "{0}：未命中",
+    "zhc": "{0}：未命中", "ru": "{0}: Промах", "th": "{0}: พลาด", "pt": "{0}: Errou"
+  },
+  "{0}: Recovered {1} HP": {
+    "en": "{0}: Recovered {1} HP", "ja": "{0}: HPを{1}回復", "fr": "{0} : {1} PV récupérés", "it": "{0}: {1} HP recuperati",
+    "de": "{0}: {1} HP wiederhergestellt", "es": "{0}: {1} HP recuperados", "ko": "{0}: HP {1} 회복", "zht": "{0}：恢復 {1} HP",
+    "zhc": "{0}：恢复 {1} HP", "ru": "{0}: восстановлено {1} HP", "th": "{0}: ฟื้นฟู HP {1}", "pt": "{0}: {1} de HP recuperado"
+  },
+  "{0}: Recovered {1} MP": {
+    "en": "{0}: Recovered {1} MP", "ja": "{0}: MPを{1}回復", "fr": "{0} : {1} PM récupérés", "it": "{0}: {1} MP recuperati",
+    "de": "{0}: {1} MP wiederhergestellt", "es": "{0}: {1} MP recuperados", "ko": "{0}: MP {1} 회복", "zht": "{0}：恢復 {1} MP",
+    "zhc": "{0}：恢复 {1} MP", "ru": "{0}: восстановлено {1} MP", "th": "{0}: ฟื้นฟู MP {1}", "pt": "{0}: {1} de MP recuperado"
+  },
+  "{0} attacks": {
+    "en": "{0} attacks", "ja": "{0}の攻撃", "fr": "{0} attaque", "it": "{0} attacca",
+    "de": "{0} greift an", "es": "{0} ataca", "ko": "{0}의 공격", "zht": "{0} 攻擊",
+    "zhc": "{0} 攻击", "ru": "{0} атакует", "th": "{0} โจมตี", "pt": "{0} ataca"
+  },
+  "{0} defends": {
+    "en": "{0} defends", "ja": "{0}は防御", "fr": "{0} se défend", "it": "{0} si difende",
+    "de": "{0} verteidigt sich", "es": "{0} se defiende", "ko": "{0}은(는) 방어", "zht": "{0} 防禦",
+    "zhc": "{0} 防御", "ru": "{0} защищается", "th": "{0} ป้องกัน", "pt": "{0} defende"
+  },
+  "{0} uses item": {
+    "en": "{0} uses item", "ja": "{0}はアイテムを使用", "fr": "{0} utilise un objet", "it": "{0} usa un oggetto",
+    "de": "{0} benutzt einen Gegenstand", "es": "{0} usa un objeto", "ko": "{0}이(가) 아이템 사용", "zht": "{0} 使用道具",
+    "zhc": "{0} 使用道具", "ru": "{0} использует предмет", "th": "{0} ใช้ไอเทม", "pt": "{0} usa um item"
+  },
+  "{0}: Job level up!": {
+    "en": "{0}: Job level up!", "ja": "{0}: ジョブレベルアップ！", "fr": "{0} : Niveau de métier supérieur !", "it": "{0}: Livello classe aumentato!",
+    "de": "{0}: Job-Level-Aufstieg!", "es": "{0}: ¡Subida de nivel de trabajo!", "ko": "{0}: 잡 레벨 업!", "zht": "{0}：職業等級提升！",
+    "zhc": "{0}：职业等级提升！", "ru": "{0}: Уровень профессии повышен!", "th": "{0}: เลเวลอาชีพเพิ่มขึ้น!", "pt": "{0}: Nível de trabalho aumentou!"
+  },
+  "All allies": {
+    "en": "All allies", "ja": "味方全体", "fr": "Tous les alliés", "it": "Tutti gli alleati",
+    "de": "Alle Verbündeten", "es": "Todos los aliados", "ko": "아군 전체", "zht": "我方全體",
+    "zhc": "我方全体", "ru": "Все союзники", "th": "พันธมิตรทั้งหมด", "pt": "Todos os aliados"
+  },
+  "All enemies": {
+    "en": "All enemies", "ja": "敵全体", "fr": "Tous les ennemis", "it": "Tutti i nemici",
+    "de": "Alle Gegner", "es": "Todos los enemigos", "ko": "적 전체", "zht": "敵方全體",
+    "zhc": "敌方全体", "ru": "Все враги", "th": "ศัตรูทั้งหมด", "pt": "Todos os inimigos"
+  },
+  "Walk": {
+    "en": "Walk", "ja": "歩き", "fr": "Marche", "it": "Camminata",
+    "de": "Gehen", "es": "Caminar", "ko": "걷기", "zht": "步行",
+    "zhc": "步行", "ru": "Ходьба", "th": "เดิน", "pt": "Andar"
+  },
+  "Run": {
+    "en": "Run", "ja": "ダッシュ", "fr": "Course", "it": "Corsa",
+    "de": "Rennen", "es": "Correr", "ko": "달리기", "zht": "奔跑",
+    "zhc": "奔跑", "ru": "Бег", "th": "วิ่ง", "pt": "Correr"
+  },
+  "Encounters on": {
+    "en": "Encounters on", "ja": "エンカウント オン", "fr": "Rencontres activées", "it": "Incontri attivati",
+    "de": "Zufallskämpfe ein", "es": "Encuentros activados", "ko": "인카운트 켜짐", "zht": "遇敵 開啟",
+    "zhc": "遇敌 开启", "ru": "Случайные бои вкл", "th": "การเผชิญหน้า เปิด", "pt": "Encontros ativados"
+  },
+  "Encounters off": {
+    "en": "Encounters off", "ja": "エンカウント オフ", "fr": "Rencontres désactivées", "it": "Incontri disattivati",
+    "de": "Zufallskämpfe aus", "es": "Encuentros desactivados", "ko": "인카운트 꺼짐", "zht": "遇敵 關閉",
+    "zhc": "遇敌 关闭", "ru": "Случайные бои выкл", "th": "การเผชิญหน้า ปิด", "pt": "Encontros desativados"
+  },
+  "minute": {
+    "en": "minute", "ja": "分", "fr": "minute", "it": "minuto",
+    "de": "Minute", "es": "minuto", "ko": "분", "zht": "分",
+    "zhc": "分", "ru": "минута", "th": "นาที", "pt": "minuto"
+  },
+  "minutes": {
+    "en": "minutes", "ja": "分", "fr": "minutes", "it": "minuti",
+    "de": "Minuten", "es": "minutos", "ko": "분", "zht": "分",
+    "zhc": "分", "ru": "минут", "th": "นาที", "pt": "minutos"
+  },
+  "second": {
+    "en": "second", "ja": "秒", "fr": "seconde", "it": "secondo",
+    "de": "Sekunde", "es": "segundo", "ko": "초", "zht": "秒",
+    "zhc": "秒", "ru": "секунда", "th": "วินาที", "pt": "segundo"
+  },
+  "seconds": {
+    "en": "seconds", "ja": "秒", "fr": "secondes", "it": "secondi",
+    "de": "Sekunden", "es": "segundos", "ko": "초", "zht": "秒",
+    "zhc": "秒", "ru": "секунд", "th": "วินาที", "pt": "segundos"
+  },
+  "here": {
+    "en": "here", "ja": "ここ", "fr": "ici", "it": "qui",
+    "de": "hier", "es": "aquí", "ko": "여기", "zht": "此處",
+    "zhc": "此处", "ru": "здесь", "th": "ที่นี่", "pt": "aqui"
+  },
+  "of": {
+    "en": "of", "ja": "/", "fr": "sur", "it": "di",
+    "de": "von", "es": "de", "ko": "/", "zht": "/",
+    "zhc": "/", "ru": "из", "th": "จาก", "pt": "de"
+  },
+  "Category: {0}, {1} {2}": {
+    "en": "Category: {0}, {1} {2}", "ja": "カテゴリ: {0}, {1} {2}", "fr": "Catégorie : {0}, {1} {2}", "it": "Categoria: {0}, {1} {2}",
+    "de": "Kategorie: {0}, {1} {2}", "es": "Categoría: {0}, {1} {2}", "ko": "카테고리: {0}, {1} {2}", "zht": "分類：{0}, {1} {2}",
+    "zhc": "分类：{0}, {1} {2}", "ru": "Категория: {0}, {1} {2}", "th": "หมวดหมู่: {0}, {1} {2}", "pt": "Categoria: {0}, {1} {2}"
+  },
+  "No target selected": {
+    "en": "No target selected", "ja": "目標が選択されていません", "fr": "Aucune cible sélectionnée", "it": "Nessun bersaglio selezionato",
+    "de": "Kein Ziel ausgewählt", "es": "Ningún objetivo seleccionado", "ko": "선택된 목표가 없습니다", "zht": "未選擇目標",
+    "zhc": "未选择目标", "ru": "Цель не выбрана", "th": "ไม่ได้เลือกเป้าหมาย", "pt": "Nenhum alvo selecionado"
+  },
+  "Mod": {
+    "en": "Mod", "ja": "MOD", "fr": "Mod", "it": "Mod",
+    "de": "Mod", "es": "Mod", "ko": "모드", "zht": "MOD",
+    "zhc": "MOD", "ru": "Мод", "th": "ม็อด", "pt": "Mod"
+  },
+  "Mod menu closed": {
+    "en": "Mod menu closed", "ja": "MODメニューを閉じました", "fr": "Menu du mod fermé", "it": "Menu mod chiuso",
+    "de": "Mod-Menü geschlossen", "es": "Menú del mod cerrado", "ko": "모드 메뉴를 닫았습니다", "zht": "已關閉MOD選單",
+    "zhc": "已关闭MOD菜单", "ru": "Меню мода закрыто", "th": "ปิดเมนูม็อดแล้ว", "pt": "Menu do mod fechado"
+  },
+  "Controller Settings": {
+    "en": "Controller Settings", "ja": "コントローラー設定", "fr": "Paramètres de manette", "it": "Impostazioni controller",
+    "de": "Controller-Einstellungen", "es": "Ajustes del mando", "ko": "컨트롤러 설정", "zht": "控制器設定",
+    "zhc": "手柄设置", "ru": "Настройки геймпада", "th": "ตั้งค่าคอนโทรลเลอร์", "pt": "Configurações do controle"
+  },
+  "Stick Click Normalization": {
+    "en": "Stick Click Normalization", "ja": "スティック押し込みの標準化", "fr": "Normalisation du clic de stick", "it": "Normalizzazione clic stick",
+    "de": "Stick-Klick-Normalisierung", "es": "Normalización del clic de stick", "ko": "스틱 클릭 표준화", "zht": "搖桿按壓標準化",
+    "zhc": "摇杆按压标准化", "ru": "Нормализация нажатия стика", "th": "การปรับมาตรฐานการกดสติ๊ก", "pt": "Normalização do clique do analógico"
+  },
+  "Stick Click Normalization on": {
+    "en": "Stick Click Normalization on", "ja": "スティック押し込みの標準化 オン", "fr": "Normalisation du clic de stick activée", "it": "Normalizzazione clic stick attivata",
+    "de": "Stick-Klick-Normalisierung ein", "es": "Normalización del clic de stick activada", "ko": "스틱 클릭 표준화 켜짐", "zht": "搖桿按壓標準化 開啟",
+    "zhc": "摇杆按压标准化 开启", "ru": "Нормализация нажатия стика вкл", "th": "การปรับมาตรฐานการกดสติ๊ก เปิด", "pt": "Normalização do clique do analógico ligada"
+  },
+  "Stick Click Normalization off": {
+    "en": "Stick Click Normalization off", "ja": "スティック押し込みの標準化 オフ", "fr": "Normalisation du clic de stick désactivée", "it": "Normalizzazione clic stick disattivata",
+    "de": "Stick-Klick-Normalisierung aus", "es": "Normalización del clic de stick desactivada", "ko": "스틱 클릭 표준화 꺼짐", "zht": "搖桿按壓標準化 關閉",
+    "zhc": "摇杆按压标准化 关闭", "ru": "Нормализация нажатия стика выкл", "th": "การปรับมาตรฐานการกดสติ๊ก ปิด", "pt": "Normalização do clique do analógico desligada"
+  },
+  "Yes or No": {
+    "en": "Yes or No", "ja": "はい または いいえ", "fr": "Oui ou Non", "it": "Sì o No",
+    "de": "Ja oder Nein", "es": "Sí o No", "ko": "예 또는 아니오", "zht": "是 或 否",
+    "zhc": "是 或 否", "ru": "Да или Нет", "th": "ใช่ หรือ ไม่", "pt": "Sim ou Não"
+  },
+  "Are you absolutely sure?": {
+    "en": "Are you absolutely sure?", "ja": "本当によろしいですか？", "fr": "Êtes-vous absolument sûr ?", "it": "Sei assolutamente sicuro?",
+    "de": "Bist du dir absolut sicher?", "es": "¿Estás completamente seguro?", "ko": "정말로 확실합니까?", "zht": "確定要這麼做嗎？",
+    "zhc": "确定要这么做吗？", "ru": "Вы совершенно уверены?", "th": "แน่ใจจริงหรือไม่?", "pt": "Tem certeza absoluta?"
+  },
+  "Rename waypoint": {
+    "en": "Rename waypoint", "ja": "ウェイポイントの名前を変更", "fr": "Renommer le point de passage", "it": "Rinomina waypoint",
+    "de": "Wegpunkt umbenennen", "es": "Renombrar punto de ruta", "ko": "웨이포인트 이름 변경", "zht": "重新命名路標",
+    "zhc": "重命名路标", "ru": "Переименовать точку", "th": "เปลี่ยนชื่อจุดหมาย", "pt": "Renomear ponto de referência"
+  },
+  "Renamed to {0}": {
+    "en": "Renamed to {0}", "ja": "{0} に名前を変更しました", "fr": "Renommé en {0}", "it": "Rinominato in {0}",
+    "de": "Umbenannt in {0}", "es": "Renombrado a {0}", "ko": "{0}(으)로 이름을 변경했습니다", "zht": "已重新命名為 {0}",
+    "zhc": "已重命名为 {0}", "ru": "Переименовано в {0}", "th": "เปลี่ยนชื่อเป็น {0} แล้ว", "pt": "Renomeado para {0}"
+  },
+  "Rename failed": {
+    "en": "Rename failed", "ja": "名前の変更に失敗しました", "fr": "Échec du renommage", "it": "Rinomina non riuscita",
+    "de": "Umbenennen fehlgeschlagen", "es": "Error al renombrar", "ko": "이름 변경에 실패했습니다", "zht": "重新命名失敗",
+    "zhc": "重命名失败", "ru": "Не удалось переименовать", "th": "เปลี่ยนชื่อไม่สำเร็จ", "pt": "Falha ao renomear"
+  },
+  "Rename cancelled": {
+    "en": "Rename cancelled", "ja": "名前の変更を中止しました", "fr": "Renommage annulé", "it": "Rinomina annullata",
+    "de": "Umbenennen abgebrochen", "es": "Renombrado cancelado", "ko": "이름 변경을 취소했습니다", "zht": "已取消重新命名",
+    "zhc": "已取消重命名", "ru": "Переименование отменено", "th": "ยกเลิกการเปลี่ยนชื่อแล้ว", "pt": "Renomeação cancelada"
+  },
+  "Added {0} as {1}": {
+    "en": "Added {0} as {1}", "ja": "{0} を {1} として追加しました", "fr": "{0} ajouté en tant que {1}", "it": "{0} aggiunto come {1}",
+    "de": "{0} als {1} hinzugefügt", "es": "{0} añadido como {1}", "ko": "{0}을(를) {1}(으)로 추가했습니다", "zht": "已將 {0} 新增為 {1}",
+    "zhc": "已将 {0} 添加为 {1}", "ru": "{0} добавлено как {1}", "th": "เพิ่ม {0} เป็น {1} แล้ว", "pt": "{0} adicionado como {1}"
+  },
+  "Removed {0}": {
+    "en": "Removed {0}", "ja": "{0} を削除しました", "fr": "{0} supprimé", "it": "{0} rimosso",
+    "de": "{0} entfernt", "es": "{0} eliminado", "ko": "{0}을(를) 삭제했습니다", "zht": "已移除 {0}",
+    "zhc": "已移除 {0}", "ru": "{0} удалено", "th": "ลบ {0} แล้ว", "pt": "{0} removido"
+  },
+  "Waypoint creation cancelled": {
+    "en": "Waypoint creation cancelled", "ja": "ウェイポイントの作成を中止しました", "fr": "Création du point de passage annulée", "it": "Creazione waypoint annullata",
+    "de": "Wegpunkt-Erstellung abgebrochen", "es": "Creación de punto de ruta cancelada", "ko": "웨이포인트 생성을 취소했습니다", "zht": "已取消建立路標",
+    "zhc": "已取消创建路标", "ru": "Создание точки отменено", "th": "ยกเลิกการสร้างจุดหมายแล้ว", "pt": "Criação de ponto de referência cancelada"
+  },
+  "Delete all {0} waypoints?": {
+    "en": "Delete all {0} waypoints?", "ja": "{0} 個のウェイポイントをすべて削除しますか？", "fr": "Supprimer les {0} points de passage ?", "it": "Eliminare tutti i {0} waypoint?",
+    "de": "Alle {0} Wegpunkte löschen?", "es": "¿Eliminar los {0} puntos de ruta?", "ko": "{0}개의 웨이포인트를 모두 삭제할까요?", "zht": "要刪除全部 {0} 個路標嗎？",
+    "zhc": "要删除全部 {0} 个路标吗？", "ru": "Удалить все точки ({0})?", "th": "ลบจุดหมายทั้งหมด {0} จุดหรือไม่?", "pt": "Excluir todos os {0} pontos de referência?"
+  },
+  "Cleared {0} waypoints": {
+    "en": "Cleared {0} waypoints", "ja": "{0} 個のウェイポイントを削除しました", "fr": "{0} points de passage supprimés", "it": "{0} waypoint eliminati",
+    "de": "{0} Wegpunkte gelöscht", "es": "{0} puntos de ruta eliminados", "ko": "웨이포인트 {0}개를 삭제했습니다", "zht": "已刪除 {0} 個路標",
+    "zhc": "已删除 {0} 个路标", "ru": "Удалено точек: {0}", "th": "ลบจุดหมาย {0} จุดแล้ว", "pt": "{0} pontos de referência excluídos"
+  },
+  "Path to {0}: {1}": {
+    "en": "Path to {0}: {1}", "ja": "{0} への経路: {1}", "fr": "Chemin vers {0} : {1}", "it": "Percorso per {0}: {1}",
+    "de": "Weg nach {0}: {1}", "es": "Ruta a {0}: {1}", "ko": "{0}까지의 경로: {1}", "zht": "前往 {0} 的路徑：{1}",
+    "zhc": "前往 {0} 的路径：{1}", "ru": "Путь к {0}: {1}", "th": "เส้นทางไป {0}: {1}", "pt": "Caminho para {0}: {1}"
+  },
+  "No path to {0}. {1}": {
+    "en": "No path to {0}. {1}", "ja": "{0} への経路がありません。{1}", "fr": "Aucun chemin vers {0}. {1}", "it": "Nessun percorso per {0}. {1}",
+    "de": "Kein Weg nach {0}. {1}", "es": "No hay ruta a {0}. {1}", "ko": "{0}까지의 경로가 없습니다. {1}", "zht": "沒有前往 {0} 的路徑。{1}",
+    "zhc": "没有前往 {0} 的路径。{1}", "ru": "Нет пути к {0}. {1}", "th": "ไม่มีเส้นทางไป {0} {1}", "pt": "Sem caminho para {0}. {1}"
+  },
+  "Original": {
+    "en": "Original", "ja": "オリジナル", "fr": "Original", "it": "Originale",
+    "de": "Original", "es": "Original", "ko": "오리지널", "zht": "原版",
+    "zhc": "原版", "ru": "Оригинал", "th": "ต้นฉบับ", "pt": "Original"
+  },
+  "Arrangement": {
+    "en": "Arrangement", "ja": "アレンジ", "fr": "Arrangement", "it": "Arrangiamento",
+    "de": "Arrangement", "es": "Arreglo", "ko": "어레인지", "zht": "改編版",
+    "zhc": "改编版", "ru": "Аранжировка", "th": "เวอร์ชันเรียบเรียง", "pt": "Arranjo"
+  },
+  "Play All On": {
+    "en": "Play All On", "ja": "全曲再生 オン", "fr": "Lecture continue activée", "it": "Riproduci tutto attivato",
+    "de": "Alle abspielen ein", "es": "Reproducir todo activado", "ko": "전체 재생 켜짐", "zht": "全部播放 開啟",
+    "zhc": "全部播放 开启", "ru": "Играть все вкл", "th": "เล่นทั้งหมด เปิด", "pt": "Reproduzir tudo ligado"
+  },
+  "Play All Off": {
+    "en": "Play All Off", "ja": "全曲再生 オフ", "fr": "Lecture continue désactivée", "it": "Riproduci tutto disattivato",
+    "de": "Alle abspielen aus", "es": "Reproducir todo desactivado", "ko": "전체 재생 꺼짐", "zht": "全部播放 關閉",
+    "zhc": "全部播放 关闭", "ru": "Играть все выкл", "th": "เล่นทั้งหมด ปิด", "pt": "Reproduzir tudo desligado"
+  },
+  "Dumped {0} entities for {1}": {
+    "en": "Dumped {0} entities for {1}", "ja": "{1} のエンティティを {0} 件出力しました", "fr": "{0} entités exportées pour {1}", "it": "{0} entità esportate per {1}",
+    "de": "{0} Entitäten für {1} exportiert", "es": "{0} entidades exportadas para {1}", "ko": "{1}의 엔티티 {0}개를 출력했습니다", "zht": "已匯出 {1} 的 {0} 個實體",
+    "zhc": "已导出 {1} 的 {0} 个实体", "ru": "Выгружено объектов для {1}: {0}", "th": "ส่งออก {0} วัตถุสำหรับ {1} แล้ว", "pt": "{0} entidades exportadas para {1}"
+  },
+  "{0} new entities for {1}": {
+    "en": "{0} new entities for {1}", "ja": "{1} の新規エンティティ {0} 件", "fr": "{0} nouvelles entités pour {1}", "it": "{0} nuove entità per {1}",
+    "de": "{0} neue Entitäten für {1}", "es": "{0} entidades nuevas para {1}", "ko": "{1}의 새 엔티티 {0}개", "zht": "{1} 的 {0} 個新實體",
+    "zhc": "{1} 的 {0} 个新实体", "ru": "Новых объектов для {1}: {0}", "th": "วัตถุใหม่ {0} รายการสำหรับ {1}", "pt": "{0} novas entidades para {1}"
+  },
+  "No new entities for {0}": {
+    "en": "No new entities for {0}", "ja": "{0} の新規エンティティはありません", "fr": "Aucune nouvelle entité pour {0}", "it": "Nessuna nuova entità per {0}",
+    "de": "Keine neuen Entitäten für {0}", "es": "No hay entidades nuevas para {0}", "ko": "{0}의 새 엔티티가 없습니다", "zht": "{0} 沒有新實體",
+    "zhc": "{0} 没有新实体", "ru": "Нет новых объектов для {0}", "th": "ไม่มีวัตถุใหม่สำหรับ {0}", "pt": "Nenhuma entidade nova para {0}"
+  },
+  "No Japanese entities found on {0}": {
+    "en": "No Japanese entities found on {0}", "ja": "{0} に日本語のエンティティは見つかりませんでした", "fr": "Aucune entité japonaise trouvée sur {0}", "it": "Nessuna entità giapponese trovata su {0}",
+    "de": "Keine japanischen Entitäten auf {0} gefunden", "es": "No se encontraron entidades japonesas en {0}", "ko": "{0}에서 일본어 엔티티를 찾지 못했습니다", "zht": "在 {0} 找不到日文實體",
+    "zhc": "在 {0} 找不到日文实体", "ru": "На {0} не найдено японских объектов", "th": "ไม่พบวัตถุภาษาญี่ปุ่นบน {0}", "pt": "Nenhuma entidade japonesa encontrada em {0}"
+  },
+  "{0} for party HP. {1} to cancel.": {
+    "en": "{0} for party HP. {1} to cancel.", "ja": "{0} でパーティHP。{1} でキャンセル。", "fr": "{0} pour les PV du groupe. {1} pour annuler.", "it": "{0} per gli HP del gruppo. {1} per annullare.",
+    "de": "{0} für Gruppen-HP. {1} zum Abbrechen.", "es": "{0} para HP del grupo. {1} para cancelar.", "ko": "{0}: 파티 HP. {1}: 취소.", "zht": "{0} 查看隊伍HP。{1} 取消。",
+    "zhc": "{0} 查看队伍HP。{1} 取消。", "ru": "{0} — HP отряда. {1} — отмена.", "th": "{0} ดู HP ของทีม {1} ยกเลิก", "pt": "{0} para HP do grupo. {1} para cancelar."
+  },
+  "{0} for Gil. {1} for location. Right stick to teleport. {2} to cancel.": {
+    "en": "{0} for Gil. {1} for location. Right stick to teleport. {2} to cancel.", "ja": "{0} でギル。{1} で現在地。右スティックでテレポート。{2} でキャンセル。", "fr": "{0} pour les gils. {1} pour la position. Stick droit pour se téléporter. {2} pour annuler.", "it": "{0} per i Gil. {1} per la posizione. Levetta destra per teletrasportarti. {2} per annullare.",
+    "de": "{0} für Gil. {1} für Position. Rechter Stick zum Teleportieren. {2} zum Abbrechen.", "es": "{0} para guiles. {1} para ubicación. Stick derecho para teletransportarte. {2} para cancelar.", "ko": "{0}: 길. {1}: 현재 위치. 오른쪽 스틱: 텔레포트. {2}: 취소.", "zht": "{0} 查看基爾。{1} 查看位置。右搖桿傳送。{2} 取消。",
+    "zhc": "{0} 查看基尔。{1} 查看位置。右摇杆传送。{2} 取消。", "ru": "{0} — гилы. {1} — местоположение. Правый стик — телепорт. {2} — отмена.", "th": "{0} ดูกิล {1} ดูตำแหน่ง สติ๊กขวาเพื่อวาร์ป {2} ยกเลิก", "pt": "{0} para gil. {1} para localização. Analógico direito para teleportar. {2} para cancelar."
+  },
+  "D-pad or Left Stick Up, Down to navigate. Left, Right to adjust values. {0} to toggle. {1} or {2} to close.": {
+    "en": "D-pad or Left Stick Up, Down to navigate. Left, Right to adjust values. {0} to toggle. {1} or {2} to close.", "ja": "十字キーまたは左スティックの上下で移動。左右で値を調整。{0} で切り替え。{1} または {2} で閉じる。", "fr": "Croix directionnelle ou stick gauche haut/bas pour naviguer. Gauche/droite pour ajuster les valeurs. {0} pour activer. {1} ou {2} pour fermer.", "it": "Croce direzionale o levetta sinistra su/giù per navigare. Sinistra/destra per regolare i valori. {0} per attivare. {1} o {2} per chiudere.",
+    "de": "Steuerkreuz oder linker Stick hoch/runter zum Navigieren. Links/rechts zum Anpassen. {0} zum Umschalten. {1} oder {2} zum Schließen.", "es": "Cruceta o stick izquierdo arriba/abajo para navegar. Izquierda/derecha para ajustar valores. {0} para alternar. {1} o {2} para cerrar.", "ko": "십자키 또는 왼쪽 스틱 위아래로 이동. 좌우로 값 조정. {0}: 전환. {1} 또는 {2}: 닫기.", "zht": "方向鍵或左搖桿上下移動。左右調整數值。{0} 切換。{1} 或 {2} 關閉。",
+    "zhc": "方向键或左摇杆上下移动。左右调整数值。{0} 切换。{1} 或 {2} 关闭。", "ru": "Крестовина или левый стик вверх/вниз — навигация. Влево/вправо — изменение значений. {0} — переключить. {1} или {2} — закрыть.", "th": "ปุ่มทิศทางหรือสติ๊กซ้าย ขึ้น-ลง เพื่อเลื่อน ซ้าย-ขวา เพื่อปรับค่า {0} เพื่อสลับ {1} หรือ {2} เพื่อปิด", "pt": "Direcional ou analógico esquerdo para cima/baixo para navegar. Esquerda/direita para ajustar valores. {0} para alternar. {1} ou {2} para fechar."
   }
 }

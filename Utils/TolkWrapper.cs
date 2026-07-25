@@ -46,8 +46,13 @@ namespace FFV_ScreenReader.Utils
             {
                 if (tolk.IsLoaded() && !string.IsNullOrEmpty(text))
                 {
+                    // An Environment.StackTrace dump used to sit here. It was useful for finding
+                    // which reader produced an announcement, but it ran synchronously before
+                    // tolk.Output — capturing a managed stack through the IL2CPP trampolines and
+                    // writing ~10 console lines per utterance. Measured testing showed it was NOT
+                    // the source of the field-menu lag, so this is a cost cleanup, not a fix.
+                    // Restore the line temporarily if you need to identify a speech's caller.
                     MelonLogger.Msg($"[Speech] \"{text}\" (interrupt={interrupt})");
-                    MelonLogger.Msg($"[Speech] Stack: {Environment.StackTrace}");
                     // Thread-safe: ensure only one Tolk call at a time to prevent native crashes
                     lock (tolkLock)
                     {

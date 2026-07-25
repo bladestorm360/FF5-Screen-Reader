@@ -24,6 +24,10 @@ namespace FFV_ScreenReader.Patches
         public static ShopInfoController ActiveInfoController { get; set; }
         public static string LastItemDescription { get; set; }
         public static string LastItemMpCost { get; set; }
+
+        /// <summary>Focused row's display name + content id, for the U key's equip lookup.</summary>
+        public static string LastItemName { get; set; }
+        public static int LastContentId { get; set; }
         public static bool EnteredEquipmentFromShop { get; set; }
         public static bool IsInShopSession { get; set; }
 
@@ -39,6 +43,8 @@ namespace FFV_ScreenReader.Patches
                 ActiveInfoController = null;
                 LastItemDescription = null;
                 LastItemMpCost = null;
+                LastItemName = null;
+                LastContentId = 0;
                 EnteredEquipmentFromShop = false;
                 return false;
             }
@@ -166,6 +172,10 @@ namespace FFV_ScreenReader.Patches
                 string itemName = __instance.iconTextView?.nameText?.text;
                 if (string.IsNullOrEmpty(itemName))
                     return;
+
+                // Retained for the U key / right stick left equip lookup (UsableByAnnouncer).
+                ShopMenuTracker.LastItemName = TextUtils.StripIconMarkup(itemName);
+                ShopMenuTracker.LastContentId = __instance.ContentId;
 
                 // Get price from shopListItemContentView
                 string price = __instance.shopListItemContentView?.priceText?.text;

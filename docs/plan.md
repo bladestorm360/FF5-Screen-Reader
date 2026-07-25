@@ -61,8 +61,13 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Event loop freeze fix (Pyramid 5F) | Done (diagnostic code + grace period removed; fix lives in TimerPatches dynamic patch) |
 | Global accessibility toggle (Ctrl+F8) | Done (complete kill switch: coroutine cleanup, full state reset, reinit on re-enable) |
 | Battle text dual-wield suppression | Done (ally same-name + direct attack = skip second swing) |
-| SDL3 input/audio migration | Reverted (caused dialogue/battle interference; restored WaveOut + Unity Input) |
-| Controller/gamepad support | Reverted (incomplete, dependent on SDL3) |
+| SDL3 input/audio migration | Done (SDL3.cs + AudioEngine + GamepadManager; the earlier revert was superseded) |
+| Controller/gamepad support | Done (ControllerRouter state machine; right stick up/down/left mirror I / Shift+I / U in menus, entity scanner on field) |
+| Auto Detail (F7) | Done (F7 toggle + spoken confirmation; defaults on) |
+| Details key parity with FF1/FF4 | Done (I reads descriptions everywhere; equip-job list moved to the new U key) |
+| Shop equip compatibility (U) | Done (master-data lookup, so it works on unowned shop goods) |
+| F5 / F8 gating | Done (field + field menus; blocked in battle and on title screen. F1/F3 left alone — they are game keys the mod only narrates) |
+| Mod string localization | Done (250 keys x 12 languages; audit reports 0 missing `T()` keys) |
 | Job menu UI-based level/ABP/mastered reading | Done (replaces data-based OwnedJob.Level which returned wrong values) |
 | Status screen UI-based job level reading | Done (same level 0 fix) |
 

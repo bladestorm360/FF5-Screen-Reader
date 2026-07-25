@@ -66,6 +66,7 @@ namespace FFV_ScreenReader.Patches
         // (interrupt:false) description would otherwise play twice back to back.
         private static string _lastItemAnnouncement;
         private static string _lastTargetAnnouncement;
+        private static string _lastCommandAnnouncement;
 
         /// <summary>
         /// Clears the guards so a menu (re)entry always announces, even when the focused row is
@@ -75,6 +76,32 @@ namespace FFV_ScreenReader.Patches
         {
             _lastItemAnnouncement = null;
             _lastTargetAnnouncement = null;
+            _lastCommandAnnouncement = null;
+        }
+
+        /// <summary>
+        /// Announces one item command-bar entry (Use / Key Items / Sort / ...).
+        /// Mirrors EquipMenuState.AnnounceEquipCommand. Returns true when it spoke.
+        /// </summary>
+        public static bool AnnounceItemCommand(ItemCommandController controller, int index)
+        {
+            if (controller == null) return false;
+
+            var contentList = controller.contentList;           // List<ItemCommandContentView> @ 0x40
+            if (contentList == null || contentList.Count == 0) return false;
+            if (index < 0 || index >= contentList.Count) return false;
+
+            var view = contentList[index];
+            if (view == null || view.Data == null) return false;
+
+            string commandName = view.Data.Name;
+            if (string.IsNullOrEmpty(commandName)) return false;
+
+            if (commandName == _lastCommandAnnouncement) return false;
+            _lastCommandAnnouncement = commandName;
+
+            FFV_ScreenReaderMod.SpeakText(commandName);
+            return true;
         }
 
         /// <summary>Announces one item list row. Returns true when it spoke.</summary>
@@ -100,11 +127,16 @@ namespace FFV_ScreenReader.Patches
                 announcement += $", {quantity}";
             }
 
-            // Add description if available
-            string description = StripIconMarkup(itemData.Description);
-            if (!string.IsNullOrEmpty(description))
+            // Auto Detail: append the same description the I key reads on demand.
+            // Equip requirements are no longer queued here — they moved to the U key /
+            // right stick left, so this line stays short enough to skim while scrolling.
+            if (PreferencesManager.AutoDetailEnabled)
             {
-                announcement += $", {description}";
+                string description = StripIconMarkup(itemData.Description);
+                if (!string.IsNullOrEmpty(description))
+                {
+                    announcement += $", {description}";
+                }
             }
 
             // Append list position last (after quantity/description).
@@ -114,12 +146,6 @@ namespace FFV_ScreenReader.Patches
             _lastItemAnnouncement = announcement;
 
             FFV_ScreenReaderMod.SpeakText(announcement);
-
-            // Auto Detail: queue equip-requirements after the name (same reader as the details key).
-            // Reached only when the name actually announced (guard above), giving a same-row debounce.
-            if (PreferencesManager.AutoDetailEnabled)
-                ItemDetailsAnnouncer.AnnounceEquipRequirements(interrupt: false);
-
             return true;
         }
 
@@ -255,14 +281,22 @@ namespace FFV_ScreenReader.Patches
 
         public static void ApplyPatches(HarmonyLib.Harmony harmony)
         {
-            // CommandSelectInit is the Use / Key Items / Sort row — the FIRST thing focused when
-            // Items opens. The others are the list states reached from it.
-            foreach (var method in new[] { "CommandSelectInit", "UseSelectInit", "ImportantSelectInit",
+            // The list states. CommandSelectInit is deliberately NOT here: it is the command bar
+            // (Use / Key Items / Sort), not a list, so routing it to the list reader made entering
+            // Items announce the first inventory row instead of the focused command. It is hooked
+            // on ItemWindowController below, which is the controller that owns commandController.
+            foreach (var method in new[] { "UseSelectInit", "ImportantSelectInit",
                                            "OrganizeSelectInit", "SortSelectInit" })
             {
                 Patch(harmony, typeof(Il2CppLast.UI.KeyInput.ItemListController), method,
                       nameof(ItemList_Init_Postfix));
             }
+
+            // Command bar entry — the FIRST thing focused when Items opens. Mirrors the equip
+            // menu, where EquipmentWindowController.CommandInit reaches through to its own
+            // commandController rather than reusing a list reader.
+            Patch(harmony, typeof(Il2CppLast.UI.KeyInput.ItemWindowController), "CommandSelectInit",
+                  nameof(ItemCommand_Init_Postfix));
 
             foreach (var method in new[] { "SingleInit", "AllInit" })
             {
@@ -291,6 +325,15 @@ namespace FFV_ScreenReader.Patches
             MenuFocusAnnouncer.Request("ItemTarget", () => TryAnnounceItemTargetInitial(controller));
         }
 
+        public static void ItemCommand_Init_Postfix(object __instance)
+        {
+            var window = __instance as Il2CppLast.UI.KeyInput.ItemWindowController;
+            if (window == null) return;
+
+            ItemMenuState.ClearLastAnnouncements();
+            MenuFocusAnnouncer.Request("ItemCommand", () => TryAnnounceItemCommandInitial(window));
+        }
+
         private static bool TryAnnounceItemListInitial(Il2CppLast.UI.KeyInput.ItemListController controller)
         {
             if (!MenuFocusAnnouncer.IsAlive(controller)) return false;
@@ -309,6 +352,20 @@ namespace FFV_ScreenReader.Patches
             if (index < 0 || index >= list.Count) return false;
 
             return ItemMenuState.AnnounceItemListData(list[index], index, list.Count);
+        }
+
+        private static bool TryAnnounceItemCommandInitial(Il2CppLast.UI.KeyInput.ItemWindowController window)
+        {
+            if (!MenuFocusAnnouncer.IsAlive(window)) return false;
+            if (!MenuFocusAnnouncer.IsMenuOpen()) return false; // false during a map/asset load
+
+            var commandController = window.commandController;   // ItemCommandController @ 0x38
+            if (commandController == null) return false;
+
+            var cursor = commandController.selectCursor;        // Cursor @ 0x50
+            if (cursor == null) return false;
+
+            return ItemMenuState.AnnounceItemCommand(commandController, cursor.Index);
         }
 
         private static bool TryAnnounceItemTargetInitial(Il2CppLast.UI.KeyInput.ItemUseController controller)

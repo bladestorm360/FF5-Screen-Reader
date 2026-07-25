@@ -77,9 +77,17 @@ M: Announce current map.
 
 H: In battle, announce character hp, mp, status effects.
 
-I: In configuration  menu accessible from tab menu, read description of highlighted setting.  In jobs menu, read description of highlighted  job. In spell or ability menus, read description of highlighted spell or ability. In shop menus, reads description of highlighted item. In item menu when a piece of equipment is highlighted, announces which jobs can equip the item.
+I: Read the description of whatever is highlighted. In configuration menu accessible from tab menu, read description of highlighted setting. In jobs menu, read description of highlighted job. In spell or ability menus, read description of highlighted spell or ability. In shop menus, reads description of highlighted item. In item menu, reads the description of the highlighted item.
+
+U: Announce which unlocked jobs can equip the highlighted item. Works in the item menu and in shops. Silent for consumables and key items.
 
 Shift+i: Read controls tool-tips on screens that have them.
+
+F5: Cycle enemy HP display between numbers, percentage and hidden. Available on the field and in field menus — set it before combat; it is not available during battle or on the title screen.
+
+F7: Toggle Auto Detail. When on, descriptions announce automatically as you move through items, magic, equipment and shops. When off, use I to read them on demand. Works anywhere, including battle.
+
+F8: Open the mod menu. Available on the field and in field menus; not available during battle or on the title screen.
 
 Battle Results Screen:
 
@@ -106,5 +114,19 @@ shift + /: add waypoint at player position
 Control+.: Rename current waypoint
 
 control plus /: delete waypoint
+
+Controller:
+
+In menus, shops and battle, the right stick mirrors the keyboard detail keys:
+
+right stick up: same as I — read the description of what is highlighted
+
+right stick down: same as Shift+I — read control tool-tips
+
+right stick left: same as U — announce which jobs can equip the highlighted item
+
+On the field the right stick drives the entity scanner instead (up/down cycle entities, left/right cycle categories).
+
+Start: open the mod menu, with the same availability as F8.
 
 control plus shift plus /: clear all waypoints, requires pressing twice in rapid succession.

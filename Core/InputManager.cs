@@ -100,6 +100,7 @@ namespace FFV_ScreenReader.Core
             registry.Register(KeyCode.V, KeyContext.Global, HandleMovementStateKey, "Announce vehicle state");
             registry.Register(KeyCode.I, KeyModifier.Shift, KeyContext.Global, KeyHelpReader.AnnounceKeyHelp, "Read control tooltips");
             registry.Register(KeyCode.I, KeyContext.Global, HandleItemInfoKey, "Item details");
+            registry.Register(KeyCode.U, KeyContext.Global, Menus.UsableByAnnouncer.AnnounceForCurrentContext, "Usable by jobs");
 
             // --- Field-only toggles (blocked in battle with feedback) ---
             RegisterFieldWithBattleFeedback(KeyCode.Quote, KeyModifier.None, mod.ToggleFootsteps, "Toggle footsteps");
@@ -166,12 +167,13 @@ namespace FFV_ScreenReader.Core
             // reader. Explicit Shift/Ctrl bindings still match via GetCurrentModifiers.
             bool anyModifierHeld = IsAnyModifierHeld();
 
-            // F8 to open mod menu — gated to field-only via ControllerRouter.IsFieldActive
-            // (blocks battle, in-game menus, title screen). Rejection wording lives in
-            // ControllerRouter.SpeakModMenuUnavailable so Start-button and F8 stay in sync.
+            // F8 to open mod menu — allowed on the field AND in field menus, blocked in battle
+            // and on the title screen. Rejection wording lives in
+            // ControllerRouter.SpeakModMenuUnavailable so Start-button and F8 stay in sync;
+            // the Start-button gate in ControllerRouter.HandleStateTransitions must match this.
             if (!anyModifierHeld && GamepadManager.IsKeyCodePressed(KeyCode.F8))
             {
-                if (ControllerRouter.IsFieldActive)
+                if (IsFieldOrFieldMenuActive())
                     ModMenu.Open();
                 else
                     ControllerRouter.SpeakModMenuUnavailable();
@@ -294,7 +296,11 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        private void HandleItemInfoKey()
+        /// <summary>
+        /// Context cascade for the on-demand details key. Bound to the I key and to right
+        /// stick up (ControllerRouter.HandleNormalNonField), so both stay in sync.
+        /// </summary>
+        internal static void HandleItemInfoKey()
         {
             if (Patches.ShopMenuTracker.ValidateState())
             {
@@ -302,7 +308,7 @@ namespace FFV_ScreenReader.Core
             }
             else if (Patches.ItemMenuTracker.ValidateState())
             {
-                Patches.ItemDetailsAnnouncer.AnnounceEquipRequirements();
+                Patches.ItemDetailsAnnouncer.AnnounceItemDescription();
             }
             else if (Patches.JobMenuTracker.ValidateState())
             {
@@ -355,11 +361,20 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
+            // Auto Detail is context-free (field, menus, battle) — unlike F5, which is
+            // restricted to where mod configuration applies.
+            if (GamepadManager.IsKeyCodePressed(KeyCode.F7))
+            {
+                FFV_ScreenReaderMod.ToggleAutoDetail();
+                return;
+            }
+
             if (GamepadManager.IsKeyCodePressed(KeyCode.F5))
             {
-                // Enemy HP Display is a battle feature, so gate on in-battle (not IsFieldActive,
-                // which is false during battle). Restores the pre-refactor behavior.
-                if (IsInBattle() || Patches.BattleState.IsInBattle)
+                // Set the enemy-HP display mode before combat, not during it — same gate as F8,
+                // so mod configuration is reachable from the field and field menus but never
+                // from battle or the title screen.
+                if (IsFieldOrFieldMenuActive())
                 {
                     int current = PreferencesManager.EnemyHPDisplay;
                     int next = (current + 1) % 3;
@@ -395,11 +410,28 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        private bool IsOnValidMap()
+        internal static bool IsOnValidMap()
         {
             if (Patches.GameStatePatches.IsScreenFading) return false;
             var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
             return playerController?.fieldPlayer != null;
+        }
+
+        /// <summary>
+        /// Where mod-owned config hotkeys (F5, F8) apply: a live field map, including field
+        /// menus — but never battle or the title screen.
+        ///
+        /// Deliberately NOT ControllerRouter.IsFieldActive, which additionally excludes menus
+        /// because it also drives audio suppression, the entity scanner, and mod-mode teleport.
+        ///
+        /// Does not apply to F1/F3: those are the game's own hotkeys that the mod polls without
+        /// consuming and merely narrates, so their gate must mirror the game's own availability
+        /// (IsOnValidMap alone) and must never be tightened, or the mod goes silent while the
+        /// game still acts.
+        /// </summary>
+        internal static bool IsFieldOrFieldMenuActive()
+        {
+            return IsOnValidMap() && !ControllerRouter.IsInBattle;
         }
 
         private bool IsStatusScreenActive()
@@ -425,7 +457,7 @@ namespace FFV_ScreenReader.Core
                    cachedBestiaryInfoController.gameObject.activeInHierarchy;
         }
 
-        private void AnnounceConfigTooltip()
+        private static void AnnounceConfigTooltip()
         {
             try
             {
@@ -463,7 +495,7 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        private string TryReadDescriptionText(System.Func<UnityEngine.UI.Text> getTextField)
+        private static string TryReadDescriptionText(System.Func<UnityEngine.UI.Text> getTextField)
         {
             try
             {

@@ -57,7 +57,7 @@ namespace FFV_ScreenReader.Core
             prefStickClickNormalization = prefsCategory.CreateEntry<bool>("StickClickNormalization", false, "Stick Click Normalization", "When on, R3/L3 pass through to the game (encounter toggle / dash); mod functions move to Mod Mode (Back/Select + R3/L3).");
             prefAnnounceOnBeaconRestart = prefsCategory.CreateEntry<bool>("AnnounceOnBeaconRestart", false, "Beacon Destination Announcement", "Re-speak the current destination when the beacon is restarted");
             prefMenuPositionAnnouncements = prefsCategory.CreateEntry<bool>("MenuPositionAnnouncements", true, "Menu Position Announcements", "Append the cursor's position in a list when navigating menus, e.g. (3 of 12)");
-            prefAutoDetail = prefsCategory.CreateEntry<bool>("AutoDetail", false, "Auto Detail", "Automatically announce descriptions/stats on focus for items, magic, equipment, and shops (same as the on-demand details key)");
+            prefAutoDetail = prefsCategory.CreateEntry<bool>("AutoDetail", true, "Auto Detail", "Automatically announce descriptions/stats on focus for items, magic, equipment, and shops (same as the on-demand details key)");
 
             prefWallBumpVolume = prefsCategory.CreateEntry<int>("WallBumpVolume", 50, "Wall Bump Volume", "Volume for wall bump sounds (0-100)");
             prefFootstepVolume = prefsCategory.CreateEntry<int>("FootstepVolume", 50, "Footstep Volume", "Volume for footstep sounds (0-100)");
@@ -83,7 +83,7 @@ namespace FFV_ScreenReader.Core
         public static bool StickClickNormalizationEnabled => prefStickClickNormalization?.Value ?? false;
         public static bool AnnounceOnBeaconRestartEnabled => prefAnnounceOnBeaconRestart?.Value ?? false;
         public static bool MenuPositionAnnouncementsEnabled => prefMenuPositionAnnouncements?.Value ?? true;
-        public static bool AutoDetailEnabled => prefAutoDetail?.Value ?? false;
+        public static bool AutoDetailEnabled => prefAutoDetail?.Value ?? true;
 
         #endregion
 

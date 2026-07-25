@@ -590,3 +590,54 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 - `JumpToNextGroup()` and `JumpToPreviousGroup()` — changed from `ReadCurrentStat()` to `ReadCurrentStatWithGroup()`
 
 **Pattern**: Ported from `BestiaryNavigationReader` which already prepends group names on Shift+arrow jumps.
+
+### Auto Detail F7, Right Stick Up/Left, and I/U Restructure (2026-07-25)
+
+**Feature**: F7 toggles Auto Detail with a spoken confirmation (default flipped to on). Right stick up mirrors the `I` key, right stick left mirrors a new `U` key. `I` now reads *descriptions* in every menu (matching FF1/FF4), and the "which jobs can equip this" readout moved to `U` — which also works in shops for the first time.
+
+**Equip lookup must use master data, not OwnedItemData.** The old `ItemDetailsAnnouncer` resolved jobs via `UserDataManager.SearchOwnedItem(contentId)` → `EquipUtility.CanEquipped(ownedItemData, jobId)`. `SearchOwnedItem` returns **null for items the player does not own**, so that path can never work in a shop. The rewrite goes through master data instead:
+
+`Content.TypeId` (2=weapon, 3=armor) + `Content.TypeValue` → `Weapon`/`Armor.EquipJobGroupId` → `MasterManager.GetData<JobGroup>(id)` → for each `UserDataManager.ReleasedJobs` entry, `EquipUtility.CanEquipped(jobGroup, job.Id)`.
+
+**Use `EquipUtility.CanEquipped(JobGroup, int)`** (dump.cs:394447). FF1 hand-rolls the `JobGroup.Job1Accept…Job22Accept` columns and assumes `jobId == arrayIndex + 1`; FF5 exposes the game's own predicate, which removes both the column scan and that assumption. Do not port FF1's version here.
+
+**IL2CPP dictionary iteration is fine.** `foreach (var kvp in dict)` over an `Il2CppSystem.Collections.Generic.Dictionary` works (see `FieldNavigationHelper.cs:149`). The pointer-offset technique documented elsewhere is for *reaching* a dictionary stored in a private field at a known offset — not for iterating one you already hold. `MasterManager.GetList<Content>()` returns the dictionary directly, so it can be iterated normally.
+
+**Shop item resolution** (`Menus/UsableByAnnouncer.cs`): shops give a display name and a `ShopListItemContentController.ContentId`, but whether that id is a `Content` primary key or a type-local id is unverified. The resolver tries the keyed lookup first and **validates the resolved name against the displayed name**; on mismatch it falls back to a linear scan of the `Content` table by localized name. Wrong data is never announced — worst case it stays silent. The scan only runs on an explicit key press.
+
+**F-key gating rule** — this is the distinction that governs which predicate to use:
+- `F1` (walk/run) and `F3` (encounters) are *the game's own* hotkeys. The mod polls them without consuming and merely narrates the resulting state. Their gate must **mirror the game's** availability (`IsOnValidMap()` alone) and must never be tightened, or the mod goes silent while the game still acts.
+- `F5`, `F7`, `F8` are **mod-owned**, so the mod picks the gate. `F5`/`F8` use `InputManager.IsFieldOrFieldMenuActive()` (live map, including field menus; never battle or title screen). `F7` is deliberately context-free.
+
+`IsFieldOrFieldMenuActive()` is deliberately **not** `ControllerRouter.IsFieldActive` — the latter additionally excludes menus because it also drives audio suppression, the entity scanner, and mod-mode teleport. Changing `IsFieldActive` to widen F8 would have broken field navigation. The F8 gate and the Start-button gate (`ControllerRouter.HandleStateTransitions`) must always be changed together.
+
+**Right stick needs no `ConsumeButton()`.** The right-stick *axes* have no `InputActionType` mapping in `InputPassthroughPatches` (only buttons, d-pad, left stick and triggers do), so the game can never see them.
+
+### Items Menu Announced First Inventory Row Instead of Command Bar (2026-07-25)
+
+**Symptom**: Entering the Items menu spoke the first inventory item rather than the focused command-bar option (Use / Key Items / Sort). The equip menu was correct.
+
+**Cause**: `FieldItemReannouncePatches.ApplyPatches` hooked `ItemListController.CommandSelectInit` alongside the four list states (`UseSelectInit`, `ImportantSelectInit`, `OrganizeSelectInit`, `SortSelectInit`) and routed all five to the same `ItemList_Init_Postfix` → `TryAnnounceItemListInitial`, which reads `controller.dataList` + `selectCursor` — the **inventory list**. `CommandSelectInit` is the command bar, not a list, so entry announced the wrong thing. The in-code comment even identified it as the command bar; the handler just didn't distinguish it.
+
+**Fix**: removed `CommandSelectInit` from the `ItemListController` loop and hooked `ItemWindowController.CommandSelectInit` instead — that is the controller owning `commandController`. New `ItemMenuState.AnnounceItemCommand` reads `ItemCommandController.contentList[index].Data.Name`, mirroring `EquipMenuState.AnnounceEquipCommand`.
+
+**Structure** (all `Last.UI.KeyInput`):
+- `ItemWindowController.commandController` → `ItemCommandController` @ 0x38
+- `ItemCommandController.contentList` (`List<ItemCommandContentView>`) @ 0x40, `selectCursor` @ 0x50
+- `ItemCommandContentView.Data` → `ItemCommadContentData.Name` (note the game's typo: *ItemCommad*)
+
+**Why the window controller, not the list controller**: this matches the equip menu, where `EquipmentWindowController.CommandInit` reaches through to its own `commandController`. Both `ItemWindowController` and `ItemListController` have the same `*SelectInit` state names — the window's state machine drives the list's — so hooking the same state on both would double-fire. The four list states stay on `ItemListController`; only the command state moved.
+
+**Command-bar navigation was never broken**: the generic cursor announcer (`CursorNavigationPatches`) already reads it, since `list_window` is in the exclusion list but the item command bar is not. Only the initial-focus path needed fixing.
+
+**Folded-stub check performed** (per the `EquipMenuPatches` NoneInit warning): `ItemWindowController.CommandSelectInit` is RVA `0xA235E0`, unique across the whole dump — a real body, safe to patch. This build's folded empty-method addresses are `0x1D80` (21302 methods), `0x2715A0` (2671), `0x29DB30` (2597); hooking any of those detours thousands of methods and hard-crashes on launch. **Always grep `RVA: 0x… ` and confirm a count of 1 before patching any `*Init`.**
+
+### Mod String Localization Audit (2026-07-25)
+
+**Problem**: `ModTextTranslator.T()` falls back key → `en` → **the key itself**. A `T()` call with no `mod_text.json` entry therefore speaks raw English in all 11 non-English languages, silently — no warning, no log line. 54 such keys had accumulated, including high-traffic ones (`{0}: {1} damage`, `Walk`, `Run`, `Encounters on/off`, every waypoint message, `Stick Click Normalization on/off`).
+
+**Fix**: all 54 authored plus 4 new → `mod_text.json` now holds 250 keys × 12 languages, 0 incomplete.
+
+**Repeatable audit** — nothing else surfaces this class of bug, so re-run it whenever `T()` keys are added: parse `mod_text.json`, regex every `T("literal")` call site across `*.cs`, and diff the two sets. Also assert every entry has all 12 language codes. Caveat: only catches string literals — `T(variable)` call sites can't be checked statically.
+
+**Editing constraint**: `mod_text.json` is dense with non-ASCII. Per Rule 5, never touch it with PowerShell or a whole-file `Write` — use the `Edit` tool. Keys containing `{0}` are safe: `ParseNestedJson` locates the key between quotes *before* scanning for `{`.

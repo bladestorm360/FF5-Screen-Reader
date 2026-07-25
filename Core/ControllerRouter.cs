@@ -65,7 +65,7 @@ namespace FFV_ScreenReader.Core
         /// <summary>
         /// FF5-specific battle check. Mirrors the per-game battle helper from FF1's router.
         /// </summary>
-        private static bool IsInBattle =>
+        internal static bool IsInBattle =>
             FFV_ScreenReader.Patches.ActiveBattleCharacterTracker.CurrentActiveCharacter != null
             || FFV_ScreenReader.Patches.BattleState.IsInBattle;
 
@@ -205,7 +205,7 @@ namespace FFV_ScreenReader.Core
 
                 if (State == ControllerState.ModMenu)
                     CloseModMenu();
-                else if (IsFieldActive)
+                else if (InputManager.IsFieldOrFieldMenuActive())
                     OpenModMenu();
                 else
                     SpeakModMenuUnavailable();
@@ -351,9 +351,19 @@ namespace FFV_ScreenReader.Core
 
         private static void HandleNormalNonField(KeyContext context)
         {
+            // Right stick up → item/details cascade (I key equivalent).
+            // No ConsumeButton here or below: the right-stick AXES have no InputActionType
+            // mapping in InputPassthroughPatches, so the game can never see them.
+            if (GamepadManager.RStickUpPressed)
+                InputManager.HandleItemInfoKey();
+
             // Right stick down → read controls (Shift+I equivalent)
             if (GamepadManager.RStickDownPressed)
                 KeyHelpReader.AnnounceKeyHelp();
+
+            // Right stick left → which jobs can equip this (U key equivalent)
+            if (GamepadManager.RStickLeftPressed)
+                UsableByAnnouncer.AnnounceForCurrentContext();
 
             // D-pad and left stick → virtual buffer navigation in Status/Bestiary
             if (context == KeyContext.Status)

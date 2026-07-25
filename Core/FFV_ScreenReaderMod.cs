@@ -720,6 +720,7 @@ namespace FFV_ScreenReader.Core
         {
             bool newValue = !PreferencesManager.AutoDetailEnabled;
             PreferencesManager.SaveAutoDetail(newValue);
+            SpeakText(newValue ? T("Auto Detail on") : T("Auto Detail off"));
         }
 
         public static void ToggleStickClickNormalization()
