@@ -52,8 +52,8 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
 | Entity labels translated into all 12 languages + promoted to embedded translation.json | Done |
 | Battle targeting status effects (Poison, Blind, etc.) | Done |
-| Initial-focus announcements (all menus, MenuFocusAnnouncer) | Done (pending in-game verification) |
-| AnnouncementDeduplicator removal (105 sites → ~20 local guards) | Done (pending in-game verification) |
+| Initial-focus announcements (all menus, MenuFocusAnnouncer) | Verified (further testing in progress) |
+| AnnouncementDeduplicator removal (105 sites → ~20 local guards) | Verified (further testing in progress) |
 | Job stat bonuses (Strength/Vitality/Agility/Magic) | Missing |
 | Bestiary (Picture Book) accessibility | Done (extras + config menu) |
 | Music Player (Extra Sound) accessibility | Done (duration fix applied) |
