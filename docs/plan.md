@@ -45,8 +45,13 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Performance optimization (GameObjectCache, state flags, GameConstants) | Done |
 | LocalizationHelper (12-language mod string dictionary) | Done |
 | Battle results navigator (L key, navigable grid with EXP/Next/ABP) | Done (ABP fix applied) |
-| Battle results stat gains (HP/MP +N format from data) | Done |
-| Battle results EXP totals-only speech format | Done |
+| Battle results navigator multi-page (PageUp/PageDown or L1/R1, one page per result phase + one per levelling character) | Done — needs in-game verification |
+| Battle results level-up page announcement (Lv./HP/MP/job, before → after) | Done |
+| Battle results compact row format ("HP: 44 > 53 (9)" instead of before/after/change labels) | Done — needs in-game verification |
+| Quick Save completion popup announcement (orphaned postfix registered on InitComplite) | Done — needs in-game verification |
+| Quick Save SaveLoadMenuState.IsActive leak (silenced main-menu cursor until menu reopened) | Done — needs in-game verification |
+| Battle results EXP totals-only speech format (level-ups moved off page 1) | Done |
+| Battle results job level up: typed hook on SetJobProficiencyData | Deferred — diagnostic logging in place; needs a battle with jobs unlocked to confirm page content |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
 | Entity name translator (JSON-based, EntityDump key 0) | Done |
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |

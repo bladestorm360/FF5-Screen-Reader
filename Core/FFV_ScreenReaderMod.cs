@@ -140,7 +140,6 @@ namespace FFV_ScreenReader.Core
             SaveLoadPatches.ApplyPatches(harmony);
 
             BattleCommandMessagePatches.ApplyPatches(harmony);
-            BattleResultManualPatches.ApplyPatches(harmony);
             NamingPatches.ApplyPatches(harmony);
 
             // Config menu: title-screen Language dropdown focus + keyboard/gamepad remap assign-flow.

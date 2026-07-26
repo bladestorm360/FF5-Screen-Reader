@@ -1064,6 +1064,16 @@
     "de": "{0}: Job-Level-Aufstieg!", "es": "{0}: ¡Subida de nivel de trabajo!", "ko": "{0}: 잡 레벨 업!", "zht": "{0}：職業等級提升！",
     "zhc": "{0}：职业等级提升！", "ru": "{0}: Уровень профессии повышен!", "th": "{0}: เลเวลอาชีพเพิ่มขึ้น!", "pt": "{0}: Nível de trabalho aumentou!"
   },
+  "{0}: Level up!": {
+    "en": "{0}: Level up!", "ja": "{0}: レベルアップ！", "fr": "{0} : Niveau supérieur !", "it": "{0}: Livello aumentato!",
+    "de": "{0}: Level-Aufstieg!", "es": "{0}: ¡Subida de nivel!", "ko": "{0}: 레벨 업!", "zht": "{0}：等級提升！",
+    "zhc": "{0}：等级提升！", "ru": "{0}: Уровень повышен!", "th": "{0}: เลเวลเพิ่มขึ้น!", "pt": "{0}: Subiu de nível!"
+  },
+  "Page {0} of {1}": {
+    "en": "Page {0} of {1}", "ja": "{1}ページ中{0}ページ目", "fr": "Page {0} sur {1}", "it": "Pagina {0} di {1}",
+    "de": "Seite {0} von {1}", "es": "Página {0} de {1}", "ko": "{1}페이지 중 {0}페이지", "zht": "第 {0} 頁，共 {1} 頁",
+    "zhc": "第 {0} 页，共 {1} 页", "ru": "Страница {0} из {1}", "th": "หน้า {0} จาก {1}", "pt": "Página {0} de {1}"
+  },
   "All allies": {
     "en": "All allies", "ja": "味方全体", "fr": "Tous les alliés", "it": "Tutti gli alleati",
     "de": "Alle Verbündeten", "es": "Todos los aliados", "ko": "아군 전체", "zht": "我方全體",

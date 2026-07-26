@@ -1,9 +1,8 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using MelonLoader;
 using UnityEngine;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -12,24 +11,33 @@ namespace FFV_ScreenReader.Core
     /// Game input is suppressed via ControllerRouter.SuppressGameInput + InputPassthroughPatches
     /// while IsOpen. Keys are read through GamepadManager (SDL3 + GetAsyncKeyState), alongside
     /// direct SDL controller button/stick reads.
+    ///
+    /// The victory screen is a sequence of pages, and so is this navigator: PageUp/PageDown
+    /// (or L1/R1) moves between the pages BattleResultDataStore collected, so each character's
+    /// level-up page can be read on its own rather than merged with the others.
     /// </summary>
     public static class BattleResultNavigator
     {
         public static bool IsOpen { get; private set; }
 
-        // Grid data
-        private static string[] rowHeaders;
-        private static string[] colHeaders;
-        private static string[,] cells;
-        private static string title;
-
         // Navigation state
+        private static int currentPage;
         private static int currentRow;
         private static int currentCol;
 
+        private static BattleResultDataStore.ResultPage Page
+        {
+            get
+            {
+                var pages = BattleResultDataStore.Pages;
+                if (currentPage < 0 || currentPage >= pages.Count) return null;
+                return pages[currentPage];
+            }
+        }
+
         /// <summary>
-        /// Opens the navigator with the current result data.
-        /// Checks which data is available and builds the appropriate grid.
+        /// Opens the navigator on the page currently on screen — the most recently added,
+        /// since pages are appended as their phase fires.
         /// </summary>
         public static void Open()
         {
@@ -41,24 +49,8 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
-            // Build grid from available data (prefer stats if available, else points)
-            if (BattleResultDataStore.HasStatsData)
-                BuildStatsGrid();
-            else if (BattleResultDataStore.HasPointsData)
-                BuildPointsGrid();
-            else
-            {
-                FFV_ScreenReaderMod.SpeakText(LocalizationHelper.GetModString("no_data"), interrupt: true);
-                return;
-            }
-
-            if (rowHeaders == null || rowHeaders.Length == 0)
-            {
-                FFV_ScreenReaderMod.SpeakText(LocalizationHelper.GetModString("no_data"), interrupt: true);
-                return;
-            }
-
             IsOpen = true;
+            currentPage = BattleResultDataStore.Pages.Count - 1;
             currentRow = 0;
             currentCol = 0;
 
@@ -75,10 +67,9 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
-            rowHeaders = null;
-            colHeaders = null;
-            cells = null;
-            title = null;
+            currentPage = 0;
+            currentRow = 0;
+            currentCol = 0;
         }
 
         /// <summary>
@@ -98,6 +89,21 @@ namespace FFV_ScreenReader.Core
                 || GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_START))
             {
                 Close();
+                return true;
+            }
+
+            // Page navigation: PageUp/PageDown OR shoulder buttons
+            if (GamepadManager.IsKeyCodePressed(KeyCode.PageUp)
+                || GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_LEFT_SHOULDER))
+            {
+                NavigatePage(-1);
+                return true;
+            }
+
+            if (GamepadManager.IsKeyCodePressed(KeyCode.PageDown)
+                || GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
+            {
+                NavigatePage(1);
                 return true;
             }
 
@@ -147,141 +153,103 @@ namespace FFV_ScreenReader.Core
             return true; // Consume all input while open
         }
 
-        #region Grid Builders
-
-        private static void BuildPointsGrid()
-        {
-            var data = BattleResultDataStore.PointsData;
-            title = LocalizationHelper.GetModString("battle_results");
-
-            // Columns: EXP, Next (EXP to next level), ABP (ABP to next JOB level) — game order.
-            //
-            // ABP-to-next only exists for a character in an unmastered job. A Freelancer has no
-            // job to level and a mastered job has no next level, so both yield 0 and the game
-            // shows nothing there. Drop the column outright when it applies to nobody, rather
-            // than reading "- ABP" for every character in an all-Freelancer party.
-            bool anyAbp = false;
-            for (int i = 0; i < data.Count; i++)
-            {
-                if (data[i].Abp > 0) { anyAbp = true; break; }
-            }
-
-            colHeaders = anyAbp
-                ? new[] { "EXP", "Next", "ABP" }
-                : new[] { "EXP", "Next" };
-
-            rowHeaders = new string[data.Count];
-            cells = new string[data.Count, colHeaders.Length];
-
-            for (int i = 0; i < data.Count; i++)
-            {
-                var c = data[i];
-                rowHeaders[i] = c.Name;
-                cells[i, 0] = c.Exp.ToString("N0");
-                cells[i, 1] = c.NextExp > 0 ? c.NextExp.ToString("N0") : "-";
-
-                // Mixed party: the column exists because someone has a job, but this character
-                // may still have no value of their own.
-                if (anyAbp)
-                    cells[i, 2] = c.Abp > 0 ? c.Abp.ToString() : "-";
-            }
-        }
-
-        private static void BuildStatsGrid()
-        {
-            var data = BattleResultDataStore.StatsData;
-            if (data.Count == 0) return;
-
-            // Build a grid per character. For simplicity, show the first character's stats
-            // and allow row navigation to switch characters if multiple.
-            // If only 1 character, rows = stats. If multiple, rows = characters, then
-            // user navigates into each.
-
-            // Approach: flatten all characters' stats into rows.
-            // Row header = "CharName: StatCategory"
-            // Columns = Before, After, Change
-
-            string beforeStr = LocalizationHelper.GetModString("before");
-            string afterStr = LocalizationHelper.GetModString("after");
-            string changeStr = LocalizationHelper.GetModString("change");
-            colHeaders = new[] { beforeStr, afterStr, changeStr };
-
-            title = LocalizationHelper.GetModString("battle_results");
-
-            var allRows = new List<string>();
-            var allCells = new List<string[]>();
-
-            foreach (var charData in data)
-            {
-                foreach (var stat in charData.Stats)
-                {
-                    allRows.Add($"{charData.Name}: {stat.Category}");
-                    string diffStr = stat.Diff > 0 ? $"+{stat.Diff}" : stat.Diff.ToString();
-                    allCells.Add(new[] { stat.Before, stat.After, diffStr });
-                }
-            }
-
-            rowHeaders = allRows.ToArray();
-            cells = new string[allRows.Count, 3];
-            for (int i = 0; i < allRows.Count; i++)
-            {
-                cells[i, 0] = allCells[i][0];
-                cells[i, 1] = allCells[i][1];
-                cells[i, 2] = allCells[i][2];
-            }
-        }
-
-        #endregion
-
         #region Navigation
+
+        private static void NavigatePage(int delta)
+        {
+            int count = BattleResultDataStore.Pages.Count;
+            if (count <= 1) return;
+
+            currentPage += delta;
+            if (currentPage < 0) currentPage = count - 1;
+            if (currentPage >= count) currentPage = 0;
+
+            currentRow = 0;
+            currentCol = 0;
+
+            FFV_ScreenReaderMod.SpeakText(BuildPageHeaderText(), interrupt: true);
+        }
 
         private static void NavigateRow(int delta)
         {
-            if (rowHeaders == null || rowHeaders.Length == 0) return;
+            var page = Page;
+            if (page == null || page.RowHeaders.Length == 0) return;
 
             currentRow += delta;
-            if (currentRow < 0) currentRow = rowHeaders.Length - 1;
-            if (currentRow >= rowHeaders.Length) currentRow = 0;
+            if (currentRow < 0) currentRow = page.RowHeaders.Length - 1;
+            if (currentRow >= page.RowHeaders.Length) currentRow = 0;
 
             FFV_ScreenReaderMod.SpeakText(BuildFullRowText(currentRow), interrupt: true);
         }
 
         private static void NavigateCol(int delta)
         {
-            if (colHeaders == null || colHeaders.Length == 0) return;
+            var page = Page;
+            if (page == null || page.ColHeaders.Length == 0) return;
 
             currentCol += delta;
-            if (currentCol < 0) currentCol = colHeaders.Length - 1;
-            if (currentCol >= colHeaders.Length) currentCol = 0;
+            if (currentCol < 0) currentCol = page.ColHeaders.Length - 1;
+            if (currentCol >= page.ColHeaders.Length) currentCol = 0;
 
-            string header = colHeaders[currentCol];
-            string value = cells[currentRow, currentCol];
+            string header = page.ColHeaders[currentCol];
+            string value = page.Cells[currentRow, currentCol];
             FFV_ScreenReaderMod.SpeakText($"{header}: {value}", interrupt: true);
         }
 
         private static void AnnounceFullRow()
         {
-            if (rowHeaders == null || rowHeaders.Length == 0) return;
+            var page = Page;
+            if (page == null || page.RowHeaders.Length == 0) return;
             FFV_ScreenReaderMod.SpeakText(BuildFullRowText(currentRow), interrupt: true);
         }
 
         /// <summary>
-        /// Builds a full row summary: "Name, Value1 Header1, Value2 Header2, ..."
+        /// Builds the line spoken when a page is entered: title, position in the sequence
+        /// (omitted when there is only one page), then the first row.
+        /// </summary>
+        private static string BuildPageHeaderText()
+        {
+            var page = Page;
+            if (page == null) return LocalizationHelper.GetModString("no_data");
+
+            int count = BattleResultDataStore.Pages.Count;
+
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(page.Title))
+                parts.Add(page.Title);
+            if (count > 1)
+                parts.Add(string.Format(T("Page {0} of {1}"), currentPage + 1, count));
+            if (page.RowHeaders.Length > 0)
+                parts.Add(BuildFullRowText(0));
+
+            return string.Join(", ", parts);
+        }
+
+        /// <summary>
+        /// Builds a full row summary. Pages that supply their own phrasing (the level-up
+        /// stat pages, "HP: 44 &gt; 53 (9)") use it verbatim; everything else falls back to
+        /// joining each cell to its column header.
         /// </summary>
         private static string BuildFullRowText(int row)
         {
+            var page = Page;
+            if (page == null) return "";
+
+            if (page.RowSummaries != null && row < page.RowSummaries.Length)
+                return page.RowSummaries[row];
+
             var parts = new List<string>();
-            parts.Add(rowHeaders[row]);
+            parts.Add(page.RowHeaders[row]);
 
-            for (int c = 0; c < colHeaders.Length; c++)
+            for (int c = 0; c < page.ColHeaders.Length; c++)
             {
-                // Skip columns this character has no value for ("-"), so the summary doesn't
-                // read "- ABP" for a Freelancer in a mixed party, or "- Next" at max level.
-                // Arrowing onto the column still reports the dash, which is informative when
-                // the user asks for that cell deliberately.
-                if (cells[row, c] == "-") continue;
+                // Skip columns this row has no value for ("-"), so the summary doesn't
+                // read "- ABP" for a Freelancer in a mixed party, or "- Change" for the
+                // job row that has no numeric change. Arrowing onto the column still
+                // reports the dash, which is informative when asked for deliberately.
+                if (page.Cells[row, c] == "-") continue;
 
-                parts.Add($"{cells[row, c]} {colHeaders[c]}");
+                parts.Add($"{page.Cells[row, c]} {page.ColHeaders[c]}");
             }
 
             return string.Join(", ", parts);
@@ -292,12 +260,8 @@ namespace FFV_ScreenReader.Core
             yield return null;
             yield return null;
 
-            if (IsOpen && title != null)
-            {
-                // Announce title, then full first row
-                string firstRow = rowHeaders != null && rowHeaders.Length > 0 ? BuildFullRowText(0) : "";
-                FFV_ScreenReaderMod.SpeakText($"{title}: {firstRow}", interrupt: false);
-            }
+            if (IsOpen)
+                FFV_ScreenReaderMod.SpeakText(BuildPageHeaderText(), interrupt: false);
         }
 
         #endregion

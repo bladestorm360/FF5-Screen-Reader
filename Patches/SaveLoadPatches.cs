@@ -99,14 +99,6 @@ namespace FFV_ScreenReader.Patches
         private const int TOUCH_LIST_CONTENT_LIST = 0x40;
         private const int KEYINPUT_LIST_CONTENT_LIST = 0x68;
 
-        // SavePopup offsets for confirmation dialogs (from PopupPatches)
-        // LoadWindowController/SaveWindowController: savePopup at 0x28
-        // LoadGameWindowController: savePopup at 0x58
-        private const int MAIN_MENU_SAVE_POPUP_OFFSET = 0x28;
-
-
-        private const int SAVE_POPUP_COMMAND_LIST_OFFSET = 0x70;
-
         // SavePopup button navigation offsets (from dump.cs)
         // selectCursor: 0x58 (Cursor), commandList: 0x60 (List<CommonCommand>)
         private const int SAVE_POPUP_SELECT_CURSOR_OFFSET = 0x58;
@@ -382,7 +374,10 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Patches InterruptionWindowController.SetEnablePopup for QuickSave popup message reading.
+        /// Patches InterruptionWindowController (QuickSave). Three hooks:
+        ///   SetEnablePopup — confirmation popup opens/closes
+        ///   InitComplite   — completion popup ("Quick save complete")
+        ///   Close          — window teardown, clears menu state
         /// </summary>
         private static void TryPatchInterruptionController(HarmonyLib.Harmony harmony)
         {
@@ -402,6 +397,46 @@ namespace FFV_ScreenReader.Patches
                 else
                 {
                     MelonLogger.Warning("[SaveLoad] InterruptionWindowController.SetEnablePopup not found");
+                }
+
+                // InitComplite (the game's spelling) — dump.cs:465262, RVA 0x802830.
+                //
+                // QuickSave reuses ONE SavePopup instance across Confirmation -> Complite and has
+                // no *Exit methods, so SetEnablePopup never fires a second time. Without this
+                // reset, lastPopupButtonIndex is still set from the confirmation dialog, so
+                // SavePopupUpdateCommand_Postfix skips its first-call branch and speaks only the
+                // button ("Close") -- the completion message is never read. Normal Save gets the
+                // reset for free because SaveWindowController tears its popup down in PopupExit.
+                var initComplite = AccessTools.Method(controllerType, "InitComplite");
+                if (initComplite != null)
+                {
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(InterruptionInitComplite_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(initComplite, postfix: new HarmonyMethod(postfix));
+                }
+                else
+                {
+                    MelonLogger.Warning("[SaveLoad] InterruptionWindowController.InitComplite not found -- "
+                        + "QuickSave completion popup will read only its button");
+                }
+
+                // Close — dump.cs:465232, RVA 0x802400.
+                //
+                // The other three save/load windows clear menu state from their SetActive
+                // postfix. InterruptionWindowController has no SetActive, so without this its
+                // IsActive flag set by InterruptionSetEnablePopup_Prefix stays true after the
+                // window closes, and every Cursor.*Index patch keeps returning early.
+                var close = AccessTools.Method(controllerType, "Close");
+                if (close != null)
+                {
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(InterruptionClose_Postfix),
+                        BindingFlags.Public | BindingFlags.Static);
+                    harmony.Patch(close, postfix: new HarmonyMethod(postfix));
+                }
+                else
+                {
+                    MelonLogger.Warning("[SaveLoad] InterruptionWindowController.Close not found -- "
+                        + "menu state will stay active after QuickSave");
                 }
             }
             catch (Exception ex)
@@ -743,9 +778,18 @@ namespace FFV_ScreenReader.Patches
 
         #region Prefix Methods
 
+        // These four run as PREFIXES so IsInConfirmation is set before the game method opens the
+        // popup. That flag feeds SaveLoadMenuState.ShouldSuppress(), which MessagePatches checks
+        // to keep dialogue text from talking over a confirmation dialog, and IsActive gates the
+        // Cursor.*Index patches so the generic cursor reader doesn't double-read popup buttons
+        // that SavePopup.UpdateCommand already handles.
+        //
+        // They do NOT suppress PopupOpen_Postfix, despite what earlier comments here claimed --
+        // that postfix only checks IsShopActive(). It never fires for these popups anyway:
+        // SavePopup derives from MonoBehaviour, not Il2CppLast.UI.Popup (dump.cs:469928).
+
         /// <summary>
-        /// Prefix for LoadGameWindowController.SetPopupActive -- sets flags BEFORE the game method
-        /// calls Popup.Open() internally, so PopupOpen_Postfix sees IsActive=true and returns early.
+        /// Prefix for LoadGameWindowController.SetPopupActive.
         /// </summary>
         public static void LoadGameWindowSetPopupActive_Prefix(bool isEnable)
         {
@@ -757,7 +801,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Prefix for LoadWindowController.SetPopupActive -- sets flags BEFORE Popup.Open().
+        /// Prefix for LoadWindowController.SetPopupActive.
         /// </summary>
         public static void LoadWindowSetPopupActive_Prefix(bool isEnable)
         {
@@ -769,7 +813,7 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Prefix for SaveWindowController.SetPopupActive -- sets flags BEFORE Popup.Open().
+        /// Prefix for SaveWindowController.SetPopupActive.
         /// </summary>
         public static void SaveWindowSetPopupActive_Prefix(bool isEnable)
         {
@@ -781,7 +825,8 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Prefix for InterruptionWindowController.SetEnablePopup -- sets flags BEFORE Popup.Open().
+        /// Prefix for InterruptionWindowController.SetEnablePopup (QuickSave).
+        /// IsActive set here is cleared by InterruptionClose_Postfix, not by a SetActive hook.
         /// </summary>
         public static void InterruptionSetEnablePopup_Prefix(bool isEnable)
         {
@@ -1041,20 +1086,23 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Postfix for InterruptionWindowController.InitComplite - reads Quick Save completion popup.
+        /// Postfix for InterruptionWindowController.InitComplite -- the Quick Save completion
+        /// popup. Resets the first-call flag so SavePopup.UpdateCommand reads title + message
+        /// instead of only the button. See TryPatchInterruptionController for why QuickSave
+        /// needs this and normal Save does not.
         /// </summary>
         public static void InterruptionInitComplite_Postfix()
         {
-            // Reset lastPopupButtonIndex so SavePopup.UpdateCommand re-triggers first-call flow
             lastPopupButtonIndex = -1;
         }
 
         /// <summary>
-        /// Postfix for SaveWindowController.CompleteInit - reads Normal Save completion popup.
+        /// Postfix for InterruptionWindowController.Close -- QuickSave has no SetActive hook,
+        /// so this is where its menu state gets cleared.
         /// </summary>
-        public static void SaveWindowCompleteInit_Postfix()
+        public static void InterruptionClose_Postfix()
         {
-            // Reset lastPopupButtonIndex so SavePopup.UpdateCommand re-triggers first-call flow
+            SaveLoadMenuState.ResetState();
             lastPopupButtonIndex = -1;
         }
 

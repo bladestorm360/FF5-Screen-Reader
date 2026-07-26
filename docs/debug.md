@@ -22,7 +22,7 @@
 - `BattleCommandPatches` — Battle command selection
 - `BattleTargetPatches` — Battle target selection
 - `BattleMessagePatches` — Damage/heal/status + BattleCommandMessagePatches (defeat)
-- `BattleResultPatches` — Per-phase: ShowPointsInit (totals), ShowPointsExit (counter stop), SetData (stat diffs), abilities, items, EndWaitInit (cleanup)
+- `BattleResultPatches` — Per-phase: ShowPointsInit (totals only + points page), ResultStatusUpController.SetData (level-up page, one per character), ShowGetAbilitysInit/ShowLevelUpAbilitysInit (abilities + job proficiency), ShowGetItemsInit (items), EndWaitInit (cleanup). Counter stop is `MonitorExpCounterAnimation` plus per-phase safety nets — `ShowPointsExit` is **not** patched.
 - `ItemMenuPatches` — Item menu + ItemMenuState (shared announce helpers) + ItemMenuTracker + ItemUseTracker + FieldItemReannouncePatches
 - `EquipMenuPatches` — Equipment command bar / slot list / item select + EquipMenuState + FieldEquipReannouncePatches
 - `ItemDetailsAnnouncer` — I key equipment compatibility
@@ -81,7 +81,9 @@
 
 **Il2CppLast.*** — Battle, Map (MapManager, FieldController, FieldMap), Entity.Field, UI (Cursor), UI.KeyInput/Touch, UI.Message, Data.Master, Data.User, Defaine
 
-**Il2CppSerial.FF5.*** — UI.KeyInput (AbilityContentListController, AbilityCommandController, AbilityChangeController, AbilityUseContentListController, JobChangeWindowController, BattleQuantityAbilityInfomationController), UI.Touch (ResultStatusUpController)
+**Il2CppSerial.FF5.*** — UI.KeyInput (AbilityContentListController, AbilityCommandController, AbilityChangeController, AbilityUseContentListController, JobChangeWindowController, BattleQuantityAbilityInfomationController, ResultStatusUpController, ResultPointController)
+
+⚠ **Every one of these has a `UI.Touch` twin, and on PC the Touch twin is often an empty stub.** `Serial.FF5.UI.Touch.ResultStatusUpController` (dump.cs:284064) has no fields and no `SetData` at all; the real one is `Serial.FF5.UI.KeyInput.ResultStatusUpController` (dump.cs:288887). Patch the **KeyInput** variant, and prefer a typed `[HarmonyPatch(typeof(...))]` over reflection/`FindType` so a wrong target is a build error instead of a silent no-op.
 
 ## Job & Ability Classes
 
@@ -423,7 +425,27 @@ VK constant dedup (ConfirmationDialog, TextInputWindow). SelectContentHelper.Try
 ### Per-Phase Battle Results (2026-02-11)
 Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up, in Serial.FF5.UI.Touch namespace — manual FindType patch), ShowGetAbilitysInit/ShowLevelUpAbilitysInit (abilities via UI text), ShowGetItemsInit (items via GetContentDataList). Status-up: 1-frame delay, heuristic (category, before, after) triple detection. Battle action dedup: object-based identity instead of string.
 
-**Status**: Verified in-game.
+**Status**: Superseded 2026-07-26 — the `Serial.FF5.UI.Touch` target was wrong and the status-up hook never fired. See below.
+
+### Multi-Phase Battle Results: Level-Up Page (2026-07-26)
+
+**The bug**: the level-up screen was completely silent. `PatchStatusUpSetData` targeted `Il2CppSerial.FF5.UI.Touch.ResultStatusUpController` — an empty stub with no `SetData` (dump.cs:284064). The postfix never ran; `"ResultStatusUpController.SetData fired"` appeared in no log. Everything downstream (`ExtractStatDiffs`, `AnnounceStatusUpCoroutine`, the navigator's stats grid) was dead code, and level-ups were being announced on page 1 next to Gil as a workaround.
+
+**Fix**: typed `[HarmonyPatch]` on `Il2CppSerial.FF5.UI.KeyInput.ResultStatusUpController.SetData` (dump.cs:288887, RVA 0x4B0E60). Called once per character page from `ResultPointController.StatusUpInit` and again from `StatusUpAction` as the player presses A.
+
+**Structural row reading** replaces the old flat-text triple heuristic. `ResultStatusUpController` exposes `view.nameText` and `contentList` (`List<Last.UI.KeyInput.ResultStatusContentController>`, dump.cs:475389). Each row carries its own `Type` (`ParameterType`: Level=1, HP=2, MP=3, JobLevel=-1) and a `ResultStatusContentView` (dump.cs:475425) with `categoryText` / `jobLevelText` / `beforValueText` / `afterValueText` / `arrowImage` / `upperJobMasterText` / `lowerJobMasterText`. Reading the row objects means labels ("Lv.", "HP", job name, "Master") come out localized with no lookup table. `ActiveText()` guards each read on `gameObject.activeInHierarchy` — the panel hides values rather than blanking them, so an inactive Text still holds the previous character's text. Output: `"Lenna: Level up! Lv. 2 to 3, HP 44 to 53, MP 9 to 15, Freelancer"`.
+
+**Result-screen page map** (`ResultMenuController.State`, dump.cs:475011 — `None/ShowPoints/SkillLevels/ShowStatusUp/ShowGetItems/ShowGetAbilitys/ShowLevelUpAbilitys/EndWait`). `ShowLevelUpAbilitys` dispatches through `IsToAbilityLevelUp()` → `ResultSkillController.ShowLevelUp` and `IsToJobProficiencyLevelUp()` → `ResultSkillController.ShowJobProficiencyLevelUp` (per-row: `ResultLevelUpContentController.SetJobProficiencyData`, `ResultLevelUpContentView.SetJobProficiencyLevelUpText`). Job level up is therefore its **own page**, currently covered only by the raw text scrape; a diagnostic logs the full unfiltered scrape so a typed hook can be written once jobs are unlocked.
+
+**FF5 has no weapon/spell proficiency system.** `IsWeaponSkillLevelUp()`, `SkillLevelTarget`, `GrouthWeaponSkillList` and `SetWeaponSkillLevelUpText` are inert FF2-era FFPR engine members. Their presence in dump.cs is not evidence of an FF5 feature — do not wire them up.
+
+**Compact row summaries (2026-07-26).** `ResultPage` carries an optional `RowSummaries[]`; when present `BuildFullRowText` speaks it verbatim instead of joining every cell to its column header. Stat rows read `"HP: 44 > 53 (9)"` rather than `"HP, 44 Before, 53 After, +9 Change"`; the job row reads as just `"Freelancer"`. Columns stay browsable with Left/Right, where naming them is still useful. The `Change` *cell* keeps an explicit `+9` because it can be read in isolation; the summary uses the bare `(9)`. The announcement uses the same `>` separator with no deltas. Both go through `Transition()` in `BattleResultPatches`, so swapping `>` for `GetModString("to")` (if NVDA's punctuation level swallows it) is a one-constant change.
+
+**Navigator is now multi-page.** `BattleResultDataStore` holds an ordered `List<ResultPage>` (`Title`, `RowHeaders`, `ColHeaders`, `Cells`, optional `RowSummaries`) instead of two mutually-exclusive blobs. Pages append as their phase fires: points, one per levelling character, abilities, items. A page with zero columns is a flat list. `Open()` starts on the last page added (the one on screen); PageUp/PageDown or L1/R1 cycles. This fixes the old behaviour where any level-up made the EXP/Next/ABP page permanently unreachable and flattened every character into one row list.
+
+**No dedup added** — per standing project rule. If a character ever speaks twice, `SetData` is the wrong call site and the hook moves; the duplicate is diagnostic, not something to filter.
+
+**Status**: Builds clean. Needs in-game verification (see plan verification steps).
 
 ### Battle Results: Stat Gains, EXP Format & Navigator (2026-02-12)
 
@@ -508,6 +530,28 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 **Solution**: Reset `lastPopupButtonIndex = -1` in both `InterruptionInitComplite_Postfix` (Quick Save) and `SaveWindowCompleteInit_Postfix` (Normal Save). This causes the next `SavePopup.UpdateCommand` call to treat it as a fresh popup, triggering `DelayedSavePopupRead` which reads title+message from the `savePopup`'s own text fields (0x38/0x40). Removed the old `DelayedSaveCompleteRead` calls that read from the wrong popup.
 
 **Lesson**: When a popup reuses the same `SavePopup` instance for different screens (confirmation → completion), the dedup index must be reset at each transition so the first-call path re-triggers.
+
+⚠ **This entry was wrong for Quick Save until 2026-07-26.** The two postfixes were written but **never registered with Harmony** — `ApplyPatches` only ever patched `SetEnablePopup`. Normal Save worked anyway (for a different reason, below); Quick Save stayed broken for five months while this write-up claimed otherwise. See the next entry.
+
+### Quick Save Completion Popup Was Silent — Orphaned Postfix (2026-07-26)
+
+**Problem**: after confirming Quick Save, the completion popup spoke only "Close". Normal Save read its completion popup correctly.
+
+**Root cause**: `InterruptionInitComplite_Postfix` existed and was correct, but `TryPatchInterruptionController` never registered it — it patched only `SetEnablePopup`. `git log -S` confirms `ApplyPatches` never contained the registration.
+
+Normal Save was never relying on `SaveWindowCompleteInit_Postfix` either. It works because `SaveWindowController` (dump.cs:470079) has a five-state machine `None/Select/Save/popup/Complete` with a real `PopupExit()`, so the popup is torn down and re-shown across `popup → Complete` and `SetPopupActive` fires a second time, resetting the flag via `SaveWindowSetPopupActive_Postfix`.
+
+`InterruptionWindowController` (dump.cs:465200) has only `None/Confirmation/Complite` and **no `*Exit` methods at all**. It reuses one `SavePopup` instance across the transition, so `SetEnablePopup` fires exactly once and the flag stays stale from the confirmation.
+
+**Fix**: register the existing postfix on `InitComplite` (note the game's spelling; private, dump.cs:465262, RVA 0x802830). Deliberately did **not** register `SaveWindowController.CompleteInit` — Normal Save already resets via `SetPopupActive`, and a second reset landing after the first-call read would double-announce. Deleted `SaveWindowCompleteInit_Postfix`.
+
+**Also fixed: `SaveLoadMenuState.IsActive` leaked after every Quick Save.** `InterruptionSetEnablePopup_Prefix` sets it, but the postfix's `isEnable == false` branch cleared only `IsInConfirmation`, and Quick Save has no `SetActive` hook to call `ResetState()` the way the other three save/load windows do. It stayed true until the next `MainMenuController.Show`, and while true every `Cursor.*Index` patch returns early — cursor movement in the main menu was silent. Now cleared by a postfix on `InterruptionWindowController.Close()` (dump.cs:465232, RVA 0x802400).
+
+**Lessons**:
+- A `TryPatch*` helper that resolves a method and silently skips registration is invisible at runtime. Every branch now logs a warning naming the user-visible consequence.
+- Writing the fix and documenting it is not the same as wiring it up. When a doc entry says "solution: X", confirm X is actually registered.
+- `SaveLoadMenuState.IsActive` gates the cursor patches, so leaking it produces *silence*, not noise — the failure mode nobody notices. Any prefix that sets it needs a matching teardown hook.
+- **Stale comments**: several prefixes here claimed to "suppress `PopupOpen_Postfix`". That postfix only checks `IsShopActive()` and never fires for save popups anyway, since `SavePopup` derives from `MonoBehaviour`, not `Il2CppLast.UI.Popup` (dump.cs:469928). Comments corrected. Note `PopupPatches.cs`'s `SaveLoadMenuState.IsActive = true` in the game-over load handler carried the same wrong rationale but is genuinely load-bearing — it stops the generic cursor reader double-reading buttons `GameOverLoadPopup.UpdateCommand` already handles.
 
 ### Global Hotkey Focus Gating (2026-02-14 → 2026-02-15)
 **Problem**: Mod hotkeys (G, M, H, brackets, etc.) fired when the game window was not focused when using `GetAsyncKeyState`.
@@ -705,6 +749,24 @@ The ordering is what proves the direction: had `InfoInit` run first, its deferre
 **Lesson**: the initial-focus design assumes state-entry `*Init` hooks and navigation announcers are *disjoint*. That invariant does not hold for every controller — some navigation methods run during initialisation. Before adding an `*Init` hook, check whether the pane's navigation patch already fires on entry; if it does, the `*Init` hook is redundant. A guard that clears on entry cannot protect against this, because the clear is what unmasks the duplicate.
 
 **Follow-up, same day**: the item-select pane had the identical defect — `"Empty, Attack +3"` and `"Leather Cap…"` each read twice, ~11 ms apart, on choosing a slot. `EquipmentSelectWindowController.SetCursor` also fires during initialisation, so `SelectInit` was redundant too. Removed it, plus `Select_Init_Postfix` and `TryAnnounceSelect`.
+
+### Magic Command Bar Read Twice on Entry (2026-07-26)
+
+**Problem**: Magic → select a character read the focused command twice — `"White Magic"` at `06:30:04.152` and again at `.189`, and the same on re-entry at `06:30:09.581/.592`.
+
+**Root cause**: the third instance of the equip defect above. `AbilityCommandController.SelectContent` fires during `AbilityWindowController.CommandInit` with its `contentList` already populated, so it announces on its own. `AbilityCommand_Init_Postfix` then called `ClearLast()` — wiping the guard the navigation patch had just set — and its deferred `MenuFocusAnnouncer` read spoke the identical line a frame later. `MenuFocusAnnouncer` always yields at least one frame, so the later of any such pair is always the `*Init` read.
+
+**Fix**: reduced `AbilityCommand_Init_Postfix` to **clear-only**. The `Request` call was the redundant announcer and is gone; `ClearLast()` stays.
+
+**Why not delete the hook outright** (as the equip panes did): the equip sub-panes still had *something* clearing their guards — the command bar's `CommandInit`, which was kept. `AbilityWindowController` has no such umbrella: `Exit_Init_Postfix` (NonInit) clears the two `AbilityChangeController` guards but not `AbilityCommandController`'s. Delete the whole hook and entering Magic, backing out, and re-entering without moving the cursor would hit `index == _lastIndex` and go silent. Clearing a guard on entry is the *opposite* of a dedup net — it exists so a repeat entry does speak.
+
+**Unresolved: the spell list.** `SpellList_Init_Postfix` (`UseListInit`) has the same shape, and whether it is redundant depends on something the dump cannot answer — dump.cs carries no method bodies, and this codebase contains both outcomes:
+- `EquipmentSelectWindowController.SetCursor` fires at init **with data ready** → the `*Init` announce is redundant (line above).
+- Bestiary `SetCursor` fires at init **with data not ready** — "first caches 'Bestiary', second overwrites with correct item" — so there the deferred read is the one that does the real work and must be kept.
+
+`AbilityContentListController.Announce` returns false when `contentList` (0x50) is unpopulated, so both behaviours are possible. No log in any session has ever opened a spell list (the party has been all-Freelancer with no magic learned), so there is no evidence either way yet.
+
+**How to settle it in one trip**: learn a spell, open Magic → character → White Magic. If the spell name reads twice ~1 frame apart, it is the same defect — reduce `SpellList_Init_Postfix` to clear-only exactly as above. If it reads once, the hook is doing the real work; leave it. No extra instrumentation needed — the speech log alone distinguishes the two.
 
 Deleting it needed one extra step, though, and it is the interesting part: with `InfoInit` already gone, `SelectInit`'s `ClearLastAnnouncements()` was the *only* thing clearing `_lastSlot`, so cancelling from the item list back to the slots would have gone silent. Rather than restore a hook, the invalidation moved into the announcers themselves — `AnnounceEquipSlot` nulls `_lastSelectRow` and `AnnounceEquipSelect` nulls `_lastSlot`, each before its own dedup check so it still happens on a re-fire. Each guard now only suppresses an unchanged-row re-fire *within* its own pane, which is all it was ever documented to do.
 

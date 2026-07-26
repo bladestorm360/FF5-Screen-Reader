@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using HarmonyLib;
 using MelonLoader;
@@ -37,10 +36,6 @@ namespace FFV_ScreenReader.Patches
         // phase announces only what is genuinely new.
         internal static readonly HashSet<string> AnnouncedAbilityTexts = new HashSet<string>();
 
-        // Level-up lines already read, keyed per character — the natural key here is WHICH
-        // character leveled, and ResultStatusUpController.SetData can be invoked twice for one.
-        internal static readonly HashSet<string> AnnouncedLevelUps = new HashSet<string>();
-
         /// <summary>
         /// Clears every per-sequence announcement guard. Called from ShowPointsInit.
         /// </summary>
@@ -49,7 +44,6 @@ namespace FFV_ScreenReader.Patches
             PointsAnnounced = false;
             ItemsAnnounced = false;
             AnnouncedAbilityTexts.Clear();
-            AnnouncedLevelUps.Clear();
         }
 
         /// <summary>
@@ -66,7 +60,11 @@ namespace FFV_ScreenReader.Patches
     }
 
     // ----------------------------------------------------------------
-    //  Screen 1: EXP / Gil / ABP totals  (always fires)
+    //  Page 1: EXP / Gil / ABP totals  (always fires)
+    //
+    //  Totals only. Level-ups belong to the pages that actually show them:
+    //  character level up on the status-up page (ResultStatusUpController.SetData),
+    //  job level up on the job-proficiency page (ShowLevelUpAbilitysInit).
     // ----------------------------------------------------------------
     [HarmonyPatch(typeof(ResultMenuController), nameof(ResultMenuController.ShowPointsInit))]
     public static class ResultMenuController_ShowPointsInit_Patch
@@ -81,8 +79,9 @@ namespace FFV_ScreenReader.Patches
                 var data = __instance.targetData;
                 if (data == null) return;
 
-                // New result sequence — re-arm every phase one-shot
+                // New result sequence — re-arm every phase one-shot and drop the old pages
                 BattleResultState.ResetSequence();
+                BattleResultDataStore.Clear();
 
                 // Gather totals
                 int totalExp = data.GetExp;
@@ -98,61 +97,7 @@ namespace FFV_ScreenReader.Patches
                 if (totalGil > 0)
                     parts.Add($"{totalGil:N0} Gil");
 
-                // Per-character level-up / job-level-up notes (still announced in speech)
-                var charList = data.CharacterList;
-                var pointsDataList = new List<BattleResultDataStore.CharacterPointsData>();
-
-                if (charList != null)
-                {
-                    foreach (var c in charList)
-                    {
-                        if (c?.AfterData == null) continue;
-
-                        string name = c.AfterData.Name;
-
-                        // Get next EXP to level (0 = max level)
-                        int nextExp = 0;
-                        try { nextExp = c.AfterData.GetNextExp(); }
-                        catch { /* max level or unavailable */ }
-
-                        // Get ABP remaining to next job level (0 = mastered/no job)
-                        int abpToNext = 0;
-                        try
-                        {
-                            var ownedJob = c.BeforData.OwnedJob;
-                            if (ownedJob != null)
-                            {
-                                abpToNext = ExpUtility.GetNextExp(
-                                    ownedJob.Id, ownedJob.CurrentProficiency, Il2CppLast.Defaine.Master.ExpTableType.JobExp);
-                            }
-                        }
-                        catch { /* no job / freelancer / mastered */ }
-
-                        // Store per-character data for navigator
-                        pointsDataList.Add(new BattleResultDataStore.CharacterPointsData
-                        {
-                            Name = name,
-                            Exp = c.GetExp,
-                            Abp = abpToNext,
-                            NextExp = nextExp,
-                            IsLevelUp = c.IsLevelUp,
-                            NewLevel = c.AfterData.parameter?.ConfirmedLevel() ?? 0,
-                            IsJobLevelUp = c.IsJobLevelUp
-                        });
-
-                        if (c.IsLevelUp)
-                        {
-                            int lv = c.AfterData.parameter?.ConfirmedLevel() ?? 0;
-                            if (lv > 0)
-                                parts.Add($"{name}: {LocalizationHelper.GetModString("level")} {lv}!");
-                        }
-                        if (c.IsJobLevelUp)
-                            parts.Add(string.Format(T("{0}: Job level up!"), name));
-                    }
-                }
-
-                // Store data for navigator
-                BattleResultDataStore.SetPointsData(pointsDataList, totalExp, totalAbp, totalGil);
+                BuildPointsPage(data);
 
                 if (parts.Count == 0) return;
 
@@ -179,6 +124,80 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"Error in ShowPointsInit patch: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Builds the navigator page for this screen: characters x {EXP, Next, ABP}, game order.
+        ///
+        /// ABP-to-next only exists for a character in an unmastered job. A Freelancer has no
+        /// job to level and a mastered job has no next level, so both yield 0 and the game
+        /// shows nothing there. Drop the column outright when it applies to nobody, rather
+        /// than reading "- ABP" for every character in an all-Freelancer party.
+        /// </summary>
+        private static void BuildPointsPage(BattleResultData data)
+        {
+            var charList = data.CharacterList;
+            if (charList == null || charList.Count == 0) return;
+
+            var names = new List<string>();
+            var exps = new List<int>();
+            var nextExps = new List<int>();
+            var abps = new List<int>();
+
+            foreach (var c in charList)
+            {
+                if (c?.AfterData == null) continue;
+
+                // Get next EXP to level (0 = max level)
+                int nextExp = 0;
+                try { nextExp = c.AfterData.GetNextExp(); }
+                catch { /* max level or unavailable */ }
+
+                // Get ABP remaining to next job level (0 = mastered/no job)
+                int abpToNext = 0;
+                try
+                {
+                    var ownedJob = c.BeforData.OwnedJob;
+                    if (ownedJob != null)
+                    {
+                        abpToNext = ExpUtility.GetNextExp(
+                            ownedJob.Id, ownedJob.CurrentProficiency, Il2CppLast.Defaine.Master.ExpTableType.JobExp);
+                    }
+                }
+                catch { /* no job / freelancer / mastered */ }
+
+                names.Add(c.AfterData.Name);
+                exps.Add(c.GetExp);
+                nextExps.Add(nextExp);
+                abps.Add(abpToNext);
+            }
+
+            if (names.Count == 0) return;
+
+            bool anyAbp = false;
+            for (int i = 0; i < abps.Count; i++)
+            {
+                if (abps[i] > 0) { anyAbp = true; break; }
+            }
+
+            string[] colHeaders = anyAbp
+                ? new[] { "EXP", "Next", "ABP" }
+                : new[] { "EXP", "Next" };
+
+            var cells = new string[names.Count, colHeaders.Length];
+            for (int i = 0; i < names.Count; i++)
+            {
+                cells[i, 0] = exps[i].ToString("N0");
+                cells[i, 1] = nextExps[i] > 0 ? nextExps[i].ToString("N0") : "-";
+
+                // Mixed party: the column exists because someone has a job, but this character
+                // may still have no value of their own.
+                if (anyAbp)
+                    cells[i, 2] = abps[i] > 0 ? abps[i].ToString() : "-";
+            }
+
+            BattleResultDataStore.AddPage(
+                LocalizationHelper.GetModString("battle_results"), names.ToArray(), colHeaders, cells);
         }
 
         /// <summary>
@@ -268,7 +287,7 @@ namespace FFV_ScreenReader.Patches
 
     // ----------------------------------------------------------------
     //  Phase logging: ShowStatusUpInit  (per-character detail is in
-    //  the manual SetData patch below)
+    //  the ResultStatusUpController.SetData patch below)
     // ----------------------------------------------------------------
     [HarmonyPatch(typeof(ResultMenuController), nameof(ResultMenuController.ShowStatusUpInit))]
     public static class ResultMenuController_ShowStatusUpInit_Patch
@@ -278,6 +297,296 @@ namespace FFV_ScreenReader.Patches
         {
             BattleResultState.StopExpCounterIfPlaying();
             MelonLogger.Msg("[BattleResult] ShowStatusUpInit fired");
+        }
+    }
+
+    // ----------------------------------------------------------------
+    //  Page 2: the level-up screen, one character at a time.
+    //
+    //  ResultPointController.StatusUpInit builds statusupList and StatusUpAction advances
+    //  it as the player presses A, calling SetData once per character page.
+    //
+    //  The live type is the KeyInput variant. Serial.FF5.UI.Touch.ResultStatusUpController
+    //  exists but is an empty stub with no SetData at all (dump.cs:284064) -- an earlier
+    //  reflection-based patch targeted it and therefore never fired, which is why this
+    //  screen was silent.
+    // ----------------------------------------------------------------
+    [HarmonyPatch(typeof(Il2CppSerial.FF5.UI.KeyInput.ResultStatusUpController),
+                  nameof(Il2CppSerial.FF5.UI.KeyInput.ResultStatusUpController.SetData))]
+    public static class ResultStatusUpController_SetData_Patch
+    {
+        // One-shot: the row layout is identical every time, so dump it once per session.
+        private static bool loggedRowDump;
+
+        /// <summary>One row of the level-up panel, as displayed.</summary>
+        private class StatRow
+        {
+            public string Category;   // "Lv." / "HP" / "MP" / job name
+            public string Before;
+            public string After;
+            public string Extra;      // the game's own "Master" text, when shown
+        }
+
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppSerial.FF5.UI.KeyInput.ResultStatusUpController __instance,
+                                   BattleResultData.BattleResultCharacterData __0)
+        {
+            try
+            {
+                MelonLogger.Msg("[BattleResult] ResultStatusUpController.SetData fired");
+                CoroutineManager.StartUntracked(AnnounceCoroutine(__instance, __0));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in ResultStatusUpController.SetData patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Waits one frame so SetData's active/inactive changes are applied, then reads the
+        /// panel's real row objects (not a flat text scrape) and announces the character's
+        /// changes in on-screen order.
+        /// </summary>
+        private static IEnumerator AnnounceCoroutine(
+            Il2CppSerial.FF5.UI.KeyInput.ResultStatusUpController controller,
+            BattleResultData.BattleResultCharacterData charData)
+        {
+            yield return null;
+
+            string announcement = null;
+            try
+            {
+                string name = charData?.AfterData?.Name;
+                if (string.IsNullOrEmpty(name))
+                    name = GetTextSafe(controller?.view?.nameText);
+                if (string.IsNullOrEmpty(name)) name = "";
+
+                var rows = ReadRows(controller);
+                if (rows.Count == 0)
+                    rows = BuildFallbackRows(charData);
+                if (rows.Count == 0) yield break;
+
+                // Headline reflects why this page is up
+                string headline;
+                if (charData != null && charData.IsLevelUp)
+                    headline = string.Format(T("{0}: Level up!"), name);
+                else if (charData != null && charData.IsJobLevelUp)
+                    headline = string.Format(T("{0}: Job level up!"), name);
+                else
+                    headline = $"{name}:";
+
+                var parts = new List<string>();
+                foreach (var row in rows)
+                    parts.Add(FormatRow(row));
+
+                announcement = $"{headline} {string.Join(", ", parts)}";
+                AddStatsPage(name, rows);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[BattleResult] StatusUp announce failed: {ex.Message}");
+                yield break;
+            }
+
+            if (string.IsNullOrEmpty(announcement)) yield break;
+
+            MelonLogger.Msg($"[BattleResult] StatusUp: {announcement}");
+            FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+        }
+
+        /// <summary>
+        /// Reads the panel's ResultStatusContentController rows. Each row knows its own
+        /// ParameterType (Level / HP / MP / JobLevel) and carries its own category label,
+        /// so the labels come out localized without a lookup table.
+        /// </summary>
+        private static List<StatRow> ReadRows(
+            Il2CppSerial.FF5.UI.KeyInput.ResultStatusUpController controller)
+        {
+            var rows = new List<StatRow>();
+            var contentList = controller?.contentList;
+            if (contentList == null) return rows;
+
+            bool dump = !loggedRowDump;
+
+            for (int i = 0; i < contentList.Count; i++)
+            {
+                var ctrl = contentList[i];
+                if (ctrl == null) continue;
+
+                var view = ctrl.view;
+                if (view == null) continue;
+
+                bool active = ctrl.gameObject != null && ctrl.gameObject.activeInHierarchy;
+
+                string category = ActiveText(view.categoryText);
+                string before = ActiveText(view.beforValueText);
+                string after = ActiveText(view.afterValueText);
+                string jobLevel = ActiveText(view.jobLevelText);
+                string master = ActiveText(view.upperJobMasterText) ?? ActiveText(view.lowerJobMasterText);
+                bool arrow = view.arrowImage != null
+                             && view.arrowImage.gameObject != null
+                             && view.arrowImage.gameObject.activeInHierarchy;
+
+                if (dump)
+                {
+                    MelonLogger.Msg(
+                        $"[BattleResult] StatusUp row {i}: type={ctrl.Type} active={active} " +
+                        $"cat='{category}' before='{before}' after='{after}' " +
+                        $"jobLv='{jobLevel}' master='{master}' arrow={arrow}");
+                }
+
+                if (!active) continue;
+                if (category == null && before == null && after == null
+                    && jobLevel == null && master == null) continue;
+
+                // The job row has no before/after when the job has no level to show
+                // (the game calls DisplayOnlyCategoryText for that case).
+                if (after == null && before == null && jobLevel != null)
+                    after = jobLevel;
+
+                rows.Add(new StatRow
+                {
+                    Category = category,
+                    Before = before,
+                    After = after,
+                    Extra = master
+                });
+            }
+
+            if (dump) loggedRowDump = true;
+
+            return rows;
+        }
+
+        /// <summary>
+        /// Data-driven rows, used only when the panel reads back empty.
+        /// Uses the Confirmed* accessors; OwnedJob.Level is deliberately avoided because it
+        /// reports wrong values for level-0 jobs (see docs/plan.md), which is exactly why the
+        /// job row is read from the UI instead.
+        /// </summary>
+        private static List<StatRow> BuildFallbackRows(BattleResultData.BattleResultCharacterData data)
+        {
+            var rows = new List<StatRow>();
+
+            var before = data?.BeforData?.parameter;
+            var after = data?.AfterData?.parameter;
+            if (before == null || after == null) return rows;
+
+            AddIfChanged(rows, LocalizationHelper.GetModString("level"),
+                before.ConfirmedLevel(), after.ConfirmedLevel());
+            AddIfChanged(rows, "HP", before.ConfirmedMaxHp(), after.ConfirmedMaxHp());
+            AddIfChanged(rows, "MP", before.ConfirmedMaxMp(), after.ConfirmedMaxMp());
+
+            MelonLogger.Msg($"[BattleResult] StatusUp: panel read empty, using {rows.Count} data rows");
+            return rows;
+        }
+
+        private static void AddIfChanged(List<StatRow> rows, string category, int before, int after)
+        {
+            if (before == after) return;
+            rows.Add(new StatRow
+            {
+                Category = category,
+                Before = before.ToString(),
+                After = after.ToString()
+            });
+        }
+
+        /// <summary>
+        /// Separator between a before and after value. The game draws this row as
+        /// "HP  44 ↗ 53", so speech mirrors that shape rather than spelling out a word.
+        /// Both the announcement and the navigator's row summaries go through
+        /// <see cref="Transition"/>, so changing this changes them together.
+        /// </summary>
+        private const string ChangeArrow = ">";
+
+        private static string Transition(string before, string after)
+            => $"{before} {ChangeArrow} {after}";
+
+        private static string FormatRow(StatRow row)
+        {
+            string text;
+            if (row.Before != null && row.After != null && row.Before != row.After)
+                text = Join(row.Category, Transition(row.Before, row.After));
+            else if (row.After != null)
+                text = Join(row.Category, row.After);
+            else
+                text = row.Category ?? "";
+
+            if (row.Extra != null)
+                text = Join(text, row.Extra);
+
+            return text;
+        }
+
+        private static string Join(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a)) return b ?? "";
+            if (string.IsNullOrEmpty(b)) return a;
+            return $"{a} {b}";
+        }
+
+        /// <summary>
+        /// Adds this character's page to the navigator: rows x {Before, After, Change}.
+        /// Change is "-" for rows with no numeric delta, such as the job row.
+        ///
+        /// Each row also carries a compact summary — "HP: 44 &gt; 53 (9)" — so Up/Down reads
+        /// the row the way the game lays it out instead of naming all three columns. The
+        /// columns themselves stay browsable with Left/Right, where naming them is useful.
+        /// </summary>
+        private static void AddStatsPage(string name, List<StatRow> rows)
+        {
+            var rowHeaders = new string[rows.Count];
+            var summaries = new string[rows.Count];
+            var cells = new string[rows.Count, 3];
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                string label = Join(row.Category, row.Extra);
+                rowHeaders[i] = label;
+                cells[i, 0] = row.Before ?? "-";
+                cells[i, 1] = row.After ?? "-";
+
+                if (int.TryParse(row.Before, out int b) && int.TryParse(row.After, out int a))
+                {
+                    int diff = a - b;
+
+                    // The cell keeps an explicit sign because it can be read on its own,
+                    // where a bare "9" would be ambiguous. The summary uses the bare form.
+                    cells[i, 2] = diff > 0 ? $"+{diff}" : diff.ToString();
+                    summaries[i] = $"{label}: {Transition(row.Before, row.After)} ({diff})";
+                }
+                else
+                {
+                    cells[i, 2] = "-";
+                    summaries[i] = label;
+                }
+            }
+
+            BattleResultDataStore.AddPage(
+                name,
+                rowHeaders,
+                new[]
+                {
+                    LocalizationHelper.GetModString("before"),
+                    LocalizationHelper.GetModString("after"),
+                    LocalizationHelper.GetModString("change")
+                },
+                cells,
+                summaries);
+        }
+
+        /// <summary>
+        /// Returns a Text's content only when it is actually on screen. The panel hides rows
+        /// and individual values rather than blanking them, so an inactive object still holds
+        /// stale text from the previous character.
+        /// </summary>
+        private static string ActiveText(UnityEngine.UI.Text text)
+        {
+            if (text == null) return null;
+            if (text.gameObject == null || !text.gameObject.activeInHierarchy) return null;
+            return GetTextSafe(text);
         }
     }
 
@@ -318,24 +627,34 @@ namespace FFV_ScreenReader.Patches
             // already been announced this sequence, so the level-up phase does not repeat the
             // skill-point phase's list when a battle produces both.
             var texts = new List<string>();
+            var allTexts = new List<string>();
             ForEachTextInChildren(root, t =>
             {
                 string v = GetTextSafe(t);
-                if (!string.IsNullOrEmpty(v) && BattleResultState.AnnouncedAbilityTexts.Add(v))
+                if (string.IsNullOrEmpty(v)) return;
+                allTexts.Add(v);
+                if (BattleResultState.AnnouncedAbilityTexts.Add(v))
                     texts.Add(v);
             }, includeInactive: false);
+
+            // Diagnostic: the job-proficiency page also arrives through ShowLevelUpAbilitysInit,
+            // and its exact content is not yet confirmed. Log everything the scrape sees --
+            // including lines the filter above drops -- so one battle with jobs unlocked is
+            // enough to decide whether a typed SetJobProficiencyData hook is needed.
+            MelonLogger.Msg($"[BattleResult] {logTag} raw texts ({allTexts.Count}): {string.Join(" | ", allTexts)}");
 
             if (texts.Count == 0) yield break;
 
             string announcement = string.Join(", ", texts);
             MelonLogger.Msg($"[BattleResult] {logTag}: {announcement}");
 
+            BattleResultDataStore.AddListPage(LocalizationHelper.GetModString("learned"), texts);
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
         }
     }
 
     // ----------------------------------------------------------------
-    //  Level-up abilities
+    //  Level-up abilities / job proficiency level up
     // ----------------------------------------------------------------
     [HarmonyPatch(typeof(ResultMenuController), nameof(ResultMenuController.ShowLevelUpAbilitysInit))]
     public static class ResultMenuController_ShowLevelUpAbilitysInit_Patch
@@ -394,6 +713,11 @@ namespace FFV_ScreenReader.Patches
                 if (parts.Count == 0) return;
 
                 string received = LocalizationHelper.GetModString("received");
+
+                // Flat page -- the count is already folded into each line, so there is no
+                // second axis worth arrowing across.
+                BattleResultDataStore.AddListPage(received, parts);
+
                 string announcement = $"{received}: {string.Join(", ", parts)}";
                 MelonLogger.Msg($"[BattleResult] Items: {announcement}");
 
@@ -438,311 +762,4 @@ namespace FFV_ScreenReader.Patches
             }
         }
     }
-
-    // ================================================================
-    //  Manual patches (types in non-standard IL2CPP namespaces)
-    // ================================================================
-    public static class BattleResultManualPatches
-    {
-        /// <summary>
-        /// Applies manual Harmony patches for types outside the standard Last.UI.KeyInput namespace.
-        /// </summary>
-        public static void ApplyPatches(HarmonyLib.Harmony harmony)
-        {
-            try
-            {
-                PatchStatusUpSetData(harmony);
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[BattleResult] Error applying manual patches: {ex.Message}");
-            }
-        }
-
-        // ---------- helpers ----------
-
-        private static Type FindType(string fullName)
-        {
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                try
-                {
-                    foreach (var t in asm.GetTypes())
-                        if (t.FullName == fullName) return t;
-                }
-                catch { /* assembly may throw on GetTypes() */ }
-            }
-            return null;
-        }
-
-        // ---------- ResultStatusUpController.SetData ----------
-
-        private static void PatchStatusUpSetData(HarmonyLib.Harmony harmony)
-        {
-            // The type lives in Serial.FF5.UI.Touch — try IL2CPP-prefixed name first
-            string[] candidates =
-            {
-                "Il2CppSerial.FF5.UI.Touch.ResultStatusUpController",
-                "Serial.FF5.UI.Touch.ResultStatusUpController",
-            };
-
-            Type controllerType = null;
-            foreach (var name in candidates)
-            {
-                controllerType = FindType(name);
-                if (controllerType != null)
-                {
-                    MelonLogger.Msg($"[BattleResult] Found ResultStatusUpController: {name}");
-                    break;
-                }
-            }
-
-            if (controllerType == null)
-            {
-                MelonLogger.Warning(
-                    "[BattleResult] Could not find ResultStatusUpController type. " +
-                    "Per-character level-up detail will not be announced.");
-                return;
-            }
-
-            var setDataMethod = AccessTools.Method(controllerType, "SetData");
-            if (setDataMethod == null)
-            {
-                MelonLogger.Warning("[BattleResult] SetData method not found on ResultStatusUpController");
-                return;
-            }
-
-            var postfix = typeof(BattleResultManualPatches).GetMethod(
-                nameof(SetData_Postfix), BindingFlags.Public | BindingFlags.Static);
-            harmony.Patch(setDataMethod, postfix: new HarmonyMethod(postfix));
-            MelonLogger.Msg("[BattleResult] Patched ResultStatusUpController.SetData");
-        }
-
-        /// <summary>
-        /// Postfix for ResultStatusUpController.SetData --
-        /// fires once per character who leveled up.
-        /// __0 is the BattleResultCharacterData parameter.
-        /// </summary>
-        public static void SetData_Postfix(object __instance, object __0)
-        {
-            try
-            {
-                MelonLogger.Msg("[BattleResult] ResultStatusUpController.SetData fired");
-
-                // Try to extract stat diffs from the data parameter
-                BattleResultDataStore.CharacterStatData statData = null;
-                try
-                {
-                    statData = ExtractStatDiffs(__0);
-                }
-                catch (Exception ex)
-                {
-                    MelonLogger.Warning($"[BattleResult] SetData: could not extract stat diffs: {ex.Message}");
-                }
-
-                // Obtain the MonoBehaviour's Transform so we can read UI text
-                Transform root = GetTransformFromInstance(__instance);
-                if (root == null)
-                {
-                    MelonLogger.Warning("[BattleResult] SetData: could not get Transform from instance");
-                    // Even without UI, try to announce from data if available
-                    if (statData != null)
-                    {
-                        BattleResultDataStore.AddStatData(statData);
-                        AnnounceFromStatData(statData);
-                    }
-                    return;
-                }
-
-                CoroutineManager.StartUntracked(AnnounceStatusUpCoroutine(root, statData));
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"Error in SetData postfix: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Extract HP/MP diffs from the BattleResultCharacterData parameter.
-        /// </summary>
-        private static BattleResultDataStore.CharacterStatData ExtractStatDiffs(object charDataObj)
-        {
-            if (charDataObj == null) return null;
-
-            // Cast to BattleResultCharacterData
-            var charData = charDataObj as BattleResultData.BattleResultCharacterData;
-            if (charData == null) return null;
-
-            var beforeChar = charData.BeforData;
-            var afterChar = charData.AfterData;
-            if (beforeChar?.parameter == null || afterChar?.parameter == null) return null;
-
-            string charName = afterChar.Name;
-            var result = new BattleResultDataStore.CharacterStatData { Name = charName };
-
-            // Compare HP
-            int beforeHp = beforeChar.parameter.ConfirmedMaxHp();
-            int afterHp = afterChar.parameter.ConfirmedMaxHp();
-            int diffHp = afterHp - beforeHp;
-            result.Stats.Add(new BattleResultDataStore.StatChange
-            {
-                Category = "HP",
-                Before = beforeHp.ToString(),
-                After = afterHp.ToString(),
-                Diff = diffHp
-            });
-
-            // Compare MP
-            int beforeMp = beforeChar.parameter.ConfirmedMaxMp();
-            int afterMp = afterChar.parameter.ConfirmedMaxMp();
-            int diffMp = afterMp - beforeMp;
-            result.Stats.Add(new BattleResultDataStore.StatChange
-            {
-                Category = "MP",
-                Before = beforeMp.ToString(),
-                After = afterMp.ToString(),
-                Diff = diffMp
-            });
-
-            MelonLogger.Msg($"[BattleResult] StatDiffs for {charName}: HP {beforeHp}->{afterHp} (+{diffHp}), MP {beforeMp}->{afterMp} (+{diffMp})");
-
-            return result;
-        }
-
-        /// <summary>
-        /// Announces stat data directly (fallback when UI transform is not available).
-        /// </summary>
-        internal static void AnnounceFromStatData(BattleResultDataStore.CharacterStatData statData)
-        {
-            var parts = new List<string>();
-            foreach (var stat in statData.Stats)
-            {
-                if (stat.Diff > 0)
-                    parts.Add($"{stat.Category} +{stat.Diff}");
-            }
-
-            if (parts.Count == 0) return;
-
-            string announcement = $"{statData.Name}: {string.Join(", ", parts)}";
-            MelonLogger.Msg($"[BattleResult] StatusUp (from data): {announcement}");
-
-            if (BattleResultState.AnnouncedLevelUps.Add(announcement))
-                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
-        }
-
-        private static Transform GetTransformFromInstance(object instance)
-        {
-            // ResultStatusUpController extends MonoBehaviour extends Component
-            if (instance is Component comp)
-                return comp.transform;
-
-            return null;
-        }
-
-        /// <summary>
-        /// Waits 1 frame, then reads the status-up screen text and
-        /// announces per-character stat changes.
-        /// Also stores stat data for the navigator.
-        /// </summary>
-        internal static IEnumerator AnnounceStatusUpCoroutine(Transform root, BattleResultDataStore.CharacterStatData statData)
-        {
-            yield return null; // let SetData finish populating the view
-
-            // Store stat data for navigator (even if UI read fails below)
-            if (statData != null)
-                BattleResultDataStore.AddStatData(statData);
-
-            // Collect every visible text value under the controller
-            var allTexts = new List<string>();
-            ForEachTextInChildren(root, t =>
-            {
-                string v = GetTextSafe(t);
-                if (!string.IsNullOrEmpty(v))
-                    allTexts.Add(v);
-            }, includeInactive: false);
-
-            if (allTexts.Count == 0)
-            {
-                // Fall back to data-based announcement
-                if (statData != null)
-                    AnnounceFromStatData(statData);
-                yield break;
-            }
-
-            // Build a structured announcement.
-            // Expected order from depth-first traversal:
-            //   [0] = character name (from ResultStatusUpView.nameText)
-            //   then groups of (category, beforeValue, afterValue)
-            string charName = allTexts[0];
-
-            // Prefer data-based diff format "+N" over UI "before to after"
-            if (statData != null && statData.Stats.Count > 0)
-            {
-                var statParts = new List<string>();
-                foreach (var stat in statData.Stats)
-                {
-                    if (stat.Diff > 0)
-                        statParts.Add($"{stat.Category} +{stat.Diff}");
-                }
-
-                if (statParts.Count > 0)
-                {
-                    string announcement = $"{charName}: {string.Join(", ", statParts)}";
-                    MelonLogger.Msg($"[BattleResult] StatusUp: {announcement}");
-
-                    if (BattleResultState.AnnouncedLevelUps.Add(announcement))
-                        FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
-                    yield break;
-                }
-            }
-
-            // Fallback: use UI text with "before to after" format
-            string to = LocalizationHelper.GetModString("to");
-
-            var uiStatParts = new List<string>();
-            int i = 1;
-            while (i < allTexts.Count)
-            {
-                // Try to detect a (category, before, after) triple
-                if (i + 2 < allTexts.Count && IsNumeric(allTexts[i + 1]) && IsNumeric(allTexts[i + 2]))
-                {
-                    uiStatParts.Add($"{allTexts[i]} {allTexts[i + 1]} {to} {allTexts[i + 2]}");
-                    i += 3;
-                }
-                else
-                {
-                    // Unknown text -- include as-is
-                    uiStatParts.Add(allTexts[i]);
-                    i++;
-                }
-            }
-
-            string fallbackAnnouncement;
-            if (uiStatParts.Count > 0)
-                fallbackAnnouncement = $"{charName}: {string.Join(", ", uiStatParts)}";
-            else
-                fallbackAnnouncement = charName;
-
-            MelonLogger.Msg($"[BattleResult] StatusUp: {fallbackAnnouncement}");
-
-            if (BattleResultState.AnnouncedLevelUps.Add(fallbackAnnouncement))
-                FFV_ScreenReaderMod.SpeakText(fallbackAnnouncement, interrupt: false);
-        }
-
-        /// <summary>
-        /// Returns true when the string looks like a number
-        /// (digits, commas, periods, spaces allowed for locale formatting).
-        /// </summary>
-        private static bool IsNumeric(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return false;
-            foreach (char ch in text)
-            {
-                if (!char.IsDigit(ch) && ch != ',' && ch != '.' && ch != ' ' && ch != '-')
-                    return false;
-            }
-            return true;
-        }
-    }
-
 }

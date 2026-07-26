@@ -1035,9 +1035,15 @@ namespace FFV_ScreenReader.Patches
 
     /// <summary>
     /// Announces the initially-focused row when a job or ability screen is entered or returned to.
-    /// SelectContent / SetCursor only fire on cursor movement, so the row the game starts on was
-    /// silent. Hooks the state-entry *Init methods, which the navigation path never fires — the
-    /// two are disjoint, so neither needs to suppress the other.
+    /// SelectContent / SetCursor mostly only fire on cursor movement, so the row the game starts
+    /// on would otherwise be silent. Hooks the state-entry *Init methods.
+    ///
+    /// The disjointness this design assumes does NOT hold universally — some navigation methods
+    /// run during initialisation, and then the *Init hook reads the same row a second time. The
+    /// guard cannot absorb it, because the *Init hook's own ClearLast() is what unmasks the
+    /// duplicate. Confirmed redundant and reduced to clear-only: AbilityCommand_Init_Postfix
+    /// (AbilityCommandController.SelectContent fires during CommandInit). Before adding or
+    /// keeping an *Init announce here, check the speech log for a ~1-frame double on entry.
     ///
     /// Manual patching because every target is private or protected override.
     /// </summary>
@@ -1111,24 +1117,23 @@ namespace FFV_ScreenReader.Patches
             });
         }
 
+        /// <summary>
+        /// Clear-only. AbilityCommandController.SelectContent already fires during CommandInit
+        /// with its data populated, so it announces the focused command itself — confirmed from
+        /// the speech log, where entering Magic read "White Magic" twice ~37 ms apart (the
+        /// navigation patch, then this hook's deferred read one frame later).
+        ///
+        /// The hook still has to clear the guard: without it, backing out and re-entering on the
+        /// same command would hit `index == _lastIndex` and go silent. Clearing is the opposite of
+        /// a dedup net — it exists so a repeat entry DOES speak. Only the redundant
+        /// MenuFocusAnnouncer.Request was removed.
+        /// </summary>
         public static void AbilityCommand_Init_Postfix(object __instance)
         {
             var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
             if (window == null) return;
 
             AbilityCommandController_SelectContent_Patch.ClearLast();
-            MenuFocusAnnouncer.Request("AbilityCommand", () =>
-            {
-                if (!IsUsable(window)) return false;
-
-                var commandController = window.commandController;
-                if (commandController == null) return false;
-
-                var cursor = commandController.selectCursor;    // Cursor @ 0x38
-                if (cursor == null) return false;
-
-                return AbilityCommandController_SelectContent_Patch.Announce(commandController, cursor.Index);
-            });
         }
 
         public static void SpellList_Init_Postfix(object __instance)

@@ -530,7 +530,13 @@ namespace FFV_ScreenReader.Patches
 
                 // Reset button tracking for fresh state
                 lastGameOverLoadIndex = -1;
-                SaveLoadMenuState.IsActive = true; // Suppress PopupOpen_Postfix for this flow
+
+                // Gates the Cursor.*Index patches so the generic cursor reader doesn't
+                // double-read these buttons -- GameOverLoadPopup.UpdateCommand already reads
+                // them. (This does NOT suppress PopupOpen_Postfix, which only checks
+                // IsShopActive; an older comment here claimed otherwise.) Cleared by
+                // MainMenuController.Show on the way back into a menu.
+                SaveLoadMenuState.IsActive = true;
 
                 // Use coroutine to delay reading until UI has populated
                 CoroutineManager.StartManaged(DelayedGameOverLoadPopupRead(__instance.Pointer));

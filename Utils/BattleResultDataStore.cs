@@ -5,88 +5,72 @@ namespace FFV_ScreenReader.Utils
     /// <summary>
     /// Centralized static store for battle result data.
     /// Written by BattleResultPatches, read by BattleResultNavigator.
+    ///
+    /// The victory screen is a sequence of pages (totals, then one level-up page per
+    /// character, then abilities, then items). Each page is stored as its own grid in
+    /// <see cref="Pages"/>, in the order the game showed it, so the navigator can page
+    /// through them individually instead of flattening everything into one list.
     /// </summary>
     public static class BattleResultDataStore
     {
         /// <summary>
-        /// Per-character points data (EXP earned, next level EXP, ABP).
+        /// One reviewable result page: a titled grid of rows x columns.
+        /// A page with no columns is a flat list — only the row headers carry text.
         /// </summary>
-        public class CharacterPointsData
+        public class ResultPage
         {
-            public string Name;
-            public int Exp;
-            public int Abp;
-            public int NextExp;
-            public bool IsLevelUp;
-            public int NewLevel;
-            public bool IsJobLevelUp;
+            public string Title;
+            public string[] RowHeaders;
+            public string[] ColHeaders;
+            public string[,] Cells;
+
+            /// <summary>
+            /// Optional per-row spoken summary, used instead of joining every cell to its
+            /// column header. Lets a page phrase itself the way the game draws it
+            /// ("HP: 44 &gt; 53 (9)") rather than reading three column names in one breath.
+            /// Null means fall back to the generic join.
+            /// </summary>
+            public string[] RowSummaries;
         }
+
+        private static readonly List<ResultPage> pages = new List<ResultPage>();
 
         /// <summary>
-        /// Per-character stat change data (for level-up stat screen).
+        /// Result pages in the order the game presented them.
         /// </summary>
-        public class CharacterStatData
-        {
-            public string Name;
-            public List<StatChange> Stats = new List<StatChange>();
-        }
-
-        /// <summary>
-        /// A single stat before/after pair.
-        /// </summary>
-        public class StatChange
-        {
-            public string Category; // e.g. "HP", "MP"
-            public string Before;
-            public string After;
-            public int Diff;
-        }
-
-        // Points screen data
-        public static List<CharacterPointsData> PointsData { get; private set; }
-        public static int TotalExp { get; private set; }
-        public static int TotalAbp { get; private set; }
-        public static int TotalGil { get; private set; }
-
-        // Stats screen data (accumulated per SetData call)
-        public static List<CharacterStatData> StatsData { get; private set; }
+        public static IReadOnlyList<ResultPage> Pages => pages;
 
         /// <summary>
         /// Whether any result data is available (used to determine BattleResult context).
         /// </summary>
-        public static bool HasData => PointsData != null || StatsData != null;
+        public static bool HasData => pages.Count > 0;
 
         /// <summary>
-        /// Whether points data is available.
+        /// Appends a grid page. Ignores pages with no rows so the navigator never lands
+        /// on an empty screen.
         /// </summary>
-        public static bool HasPointsData => PointsData != null && PointsData.Count > 0;
-
-        /// <summary>
-        /// Whether stats data is available.
-        /// </summary>
-        public static bool HasStatsData => StatsData != null && StatsData.Count > 0;
-
-        /// <summary>
-        /// Stores points screen data from ShowPointsInit.
-        /// Clears any previous stats data.
-        /// </summary>
-        public static void SetPointsData(List<CharacterPointsData> characters, int totalExp, int totalAbp, int totalGil)
+        public static void AddPage(string title, string[] rowHeaders, string[] colHeaders, string[,] cells,
+                                   string[] rowSummaries = null)
         {
-            PointsData = characters;
-            TotalExp = totalExp;
-            TotalAbp = totalAbp;
-            TotalGil = totalGil;
-            StatsData = null;
+            if (rowHeaders == null || rowHeaders.Length == 0) return;
+
+            pages.Add(new ResultPage
+            {
+                Title = title,
+                RowHeaders = rowHeaders,
+                ColHeaders = colHeaders ?? new string[0],
+                Cells = cells,
+                RowSummaries = rowSummaries
+            });
         }
 
         /// <summary>
-        /// Adds stat data for a single character from SetData_Postfix.
+        /// Appends a flat, column-less page built from a list of lines.
         /// </summary>
-        public static void AddStatData(CharacterStatData charStats)
+        public static void AddListPage(string title, List<string> lines)
         {
-            if (StatsData == null)
-                StatsData = new List<CharacterStatData>();
-            StatsData.Add(charStats);
+            if (lines == null || lines.Count == 0) return;
+            AddPage(title, lines.ToArray(), new string[0], new string[lines.Count, 0]);
         }
 
         /// <summary>
@@ -94,11 +78,7 @@ namespace FFV_ScreenReader.Utils
         /// </summary>
         public static void Clear()
         {
-            PointsData = null;
-            StatsData = null;
-            TotalExp = 0;
-            TotalAbp = 0;
-            TotalGil = 0;
+            pages.Clear();
         }
     }
 }
