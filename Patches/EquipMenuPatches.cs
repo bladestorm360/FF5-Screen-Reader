@@ -21,14 +21,16 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class EquipMenuState
     {
-        // Scroll-view / cursor-settle re-fires on an unchanged row.
+        // Scroll-view / cursor-settle re-fires on an unchanged row, one guard per pane. Each guard
+        // is only ever consulted within its own pane: the slot and item-list announcers clear each
+        // other's guard on focus change, so moving between panes always re-announces.
         private static string _lastCommand;
         private static string _lastSlot;
         private static string _lastSelectRow;
 
         /// <summary>
-        /// Clears the guards so a pane (re)entry always announces, even when the focused row is
-        /// the one that was last spoken before leaving.
+        /// Clears every guard, so entering the equipment window from the command bar always
+        /// announces even when the focused row is the one last spoken before leaving.
         /// </summary>
         public static void ClearLastAnnouncements()
         {
@@ -122,6 +124,13 @@ namespace FFV_ScreenReader.Patches
             // Append slot position last.
             announcement = MenuPosition.Format(announcement, index, contentList.Count);
 
+            // Focus is on the slot pane, so whatever row the item list last spoke is stale.
+            // This cross-pane invalidation is what lets both panes drop their *Init hooks:
+            // each guard now only ever suppresses a re-fire on an unchanged row *within* its
+            // own pane, which is all it was ever for. Done before the dedup check so it still
+            // happens when this call is itself a re-fire.
+            _lastSelectRow = null;
+
             if (announcement == _lastSlot) return false;
             _lastSlot = announcement;
 
@@ -164,6 +173,10 @@ namespace FFV_ScreenReader.Patches
 
             // Append list position last (after mechanical info/description).
             announcement = MenuPosition.Format(announcement, index, contentList.Count);
+
+            // Mirror of the invalidation in AnnounceEquipSlot: focus is on the item list, so the
+            // slot pane's remembered row is stale and cancelling back to it must re-announce.
+            _lastSlot = null;
 
             if (announcement == _lastSelectRow) return false;
             _lastSelectRow = announcement;
@@ -218,15 +231,18 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Announces the initially-focused row when an equipment pane is entered or returned to.
-    /// SetCursor / SelectContent only fire on cursor movement, so the row the game starts on was
-    /// silent.
+    /// Announces the initially-focused row of the equipment COMMAND bar on entry, which has no
+    /// navigation patch of its own to do it.
     ///
-    /// All three panes hang off the single EquipmentWindowController state machine, so one hook
-    /// per pane covers both entry points — the field menu AND the shop, which share this
-    /// controller (Initalize(bool isShop, MainMenuController) / (bool isShop, ShopController)).
-    /// Do not additionally hook EquipmentInfoWindowController.InitializeSelectContent or
-    /// EquipmentCommandController.ResetCursor: redundant, and a double-fire source.
+    /// The hook hangs off the single EquipmentWindowController state machine, so it covers both
+    /// entry points — the field menu AND the shop, which share this controller
+    /// (Initalize(bool isShop, MainMenuController) / (bool isShop, ShopController)).
+    ///
+    /// Adding hooks here is a recurring double-fire source. Before hooking a pane, check whether
+    /// its navigation patch already fires during initialisation; if it does, the *Init hook is
+    /// redundant and will read the row twice. Confirmed redundant and NOT hooked: InfoInit and
+    /// SelectInit (see ApplyPatches), EquipmentInfoWindowController.InitializeSelectContent,
+    /// EquipmentCommandController.ResetCursor.
     /// </summary>
     public static class FieldEquipReannouncePatches
     {
@@ -240,8 +256,23 @@ namespace FFV_ScreenReader.Patches
         public static void ApplyPatches(HarmonyLib.Harmony harmony)
         {
             Patch(harmony, "CommandInit", nameof(Command_Init_Postfix));
-            Patch(harmony, "InfoInit", nameof(Info_Init_Postfix));
-            Patch(harmony, "SelectInit", nameof(Select_Init_Postfix));
+
+            // InfoInit and SelectInit are deliberately NOT patched. Both of those panes already
+            // have a navigation announcer that ALSO fires while the pane initialises —
+            // EquipmentInfoWindowController.SelectContent and
+            // EquipmentSelectWindowController.SetCursor both run on entry, before the *Init hook.
+            // Hooking *Init as well read the focused row twice: the navigation patch spoke and
+            // set its guard, then the *Init postfix's ClearLastAnnouncements() wiped that guard
+            // and the deferred read spoke the identical line one frame later. The clear is what
+            // unmasked the duplicate, so no guard could have absorbed it.
+            //
+            // Entry and re-entry still announce, because AnnounceEquipSlot/AnnounceEquipSelect
+            // now invalidate each other's guard on focus change (see EquipMenuState). Those two
+            // panes are always entered from one another or from the command bar, whose CommandInit
+            // still clears everything.
+            //
+            // The command bar keeps its hook: EquipmentCommandController has no navigation patch
+            // at all, so nothing else would announce its focused entry.
 
             // NoneInit is deliberately NOT patched: its body is empty, and IL2CPP folds every
             // empty method in the game onto ONE shared native address (0x2711A0 / 2561440 here,
@@ -261,24 +292,6 @@ namespace FFV_ScreenReader.Patches
             MenuFocusAnnouncer.Request("EquipCommand", () => TryAnnounceCommand(controller));
         }
 
-        public static void Info_Init_Postfix(object __instance)
-        {
-            var controller = __instance as EquipmentWindowController;
-            if (controller == null) return;
-
-            EquipMenuState.ClearLastAnnouncements();
-            MenuFocusAnnouncer.Request("EquipSlot", () => TryAnnounceSlot(controller));
-        }
-
-        public static void Select_Init_Postfix(object __instance)
-        {
-            var controller = __instance as EquipmentWindowController;
-            if (controller == null) return;
-
-            EquipMenuState.ClearLastAnnouncements();
-            MenuFocusAnnouncer.Request("EquipSelect", () => TryAnnounceSelect(controller));
-        }
-
         private static bool TryAnnounceCommand(EquipmentWindowController window)
         {
             if (!IsUsable(window)) return false;
@@ -290,32 +303,6 @@ namespace FFV_ScreenReader.Patches
             if (cursor == null) return false;
 
             return EquipMenuState.AnnounceEquipCommand(commandController, cursor.Index);
-        }
-
-        private static bool TryAnnounceSlot(EquipmentWindowController window)
-        {
-            if (!IsUsable(window)) return false;
-
-            var infoController = window.infoWindowController;
-            if (infoController == null) return false;
-
-            var cursor = infoController.selectCursor;
-            if (cursor == null) return false;
-
-            return EquipMenuState.AnnounceEquipSlot(infoController, cursor.Index);
-        }
-
-        private static bool TryAnnounceSelect(EquipmentWindowController window)
-        {
-            if (!IsUsable(window)) return false;
-
-            var selectController = window.selectWindowController;
-            if (selectController == null) return false;
-
-            var cursor = selectController.selectCursor;
-            if (cursor == null) return false;
-
-            return EquipMenuState.AnnounceEquipSelect(selectController, cursor.Index);
         }
 
         /// <summary>

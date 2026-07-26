@@ -312,15 +312,16 @@ namespace FFV_ScreenReader.Core
 
         public override void OnUpdate()
         {
-            // Silence all mod activity during events (and grace period) —
-            // eliminates IL2CPP overhead that can interfere with trigger deactivation.
-            // Dialogue reading is unaffected (driven by Harmony hooks, not OnUpdate).
-            if (GameStatePatches.IsInEventState) return;
-
+            // Input runs in every game state, including events/cutscenes, so mod mode and
+            // the repeat key stay reachable while an NPC is talking. Field-only work is kept
+            // out of events by InputManager.DetermineContext(), which forces KeyContext.Global
+            // there — so entity/waypoint scans never fire mid-cutscene.
             inputManager.Update();
 
+            // Footsteps use the shared audio gate (battle, event, dialogue, menus, overlays,
+            // fades) — the event gating that used to come from an early return above.
             if (audioLoopManager != null && audioLoopManager.IsFootstepsEnabled
-                && !BattleState.IsInBattle && !DialogueTracker.IsInDialogue)
+                && !AudioLoopManager.IsAudioSuppressed)
             {
                 var player = GetFieldPlayer();
                 if (player?.transform != null)
@@ -697,6 +698,7 @@ namespace FFV_ScreenReader.Core
         public static bool LandingPingsEnabled => PreferencesManager.LandingPingsEnabled;
         public static bool ExpCounterEnabled => PreferencesManager.ExpCounterEnabled;
         public static bool StickClickNormalizationEnabled => PreferencesManager.StickClickNormalizationEnabled;
+        public static bool EnemyLettersEnabled => PreferencesManager.EnemyLettersEnabled;
 
         public static void ToggleExpCounter()
         {
@@ -728,6 +730,13 @@ namespace FFV_ScreenReader.Core
             bool newValue = !StickClickNormalizationEnabled;
             PreferencesManager.SaveStickClickNormalization(newValue);
             SpeakText(newValue ? T("Stick Click Normalization on") : T("Stick Click Normalization off"));
+        }
+
+        public static void ToggleEnemyLetters()
+        {
+            bool newValue = !EnemyLettersEnabled;
+            PreferencesManager.SaveEnemyLetters(newValue);
+            SpeakText(newValue ? T("Enemy Letters on") : T("Enemy Letters off"));
         }
 
         /// <summary>

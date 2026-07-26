@@ -10,6 +10,7 @@ using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Field;
 using FFV_ScreenReader.Utils;
 using Il2CppInterop.Runtime;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -236,6 +237,35 @@ namespace FFV_ScreenReader.Patches
 
             lastAnnouncedPageIndex = pageIndex;
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+        }
+
+        /// <summary>
+        /// Re-speaks the most recently announced dialogue page, with the speaker prefix if
+        /// known. Unlike the first announcement (which prefixes only when the speaker changes)
+        /// the prefix is always re-attached, since a repeat has no preceding context.
+        /// Driven by the R key and by mod mode + Square while a message window is open.
+        /// </summary>
+        public static void RepeatCurrentPage()
+        {
+            if (!_isInDialogue
+                || lastAnnouncedPageIndex < 0
+                || lastAnnouncedPageIndex >= currentPageBreaks.Count)
+            {
+                FFV_ScreenReaderMod.SpeakText(T("Nothing to repeat"), interrupt: true);
+                return;
+            }
+
+            string pageText = GetPageText(lastAnnouncedPageIndex);
+            if (string.IsNullOrWhiteSpace(pageText))
+            {
+                FFV_ScreenReaderMod.SpeakText(T("Nothing to repeat"), interrupt: true);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(lastAnnouncedSpeaker))
+                pageText = $"{lastAnnouncedSpeaker}: {pageText}";
+
+            FFV_ScreenReaderMod.SpeakText(pageText, interrupt: true);
         }
 
         /// <summary>

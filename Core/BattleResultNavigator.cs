@@ -154,10 +154,24 @@ namespace FFV_ScreenReader.Core
             var data = BattleResultDataStore.PointsData;
             title = LocalizationHelper.GetModString("battle_results");
 
-            // Columns: EXP, Next (EXP to next level), ABP — matches game screen order
-            colHeaders = new[] { "EXP", "Next", "ABP" };
+            // Columns: EXP, Next (EXP to next level), ABP (ABP to next JOB level) — game order.
+            //
+            // ABP-to-next only exists for a character in an unmastered job. A Freelancer has no
+            // job to level and a mastered job has no next level, so both yield 0 and the game
+            // shows nothing there. Drop the column outright when it applies to nobody, rather
+            // than reading "- ABP" for every character in an all-Freelancer party.
+            bool anyAbp = false;
+            for (int i = 0; i < data.Count; i++)
+            {
+                if (data[i].Abp > 0) { anyAbp = true; break; }
+            }
+
+            colHeaders = anyAbp
+                ? new[] { "EXP", "Next", "ABP" }
+                : new[] { "EXP", "Next" };
+
             rowHeaders = new string[data.Count];
-            cells = new string[data.Count, 3];
+            cells = new string[data.Count, colHeaders.Length];
 
             for (int i = 0; i < data.Count; i++)
             {
@@ -165,7 +179,11 @@ namespace FFV_ScreenReader.Core
                 rowHeaders[i] = c.Name;
                 cells[i, 0] = c.Exp.ToString("N0");
                 cells[i, 1] = c.NextExp > 0 ? c.NextExp.ToString("N0") : "-";
-                cells[i, 2] = c.Abp > 0 ? c.Abp.ToString() : "-";
+
+                // Mixed party: the column exists because someone has a job, but this character
+                // may still have no value of their own.
+                if (anyAbp)
+                    cells[i, 2] = c.Abp > 0 ? c.Abp.ToString() : "-";
             }
         }
 
@@ -257,6 +275,12 @@ namespace FFV_ScreenReader.Core
 
             for (int c = 0; c < colHeaders.Length; c++)
             {
+                // Skip columns this character has no value for ("-"), so the summary doesn't
+                // read "- ABP" for a Freelancer in a mixed party, or "- Next" at max level.
+                // Arrowing onto the column still reports the dash, which is informative when
+                // the user asks for that cell deliberately.
+                if (cells[row, c] == "-") continue;
+
                 parts.Add($"{cells[row, c]} {colHeaders[c]}");
             }
 

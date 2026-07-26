@@ -365,12 +365,19 @@ namespace FFV_ScreenReader.Patches
                 string vehicleName = GetTransportationName(typeId);
                 if (!string.IsNullOrEmpty(vehicleName))
                 {
+                    // Already aboard this exact vehicle — a redundant GetOn from a scripted
+                    // sequence. Keep the bookkeeping and the transition suppression, but don't
+                    // re-announce a state the player never left.
+                    bool alreadyAboard = MoveStateHelper.GetCurrentTransportType() == typeId;
+
                     MoveStateHelper.SetVehicleState(typeId);
                     lastAnnouncedTransportId = typeId;
                     lastTransportationId = typeId;
                     wasInIntermediateState = false;
                     Core.FFV_ScreenReaderMod.SuppressWallTonesForTransition();
-                    Core.FFV_ScreenReaderMod.SpeakText(string.Format(T("On {0}"), vehicleName), interrupt: false);
+
+                    if (!alreadyAboard)
+                        Core.FFV_ScreenReaderMod.SpeakText(string.Format(T("On {0}"), vehicleName), interrupt: false);
                 }
             }
             catch (Exception ex)
@@ -383,12 +390,19 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
+                // Already on foot — a redundant GetOff. Same reasoning as GetOn above; this also
+                // covers AnnounceStateChange having reached Walk first, which would otherwise
+                // produce a second "On foot".
+                bool alreadyOnFoot = MoveStateHelper.IsOnFoot();
+
                 wasInIntermediateState = false;
                 MoveStateHelper.SetOnFoot();
                 lastAnnouncedTransportId = TRANSPORT_PLAYER;
                 lastTransportationId = TRANSPORT_PLAYER;
                 Core.FFV_ScreenReaderMod.SuppressWallTonesForTransition();
-                Core.FFV_ScreenReaderMod.SpeakText(T("On foot"), interrupt: false);
+
+                if (!alreadyOnFoot)
+                    Core.FFV_ScreenReaderMod.SpeakText(T("On foot"), interrupt: false);
             }
             catch (Exception ex)
             {
@@ -461,22 +475,30 @@ namespace FFV_ScreenReader.Patches
                 if (__instance == null)
                     return;
 
-                // Suppress move state announcements during events
+                int currentMoveState = (int)__instance.moveState;
+
+                if (currentMoveState == lastMoveState)
+                    return;
+
+                int previousState = lastMoveState;
+
+                // Track the state even during events. The event check used to sit above this,
+                // which left the baseline stale through every scripted mount: riding Boko is an
+                // event, so lastMoveState stayed Walk while GetOn announced "On chocobo". At the
+                // scripted dismount the flag cleared first, this postfix compared the game's
+                // Chocobo against the stale Walk, called it a change, and announced "On chocobo"
+                // 172 ms before the real "On foot".
+                lastMoveState = currentMoveState;
+
+                if (previousState == -1)
+                    return;
+
+                // Suppress the announcement (not the tracking) during events — GetOn/GetOff and
+                // ChangeTransportation still narrate scripted mounts and dismounts.
                 if (GameStatePatches.IsInEventState)
                     return;
 
-                int currentMoveState = (int)__instance.moveState;
-
-                if (currentMoveState != lastMoveState)
-                {
-                    int previousState = lastMoveState;
-                    lastMoveState = currentMoveState;
-
-                    if (previousState == -1)
-                        return;
-
-                    MoveStateHelper.AnnounceStateChange(previousState, currentMoveState);
-                }
+                MoveStateHelper.AnnounceStateChange(previousState, currentMoveState);
             }
             catch (Exception ex)
             {

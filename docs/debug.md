@@ -641,3 +641,94 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 **Repeatable audit** — nothing else surfaces this class of bug, so re-run it whenever `T()` keys are added: parse `mod_text.json`, regex every `T("literal")` call site across `*.cs`, and diff the two sets. Also assert every entry has all 12 language codes. Caveat: only catches string literals — `T(variable)` call sites can't be checked statically.
 
 **Editing constraint**: `mod_text.json` is dense with non-ASCII. Per Rule 5, never touch it with PowerShell or a whole-file `Write` — use the `Edit` tool. Keys containing `{0}` are safe: `ParseNestedJson` locates the key between quotes *before* scanning for `{`.
+
+### Event-State Input Gate, Repeat Dialogue, Unified Audio Gate (2026-07-25)
+
+**Problem 1 — mod mode dead during dialogue.** `FFV_ScreenReaderMod.OnUpdate()` opened with `if (GameStatePatches.IsInEventState) return;`, so `inputManager.Update()` — and therefore `GamepadManager.Update()` and `ControllerRouter.Update()` — never ran. Story dialogue runs inside `SubSceneManagerMainGame.State.Event` (12), so *every* controller mod input was dead there, including the Back button that enters mod mode. Note the misdiagnosis trap: there is no dialogue check anywhere in `ControllerRouter.cs`; the Back branch has never been gated. The blocker was one early return three files away.
+
+**Why removing it is safe**: the Pyramid 5F freeze (see 2026-02-17 entry) was caused by a *permanent Harmony trampoline on `Timer.Update`*, and the fix is the dynamic apply/remove in `TimerPatches.ToggleTimerFreeze()` — `Timer.Update` stays unpatched unless the player toggles timer freeze (Shift+T, off by default). `OnUpdate` installs no patches and is not on that causal path. The guard was extra insurance against generic per-frame IL2CPP overhead.
+
+**Fix**: `OnUpdate` always calls `inputManager.Update()`. The protection's *substance* moves into `InputManager.DetermineContext()`, which now returns `KeyContext.Global` for event state as its **first** check — so field/entity/waypoint/teleport hotkeys and the entity scanner stay inert during cutscenes at the cost of one cached bool read. Side benefit: `ControllerRouter.IsFieldActive` is no longer frozen mid-cutscene (it was stale precisely because `ControllerRouter.Update()` never ran).
+
+**Problem 2 — the mod menu was never actually gated either.** `IsFieldOrFieldMenuActive()` was `IsOnValidMap() && !IsInBattle`, which passes while an NPC talks; it only *looked* blocked because the `OnUpdate` return killed input first. Lifting that return exposed the missing gate, so `!DialogueTracker.IsInDialogue && !GameStatePatches.IsInEventState` was added there — one function covering all three consumers (F8, F5, Start button). New reason string `Unavailable during dialogue` in `SpeakModMenuUnavailable()`. **Mod mode stays ungated by design; only the mod menu is blocked.**
+
+**Repeat dialogue** (`DialogueTracker.RepeatCurrentPage()`, ported from FF1 `MessageWindowPatches.RepeatLastDialogue`): re-speaks `GetPageText(lastAnnouncedPageIndex)` with `interrupt: true`. All the state it needs already existed. The speaker prefix is *always* re-attached, unlike the first announcement which only prefixes on speaker change — a repeat has no preceding context. Bound to bare `R` (`KeyContext.Global`, self-gated on `IsInDialogue` so it is a silent no-op elsewhere) and to mod mode + Square via a dialogue-first branch in `HandleModModeState()`. **`R` was free**: FF5's pathfinding filter is `Shift+\` / `Shift+P`, not `R` — `docs/plan.md` claimed otherwise and was wrong.
+
+**Unified audio gate** — `AudioLoopManager.IsAudioSuppressed` replaces a copy-pasted two-stage condition in three loops plus two ad-hoc subsets:
+
+```
+BattleState.IsInBattle || GameStatePatches.IsInEventState || DialogueTracker.IsInDialogue
+  || suppressed || !ControllerRouter.IsFieldActive || ControllerRouter.SuppressGameInput
+  || GameStatePatches.IsScreenFading
+```
+
+Applied to `BeaconLoop`, `WallToneLoop`, `LandingPingLoop`, the footstep call site in `OnUpdate`, and the wall-bump postfix in `MovementSoundPatches`. Net new coverage: **footsteps and wall bumps were never menu-gated**, and the beacon was never fade-gated. Footsteps also needed this explicitly — their event gating had been an accident of the `OnUpdate` early return. Loop-specific map-change and `vehicleTransitionSuppressedUntil` windows stay in their loops. `IsScreenFading` is safe to widen: every failure path returns `false`, so it can never latch audio off permanently. Ordering matters — `inputManager.Update()` refreshes `IsFieldActive` before the footstep check reads it.
+
+**Enemy HP toggle was a dead preference.** `PreferencesManager.EnemyHPDisplay` was written by F5 and `ModMenu` but read by **nothing**; `BattleTargetPatches.BuildEnemyAnnouncement()` hardcoded `$"{name}: HP: {cur}/{max}"`. Exact enemy HP is a cheat-adjacent disclosure, so this had to obey the setting. Now switches on the pref: 0 = `: HP: {0}/{1}`, 1 = `: N%`, 2 = nothing. Status effects still append in all three modes. That method is the **only** enemy-HP disclosure in the mod (single caller); `BuildPlayerAnnouncement` is party data and is untouched.
+
+**Lesson**: when a feature is "unavailable" somewhere, check whether the *driver loop* runs there before hunting for a gate in the feature's own code — and when a preference appears not to work, grep its getter for readers before debugging the writer.
+
+### Menu-State Leak Disabled All Field Features (2026-07-25)
+
+**Problem**: after backing out of item-use targeting, every field feature went dead — entity cycling, pathfinding, wall tones — on **both** keyboard and controller. Mod mode and the mod menu still worked, which made it look controller-specific; it wasn't.
+
+**Root cause**: `MenuStateRegistry.AnyActive()` gates both `KeyContext.Field` (`InputManager.DetermineContext`) and `ControllerRouter.IsFieldActive`. `ITEM_USE` is set by `ItemUseController.Show` and cleared only by `.Close()` — but `ItemUseController` is a state machine, and backing out of target selection returns to its `Non` state without calling `Close()` (that only runs when the whole item window closes). The flag latched on permanently. Nothing ever re-validated the registry, so **all 20 flags share this failure mode**: one missed `Close` hook silently disables the mod's field half until the game restarts.
+
+**Fix, two layers**:
+1. *Self-heal* — `GameStatePatches.ChangeState_Postfix` calls `MenuStateRegistry.ResetAll()` on `FieldReady | Player | ChangeMap`. `SubSceneManagerMainGame.State` (`dump.cs:376244`) gives menus their own states (`Menu=5`, `Shop=9`, `MenuLibraryUi=17`…), so `Player=3` provably means field control with nothing open. This recovers from any leak, present or future.
+2. *Specific leak* — postfix on `ItemUseController.SingleExit` clears `ITEM_USE`.
+
+**Folded-stub landmine** (extends the 2026-02-17 note): in `Il2CppLast.UI.KeyInput.ItemUseController`, the two hooks that look right are the dangerous ones — `NonInit()` and `AllExit()` are both RVA `0x2715A0`, the folded empty-method address shared by 2671 methods. `SingleExit()` is RVA `0xA20600`, count 1, and is the only safe exit hook. The `All` targeting path has no real exit body at all, which is why layer 1 is the primary fix. Patched manually via the existing `Patch()` helper rather than by attribute, so an unresolvable target logs a warning instead of aborting `PatchAll`.
+
+**Also fixed in the same pass**:
+- *Phantom "On chocobo" before "On foot"* — `FieldPlayer_ChangeMoveState_Patch` returned on `IsInEventState` *before* updating `lastMoveState`. Scripted mounts left the baseline stale, so the scripted dismount read as Walk→Chocobo and announced a state the player had held for a minute. Now the state is always tracked and only the speech is suppressed. `GetOn`/`GetOff` also gained "already in this state" guards.
+- *Battle results "- ABP"* — the stored `abpToNext` was **correct**; a Freelancer (and a mastered job) genuinely has no next job level. The bug was announcing a column that could never apply. `BuildPointsGrid` now omits the ABP column when no character has a value, and `BuildFullRowText` skips `"-"` cells. Both the row summary and left/right navigation already iterate `colHeaders.Length`, so nothing else needed changing.
+- *Second same-name KO silenced* — `BattleConditionController_Add_Patch` dedup'd on the rendered string, so two "Devil Crab: KO" collided. Re-keyed to a `HashSet<(IntPtr,int)>` of (unit instance, condition id), matching the `_lastActDataPtr` guard in the same file whose comment already warned that "a string compare would swallow the second". Persistent-condition re-fires are still suppressed.
+- *Quick Save read a party slot* — `CharacterSelectionReader` walks 15 ancestors matching any name containing `character`/`chara`/`status`/`party`/`member`. The save-confirm screen embeds a party preview, so it matched and read slot 0. Added a negative guard for `save`/`load`/`popup`/`confirm`/`dialog` containers, with a one-shot log of the matched name for confirmation.
+
+**Lesson**: latched booleans mirroring game UI state need a periodic authority to reconcile against — prefer the game's own state machine over hand-maintained flags, and always give such a mirror a recovery path.
+
+### Equipment Slot Read Twice on Entry (2026-07-26)
+
+**Problem**: entering a character's equip slot pane read the focused slot twice — `"R. Hand: Broadsword, Attack +15…"` at `03:35:11.258` and again at `.266`, one frame apart.
+
+**Root cause**: two call sites reached `EquipMenuState.AnnounceEquipSlot`, and the `_lastSlot` guard that should have absorbed the second was defeated by a clear landing between them. `EquipmentInfoWindowController.SelectContent` fires while the pane *initialises*, not only on cursor movement — so it spoke first and set the guard. `Info_Init_Postfix` then ran, called `ClearLastAnnouncements()`, and its `MenuFocusAnnouncer` request re-read the same row a frame later with the guard wiped.
+
+The ordering is what proves the direction: had `InfoInit` run first, its deferred read would have been deduped by the guard `SelectContent` set, and only one line would have been spoken.
+
+**Fix**: removed the redundant call site — the `InfoInit` hook, along with `Info_Init_Postfix` and `TryAnnounceSlot`. No dedup added. `SelectContent` alone now owns the slot pane, matching FF4, which never had an `InfoInit` hook.
+
+**Why re-entry still announces without it**: every exit from the slot pane lands in a pane whose `*Init` calls `ClearLastAnnouncements()` — cancelling goes to the command bar (`CommandInit`), choosing a slot goes to the item list (`SelectInit`) — so `_lastSlot` is always null by the time `SelectContent` fires on the next entry.
+
+**Why the other two panes keep their hooks**: `EquipmentCommandController` has no navigation patch at all, and the select pane's `SetCursor` is a genuine cursor hook. Only the slot pane had a navigation announcer that doubled as an entry announcer.
+
+**Lesson**: the initial-focus design assumes state-entry `*Init` hooks and navigation announcers are *disjoint*. That invariant does not hold for every controller — some navigation methods run during initialisation. Before adding an `*Init` hook, check whether the pane's navigation patch already fires on entry; if it does, the `*Init` hook is redundant. A guard that clears on entry cannot protect against this, because the clear is what unmasks the duplicate.
+
+**Follow-up, same day**: the item-select pane had the identical defect — `"Empty, Attack +3"` and `"Leather Cap…"` each read twice, ~11 ms apart, on choosing a slot. `EquipmentSelectWindowController.SetCursor` also fires during initialisation, so `SelectInit` was redundant too. Removed it, plus `Select_Init_Postfix` and `TryAnnounceSelect`.
+
+Deleting it needed one extra step, though, and it is the interesting part: with `InfoInit` already gone, `SelectInit`'s `ClearLastAnnouncements()` was the *only* thing clearing `_lastSlot`, so cancelling from the item list back to the slots would have gone silent. Rather than restore a hook, the invalidation moved into the announcers themselves — `AnnounceEquipSlot` nulls `_lastSelectRow` and `AnnounceEquipSelect` nulls `_lastSlot`, each before its own dedup check so it still happens on a re-fire. Each guard now only suppresses an unchanged-row re-fire *within* its own pane, which is all it was ever documented to do.
+
+`CommandInit` is the last remaining `*Init` hook here, and it stays: `EquipmentCommandController` has no navigation patch, so nothing else would announce the command bar's focused entry.
+
+**Lesson**: when a shared "clear everything" call is removed, trace which guard each *other* caller was relying on it to reset. Cross-pane staleness belongs with the thing that changes focus, not in an entry hook that races the navigation patch.
+
+### Quick Save Read a Party Slot — and Why the First Fix Missed (2026-07-26)
+
+**Problem**: choosing Quick Save announced `"Bartz, Freelancer, Level 3, Front Row, HP 30/55, MP 8/14"` at `03:47:50.557`, 27 ms before `"Save your progress?"`.
+
+**First attempt, and why it failed**: a name blacklist (`save`/`load`/`popup`/`confirm`/`dialog`) on the ancestor walk in `CharacterSelectionReader.TryReadCharacterSelection`. It never fired — its one-shot diagnostic was absent from the log, proving no ancestor carried any of those words. It was a guess about hierarchy naming, and the guess was wrong. Reverted in full; a substring blacklist there is also a latent hazard (a container named `loadout` would silently kill a legitimate read).
+
+**Actual call path** — the read never went through the generic cursor heuristic, which is why a guard placed in that heuristic's walk could not help:
+
+- `", Front Row"` is only produced by `CharacterSelectionReader.ReadCharacterInformation`, so the string is built there — but that method has two callers.
+- `CursorExclusionHelper.ExclusionPatterns` already excludes `party` and `status` ancestors, and `ShouldSkip` bails when `SaveLoadMenuState.IsActive`, so the generic path is largely walled off from the party panel already.
+- The tell was `[Status] initial focus read gave up after 6 frames` appearing during **Equip** character-select: Equip's character list is driven by the *Status* machinery. So the string comes from the dedicated `StatusWindowController` path.
+- `StatusWindowController_SelectContent_Patch` guarded only on instance/cursor `activeInHierarchy` — no popup gate — and announced via `DelayedCharacterAnnouncement`, a one-frame coroutine into `StatusMenuState.AnnounceCharacterRow`.
+
+Confirming Quick Save opens the popup, which re-drives the pause menu's party panel; the postfix's one-frame coroutine then spoke the party row. The 27 ms gap is simply two independent deferred reads (this one, and the popup's own delayed read) landing a frame or two apart.
+
+**Fix**: `StatusMenuState.AnnounceCharacterRow` returns false when `PopupState.IsConfirmationPopupActive || SaveLoadMenuState.IsActive`.
+
+**Why this is ordering-proof, unlike a synchronous guard**: `PopupState.SetActive` runs synchronously inside the `BasePopup.Open` postfix (`HandlePopupDetected` sets the flag, *then* starts its delayed read), while both routes into `AnnounceCharacterRow` are deferred — one-frame yield for navigation, settle loop for initial focus. So the flag is always settled by the time it is read, no matter whether `SelectContent` or `Open()` ran first within the frame. Returning `false` rather than `true` matches the method's "not readable yet" contract, so the settle loop retries and still announces if the popup closes while it is alive.
+
+**Lesson**: when a guard does not work, check whether its diagnostic fired before adjusting its parameters — an absent diagnostic means the code never ran, so the whole placement is wrong, not the threshold. And identify which of a shared builder's *callers* produced the string before guarding the builder; a nearby unrelated log line (here, `[Status] … gave up`) can be the thing that pins down the path.

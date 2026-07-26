@@ -7,15 +7,15 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Menus**: Cursor navigation, item/equipment/job/ability/config/shop/save slot/title menus. I key for details (job descriptions, item equip compatibility). Mutual exclusion between menu trackers.
 
-**Battle**: Turn order, command/target selection, damage/heal/status/defeat messages, per-phase results (EXP/Gil/ABP, level-up stats, abilities, items), steal results, MissType.NonView suppression, battle action object dedup.
+**Battle**: Turn order, command/target selection, damage/heal/status/defeat messages, per-phase results (EXP/Gil/ABP, level-up stats, abilities, items), steal results, MissType.NonView suppression, battle action object dedup. Optional A/B/C letters on same-named targets. Results ABP column appears only when it applies (not for Freelancer/mastered jobs).
 
-**Navigation**: Entity cycling (N/M), category filter (F), pathfinding filter (R), exit grouping (Q), wall collision sound, waypoint system (add/rename/remove/cycle/pathfind).
+**Navigation**: Entity cycling (N/M), category filter (F), pathfinding filter (Shift+\ / Shift+P), exit grouping (Q), wall collision sound, waypoint system (add/rename/remove/cycle/pathfind).
 
 **Audio**: ModMenu (F8) with toggles/volume sliders/enum selectors. Wall tones, footsteps, audio beacons, landing pings. 16-bit audio, LRU tone cache, volume caching.
 
 **Vehicles**: Movement state announcements (on foot/ship/airship/chocobo/submarine), landing zone detection via terrain attributes + CheckLandingList/OkList, vehicle entity tracking on world map.
 
-**Other**: Dialogue/message auto-read, timer (T key), F1 walk/run, F3 encounters, F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
+**Other**: Dialogue/message auto-read, repeat current dialogue page (R key, or mod + Square on controller), timer (T key), F1 walk/run, F3 encounters, F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
 
 **Bestiary (Picture Book)**: Full screen reader support for the enemy encyclopedia. Works from both extras menu (title screen) and config menu (in-game). List navigation with entry number/name, detail view with navigable stat buffer (arrow keys, Shift for group jump, Ctrl for top/bottom), formation announcements, map/habitat name reading, page turn support, monster switching in detail view. Shift+I reads control tooltips. Minimap open/close/cycle with habitat names. Full map open/close/cycle with habitat names. Items read from master data (UI uses icons only). Config menu path supports list, detail, page turns, and monster switching (no map/formation views).
 
@@ -23,7 +23,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Gallery (Extra Gallery)**: Screen reader support for the image gallery extras screen. List navigation with item number and name. "Image open" announcement on detail view. Automatic item re-announcement when returning from detail view. State cleanup on exit.
 
-**Initial focus**: Every menu announces its already-focused row on open and on return from a sub-menu. State-entry `*Init` hooks feed `MenuFocusAnnouncer`, a frame-bounded settle coroutine with a generation latch. Covers field menu, item list, item-use targets, all three equipment panes, job change, ability command/spell/target/equip, status character-select, and save/load slots. See `docs/debug.md` for the hook table.
+**Initial focus**: Every menu announces its already-focused row on open and on return from a sub-menu. State-entry `*Init` hooks feed `MenuFocusAnnouncer`, a frame-bounded settle coroutine with a generation latch. Covers field menu, item list, item-use targets, equipment command bar, job change, ability command/spell/target/equip, status character-select, and save/load slots. The equipment *slot* and *item-select* panes are deliberately excluded — their `SelectContent` / `SetCursor` navigation patches already fire on entry, so an `*Init` hook there double-read; those two panes invalidate each other's dedup guard instead. See `docs/debug.md` for the hook table and the disjointness caveat.
 
 ### Known Limitations
 - **Key help (Shift+I)**: Reads only the currently displayed page of controls. Menus with paginated controls (e.g., Music Player with 2 pages) will only read the visible page. This is a limitation of reading live UI state — the off-screen page's controllers aren't populated with current toggle state.
@@ -70,6 +70,13 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Mod string localization | Done (250 keys x 12 languages; audit reports 0 missing `T()` keys) |
 | Job menu UI-based level/ABP/mastered reading | Done (replaces data-based OwnedJob.Level which returned wrong values) |
 | Status screen UI-based job level reading | Done (same level 0 fix) |
+| Mod mode reachable during dialogue/cutscenes | Done (OnUpdate no longer early-returns on event state) |
+| Mod menu blocked during dialogue/cutscenes | Done (explicit gate in IsFieldOrFieldMenuActive; covers F8, F5, Start) |
+| Repeat dialogue (R key / mod + Square) | Done (DialogueTracker.RepeatCurrentPage, ported from FF1) |
+| Unified audio suppression gate | Done (AudioLoopManager.IsAudioSuppressed across all 5 sound features) |
+| Enemy HP display toggle honoured | Done (was a dead preference — always leaked exact HP) |
+| Menu-state self-heal on return to field | Done (one missed Close hook used to disable all field features) |
+| Enemy letters (A/B/C) toggle | Done (mod-derived; FF5 has no game-side label. Default off) |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

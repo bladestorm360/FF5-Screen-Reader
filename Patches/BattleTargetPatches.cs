@@ -167,10 +167,71 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Builds the announcement string for an enemy target.
-        /// Format: "Name: HP: current/max"
+        /// Returns " A", " B", ... when the enemy at <paramref name="index"/> shares its name with
+        /// at least one other enemy in the formation, or "" otherwise. FF5 itself has no such
+        /// label — BattleEnemyData exposes only GetMesIdName() — so the mod derives it, matching
+        /// FF1. Opt-in, because it matters most when Enemy HP Display is Hidden and the position
+        /// is otherwise the only thing separating three identical targets.
         /// </summary>
-        public static string BuildEnemyAnnouncement(BattleEnemyData enemyData)
+        private static string GetEnemyLetter(Il2CppSystem.Collections.Generic.List<BattleEnemyData> enemyList, int index)
+        {
+            if (!FFV_ScreenReaderMod.EnemyLettersEnabled) return "";
+            if (enemyList == null || index < 0 || index >= enemyList.Count) return "";
+
+            try
+            {
+                var messageManager = MessageManager.Instance;
+                if (messageManager == null) return "";
+
+                string selectedName = ResolveEnemyName(enemyList[index], messageManager);
+                if (string.IsNullOrEmpty(selectedName)) return "";
+
+                int sameNameCount = 0;
+                int positionInGroup = 0;
+
+                for (int i = 0; i < enemyList.Count; i++)
+                {
+                    if (ResolveEnemyName(enemyList[i], messageManager) != selectedName) continue;
+
+                    sameNameCount++;
+                    if (i < index) positionInGroup++;
+                }
+
+                if (sameNameCount <= 1) return "";
+
+                return $" {(char)('A' + positionInGroup)}";
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error deriving enemy letter: {ex.Message}");
+                return "";
+            }
+        }
+
+        /// <summary>Resolves an enemy's localized name, or null.</summary>
+        private static string ResolveEnemyName(BattleEnemyData enemy, MessageManager messageManager)
+        {
+            if (enemy == null) return null;
+
+            try
+            {
+                string mesIdName = enemy.GetMesIdName();
+                if (string.IsNullOrEmpty(mesIdName)) return null;
+
+                string name = messageManager.GetMessage(mesIdName);
+                return string.IsNullOrEmpty(name) ? null : name;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Builds the announcement string for an enemy target.
+        /// Format: "Name[ letter]: HP: current/max"
+        /// </summary>
+        public static string BuildEnemyAnnouncement(BattleEnemyData enemyData, string letterSuffix = "")
         {
             try
             {
@@ -218,7 +279,21 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
-                string result = $"{name}: HP: {currentHp}/{maxHp}";
+                // Honour the enemy HP display preference (F5 / mod menu). Exact enemy HP is a
+                // cheat-adjacent disclosure, so "Hidden" must reveal nothing at all.
+                string result = name + letterSuffix;
+                switch (PreferencesManager.EnemyHPDisplay)
+                {
+                    case 0: // Numbers (default)
+                        result += string.Format(T(": HP: {0}/{1}"), currentHp, maxHp);
+                        break;
+                    case 1: // Percentage
+                        int pct = maxHp > 0 ? (currentHp * 100 / maxHp) : 0;
+                        result += $": {pct}%";
+                        break;
+                    case 2: // Hidden — no HP disclosed
+                        break;
+                }
 
                 // Append status effects if any
                 var statusParam = battleInfo?.Parameter;
@@ -327,11 +402,12 @@ namespace FFV_ScreenReader.Patches
                 var selectedEnemy = GetEnemyAtIndex(list, index);
                 if (selectedEnemy == null) return;
 
-                string announcement = BuildEnemyAnnouncement(selectedEnemy);
+                var asList = list.TryCast<Il2CppSystem.Collections.Generic.List<BattleEnemyData>>();
+
+                string announcement = BuildEnemyAnnouncement(selectedEnemy, GetEnemyLetter(asList, index));
                 if (!string.IsNullOrEmpty(announcement))
                 {
                     // Append target position last (index within the selectable enemy list).
-                    var asList = list.TryCast<Il2CppSystem.Collections.Generic.List<BattleEnemyData>>();
                     announcement = MenuPosition.Format(announcement, index, asList != null ? asList.Count : 0);
                     FFV_ScreenReaderMod.SpeakText(announcement);
                 }

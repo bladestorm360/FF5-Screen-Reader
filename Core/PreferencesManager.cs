@@ -24,6 +24,7 @@ namespace FFV_ScreenReader.Core
         private static MelonPreferences_Entry<bool> prefAnnounceOnBeaconRestart;
         private static MelonPreferences_Entry<bool> prefMenuPositionAnnouncements;
         private static MelonPreferences_Entry<bool> prefAutoDetail;
+        private static MelonPreferences_Entry<bool> prefEnemyLetters;
 
         // Volume preferences (0-100, default 50)
         private static MelonPreferences_Entry<int> prefWallBumpVolume;
@@ -58,6 +59,7 @@ namespace FFV_ScreenReader.Core
             prefAnnounceOnBeaconRestart = prefsCategory.CreateEntry<bool>("AnnounceOnBeaconRestart", false, "Beacon Destination Announcement", "Re-speak the current destination when the beacon is restarted");
             prefMenuPositionAnnouncements = prefsCategory.CreateEntry<bool>("MenuPositionAnnouncements", true, "Menu Position Announcements", "Append the cursor's position in a list when navigating menus, e.g. (3 of 12)");
             prefAutoDetail = prefsCategory.CreateEntry<bool>("AutoDetail", true, "Auto Detail", "Automatically announce descriptions/stats on focus for items, magic, equipment, and shops (same as the on-demand details key)");
+            prefEnemyLetters = prefsCategory.CreateEntry<bool>("EnemyLetters", false, "Enemy Letters", "Append A, B, C to battle targets that share a name, so duplicates can be told apart (useful when Enemy HP Display is Hidden)");
 
             prefWallBumpVolume = prefsCategory.CreateEntry<int>("WallBumpVolume", 50, "Wall Bump Volume", "Volume for wall bump sounds (0-100)");
             prefFootstepVolume = prefsCategory.CreateEntry<int>("FootstepVolume", 50, "Footstep Volume", "Volume for footstep sounds (0-100)");
@@ -84,6 +86,7 @@ namespace FFV_ScreenReader.Core
         public static bool AnnounceOnBeaconRestartEnabled => prefAnnounceOnBeaconRestart?.Value ?? false;
         public static bool MenuPositionAnnouncementsEnabled => prefMenuPositionAnnouncements?.Value ?? true;
         public static bool AutoDetailEnabled => prefAutoDetail?.Value ?? true;
+        public static bool EnemyLettersEnabled => prefEnemyLetters?.Value ?? false;
 
         #endregion
 
@@ -178,6 +181,11 @@ namespace FFV_ScreenReader.Core
         public static void SaveAnnounceOnBeaconRestart(bool value)
         {
             if (prefAnnounceOnBeaconRestart != null) { prefAnnounceOnBeaconRestart.Value = value; prefsCategory?.SaveToFile(false); }
+        }
+
+        public static void SaveEnemyLetters(bool value)
+        {
+            if (prefEnemyLetters != null) { prefEnemyLetters.Value = value; prefsCategory?.SaveToFile(false); }
         }
 
         public static void SaveMenuPositionAnnouncements(bool value)

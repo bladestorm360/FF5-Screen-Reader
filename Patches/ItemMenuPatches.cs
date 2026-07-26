@@ -261,6 +261,7 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
+
     /// <summary>
     /// Announces the initially-focused row when an item screen is entered or returned to.
     /// SelectContent only fires on cursor movement, so the row the game starts on was silent.
@@ -303,6 +304,26 @@ namespace FFV_ScreenReader.Patches
                 Patch(harmony, typeof(Il2CppLast.UI.KeyInput.ItemUseController), method,
                       nameof(ItemTarget_Init_Postfix));
             }
+
+            // Leaving target selection. Backing out does NOT call Close() — the controller's
+            // state machine just returns to its Non state, and Close() only runs when the whole
+            // item window closes. Without this, ITEM_USE stayed latched all the way back onto
+            // the field and pinned the input context off Field, silently killing the entity
+            // scanner, pathfinding, and every field audio cue until the game restarted.
+            //
+            // Folded-stub check (docs/debug.md): SingleExit is RVA 0xA20600, count 1 — safe.
+            // Do NOT reach for the more obvious NonInit or AllExit: both are RVA 0x2715A0, this
+            // build's folded empty-method address shared by 2671 methods, so patching either
+            // detours thousands of methods and hard-crashes on launch. The All path therefore
+            // has no hookable exit and relies on the field-state reset in GameStatePatches.
+            Patch(harmony, typeof(Il2CppLast.UI.KeyInput.ItemUseController), "SingleExit",
+                  nameof(ItemTarget_Exit_Postfix));
+        }
+
+        /// <summary>Clears the item-use flag when single-target selection is left, by any route.</summary>
+        public static void ItemTarget_Exit_Postfix()
+        {
+            ItemUseTracker.IsItemUseActive = false;
         }
 
         public static void ItemList_Init_Postfix(object __instance)

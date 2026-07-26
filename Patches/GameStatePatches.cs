@@ -151,6 +151,17 @@ namespace FFV_ScreenReader.Patches
                     {
                         BattleState.Reset();
                     }
+
+                    // The game is back in field control, and menus live in their own states
+                    // (Menu=5, Shop=9, MenuLibraryUi=17...), so nothing can legitimately still be
+                    // open here. Drop any menu flag whose Close hook never fired — otherwise one
+                    // missed hook leaves MenuStateRegistry.AnyActive() true forever, which pins
+                    // the input context off Field and silently kills the entity scanner,
+                    // pathfinding, and every field audio cue until the game is restarted.
+                    // (Real case: backing out of item-use targeting leaves ITEM_USE latched,
+                    // because that path returns to the controller's Non state without a Close.)
+                    MenuStateRegistry.ResetAll();
+
                     CheckMapTransition();
                 }
 

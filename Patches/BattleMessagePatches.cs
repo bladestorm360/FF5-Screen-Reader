@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
@@ -384,13 +385,19 @@ namespace FFV_ScreenReader.Patches
     public static class BattleConditionController_Add_Patch
     {
         // Add() is invoked once per target of a multi-target status spell AND re-invoked while a
-        // persistent condition (poison, sleep) stays applied, so hold the last "{target}: {condition}"
-        // spoken. Cleared each turn by SetCommandSelectTarget so re-applying the same status to the
-        // same unit on a later turn still announces.
-        private static string _lastCondition;
+        // persistent condition (poison, sleep) stays applied, so remember what has already been
+        // spoken this turn. Cleared each turn by SetCommandSelectTarget so re-applying the same
+        // status to the same unit on a later turn still announces.
+        //
+        // Keyed on (unit INSTANCE, condition id), never on the rendered text: two Devil Crabs
+        // both produce "Devil Crab: KO", so a string compare swallowed the second enemy's death
+        // entirely. Distinct pointers means both now announce. Same reasoning as _lastActDataPtr
+        // above. A set rather than a single slot so interleaved units can't evict each other and
+        // let a persistent condition re-announce.
+        private static readonly HashSet<(IntPtr, int)> _announcedConditions = new HashSet<(IntPtr, int)>();
 
-        /// <summary>Clears the last condition so it can be announced again.</summary>
-        public static void ResetLastCondition() => _lastCondition = null;
+        /// <summary>Clears announced conditions so they can be announced again next turn.</summary>
+        public static void ResetLastCondition() => _announcedConditions.Clear();
 
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id)
@@ -456,12 +463,11 @@ namespace FFV_ScreenReader.Patches
                     conditionName = $"Status {id}";
                 }
 
-                string announcement = $"{targetName}: {conditionName}";
+                // Add() returns false when the pair is already present — a genuine re-fire for
+                // this same unit and condition, so stay silent.
+                if (!_announcedConditions.Add((battleUnitData.Pointer, id))) return;
 
-                if (announcement == _lastCondition) return;
-                _lastCondition = announcement;
-
-                FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                FFV_ScreenReaderMod.SpeakText($"{targetName}: {conditionName}", interrupt: false);
             }
             catch (Exception ex)
             {

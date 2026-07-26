@@ -89,9 +89,37 @@ namespace FFV_ScreenReader.Patches
         /// <summary>Clears the guard so a menu (re)entry announces even on the same character.</summary>
         public static void ClearLast() => _lastIndex = -1;
 
+        // One-shot: confirms the gate below actually fired, rather than the read merely not
+        // happening. Remove once verified in the log.
+        private static bool _loggedPopupSuppression = false;
+
         public static bool AnnounceCharacterRow(UnityEngine.Transform contentTransform, int index, int count)
         {
             if (contentTransform == null) return false;
+
+            // A confirmation popup (or the save/load flow) owns the screen, so the party panel
+            // behind it is not what the player is interacting with. Confirming Quick Save re-drives
+            // StatusWindowController's cursor as the prompt opens, which otherwise announced a
+            // party row over the prompt ("Bartz, Freelancer, Level 3..." before "Save your
+            // progress?"). Any popup raised over the pause menu had the same exposure.
+            //
+            // Safe to read the flag here even though the popup's Open() may run in the same frame
+            // as SelectContent: both routes into this method are deferred — the navigation postfix
+            // by a one-frame yield, the initial-focus path by the MenuFocusAnnouncer settle loop —
+            // and PopupState.SetActive runs synchronously inside the Open() postfix. A synchronous
+            // guard would have been subject to that ordering race.
+            //
+            // Returns false, not true: false is this method's "not readable yet" contract, so the
+            // settle loop retries and still announces if the popup closes while it is alive.
+            if (PopupState.IsConfirmationPopupActive || SaveLoadMenuState.IsActive)
+            {
+                if (!_loggedPopupSuppression)
+                {
+                    _loggedPopupSuppression = true;
+                    MelonLogger.Msg("[StatusMenu] Suppressed character row read — confirmation popup active");
+                }
+                return false;
+            }
 
             // Use CharacterSelectionReader to get character info from text components
             string characterInfo = CharacterSelectionReader.TryReadCharacterSelection(contentTransform, index);

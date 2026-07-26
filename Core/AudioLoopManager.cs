@@ -34,6 +34,25 @@ namespace FFV_ScreenReader.Core
         // this gate only silences the loops temporarily, it never changes the saved toggle.
         private static bool suppressed = false;
 
+        /// <summary>
+        /// Single source of truth for "all mod audio feedback must be silent right now".
+        /// Covers battle, cutscene/event state, NPC dialogue, transient suppression,
+        /// in-game menus and off-field contexts (via IsFieldActive), mod overlays
+        /// (mod mode/menu, text input, confirmation, battle results), and screen fades.
+        ///
+        /// Used by the three audio loops plus the two one-shot movement sounds, so every
+        /// feature silences under exactly the same conditions. Loop-specific gates
+        /// (map-change and vehicle-transition suppression windows) stay in their loops.
+        /// </summary>
+        internal static bool IsAudioSuppressed =>
+            BattleState.IsInBattle
+            || GameStatePatches.IsInEventState
+            || DialogueTracker.IsInDialogue
+            || suppressed
+            || !ControllerRouter.IsFieldActive
+            || ControllerRouter.SuppressGameInput
+            || GameStatePatches.IsScreenFading;
+
         // Beacon navigation constants — proximity-based interval modulation.
         // Mode A (valid path): 1.0s at 31.5 tiles (pathfinding limit) → 0.2s at 2 tiles; silent at ≤1 tile.
         // Mode B (no valid path / out of range): 1.0s at ≥100 tiles → 0.5s at 32 tiles; halved pitch.
@@ -277,17 +296,9 @@ namespace FFV_ScreenReader.Core
 
             while (PreferencesManager.AudioBeaconsEnabled)
             {
-                // Stop-gate: battle, event state, transient suppression, or NPC dialogue.
-                if (BattleState.IsInBattle || GameStatePatches.IsInEventState
-                    || suppressed || DialogueTracker.IsInDialogue)
-                {
-                    yield return null;
-                    continue;
-                }
-
-                // Silence when a mod overlay or in-game menu owns input.
+                // Stop-gate: battle, event/cutscene, dialogue, menus, mod overlays, fades.
                 // Beacon is one-shot pings — no channel to stop, just skip the tick.
-                if (!ControllerRouter.IsFieldActive || ControllerRouter.SuppressGameInput)
+                if (IsAudioSuppressed)
                 {
                     yield return null;
                     continue;
@@ -440,20 +451,8 @@ namespace FFV_ScreenReader.Core
 
             while (PreferencesManager.WallTonesEnabled)
             {
-                // Stop-gate: battle, event state, transient suppression, or NPC dialogue.
-                if (BattleState.IsInBattle || GameStatePatches.IsInEventState
-                    || suppressed || DialogueTracker.IsInDialogue)
-                {
-                    if (SoundPlayer.IsWallTonePlaying())
-                        SoundPlayer.StopWallTone();
-                    yield return null;
-                    continue;
-                }
-
-                // Silence when a mod overlay or in-game menu owns input.
-                // ControllerRouter.SuppressGameInput covers ModMenu / TextInputWindow /
-                // ConfirmationDialog / BattleResultNavigator; IsFieldActive covers menus.
-                if (!ControllerRouter.IsFieldActive || ControllerRouter.SuppressGameInput)
+                // Stop-gate: battle, event/cutscene, dialogue, menus, mod overlays, fades.
+                if (IsAudioSuppressed)
                 {
                     if (SoundPlayer.IsWallTonePlaying())
                         SoundPlayer.StopWallTone();
@@ -553,18 +552,8 @@ namespace FFV_ScreenReader.Core
 
             while (PreferencesManager.LandingPingsEnabled)
             {
-                // Stop-gate: battle, event state, transient suppression, or NPC dialogue.
-                if (BattleState.IsInBattle || GameStatePatches.IsInEventState
-                    || suppressed || DialogueTracker.IsInDialogue)
-                {
-                    if (SoundPlayer.IsLandingPingPlaying())
-                        SoundPlayer.StopLandingPing();
-                    yield return null;
-                    continue;
-                }
-
-                // Silence when a mod overlay or in-game menu owns input.
-                if (!ControllerRouter.IsFieldActive || ControllerRouter.SuppressGameInput)
+                // Stop-gate: battle, event/cutscene, dialogue, menus, mod overlays, fades.
+                if (IsAudioSuppressed)
                 {
                     if (SoundPlayer.IsLandingPingPlaying())
                         SoundPlayer.StopLandingPing();

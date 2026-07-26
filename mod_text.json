@@ -429,6 +429,41 @@
     "de": "Hier nicht nutzbar", "es": "No utilizable aquí", "ko": "여기서는 이용 불가", "zht": "此處無法使用",
     "zhc": "此处无法使用", "ru": "Недоступно здесь", "th": "ใช้ไม่ได้ที่นี่", "pt": "Indisponível aqui"
   },
+  "Enemy Letters": {
+    "en": "Enemy Letters", "ja": "敵の識別記号", "fr": "Lettres d'ennemi", "it": "Lettere nemici",
+    "de": "Gegner-Buchstaben", "es": "Letras de enemigos", "ko": "적 식별 문자", "zht": "敵人識別字母",
+    "zhc": "敌人识别字母", "ru": "Буквы врагов", "th": "ตัวอักษรระบุศัตรู", "pt": "Letras de inimigos"
+  },
+  "Enemy Letters on": {
+    "en": "Enemy Letters on", "ja": "敵の識別記号 オン", "fr": "Lettres d'ennemi activées", "it": "Lettere nemici attivate",
+    "de": "Gegner-Buchstaben ein", "es": "Letras de enemigos activadas", "ko": "적 식별 문자 켜짐", "zht": "敵人識別字母 開啟",
+    "zhc": "敌人识别字母 开启", "ru": "Буквы врагов вкл", "th": "ตัวอักษรระบุศัตรู เปิด", "pt": "Letras de inimigos ligadas"
+  },
+  "Enemy Letters off": {
+    "en": "Enemy Letters off", "ja": "敵の識別記号 オフ", "fr": "Lettres d'ennemi désactivées", "it": "Lettere nemici disattivate",
+    "de": "Gegner-Buchstaben aus", "es": "Letras de enemigos desactivadas", "ko": "적 식별 문자 꺼짐", "zht": "敵人識別字母 關閉",
+    "zhc": "敌人识别字母 关闭", "ru": "Буквы врагов выкл", "th": "ตัวอักษรระบุศัตรู ปิด", "pt": "Letras de inimigos desligadas"
+  },
+  "Unavailable during dialogue": {
+    "en": "Unavailable during dialogue", "ja": "会話中は利用不可", "fr": "Indisponible pendant les dialogues", "it": "Non utilizzabile durante i dialoghi",
+    "de": "Während Dialogen nicht nutzbar", "es": "No utilizable durante los diálogos", "ko": "대화 중에는 이용 불가", "zht": "對話中無法使用",
+    "zhc": "对话中无法使用", "ru": "Недоступно во время диалога", "th": "ใช้ไม่ได้ระหว่างบทสนทนา", "pt": "Indisponível durante diálogos"
+  },
+  "Nothing to repeat": {
+    "en": "Nothing to repeat", "ja": "繰り返す内容がありません", "fr": "Rien à répéter", "it": "Niente da ripetere",
+    "de": "Nichts zu wiederholen", "es": "Nada que repetir", "ko": "반복할 내용이 없습니다", "zht": "沒有可重複的內容",
+    "zhc": "没有可重复的内容", "ru": "Нечего повторять", "th": "ไม่มีข้อความให้ทวนซ้ำ", "pt": "Nada a repetir"
+  },
+  "{0} to repeat dialogue. {1} to cancel.": {
+    "en": "{0} to repeat dialogue. {1} to cancel.", "ja": "{0}で会話を繰り返す。{1}でキャンセル。", "fr": "{0} pour répéter le dialogue. {1} pour annuler.", "it": "{0} per ripetere il dialogo. {1} per annullare.",
+    "de": "{0} zum Wiederholen des Dialogs. {1} zum Abbrechen.", "es": "{0} para repetir el diálogo. {1} para cancelar.", "ko": "{0} 대화 반복. {1} 취소.", "zht": "{0}重複對話。{1}取消。",
+    "zhc": "{0}重复对话。{1}取消。", "ru": "{0} — повторить диалог. {1} — отмена.", "th": "{0} เพื่อทวนบทสนทนา {1} เพื่อยกเลิก", "pt": "{0} para repetir o diálogo. {1} para cancelar."
+  },
+  ": HP: {0}/{1}": {
+    "en": ": HP: {0}/{1}", "ja": ": HP {0}/{1}", "fr": " : PV {0}/{1}", "it": ": HP {0}/{1}",
+    "de": ": HP {0}/{1}", "es": ": HP {0}/{1}", "ko": ": HP {0}/{1}", "zht": "：HP {0}/{1}",
+    "zhc": "：HP {0}/{1}", "ru": ": HP {0}/{1}", "th": ": HP {0}/{1}", "pt": ": HP {0}/{1}"
+  },
   "Only available in battle": {
     "en": "Only available in battle", "ja": "戦闘中のみ使用可能", "fr": "Disponible uniquement en combat", "it": "Disponibile solo in battaglia",
     "de": "Nur im Kampf verfügbar", "es": "Solo disponible en batalla", "ko": "전투 중에만 사용 가능", "zht": "僅在戰鬥中可用",

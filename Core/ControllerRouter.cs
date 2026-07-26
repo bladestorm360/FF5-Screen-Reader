@@ -162,7 +162,14 @@ namespace FFV_ScreenReader.Core
         {
             string back = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_BACK);
 
-            if (IsInBattle)
+            if (DialogueTracker.IsInDialogue)
+            {
+                string west = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_WEST);
+                FFV_ScreenReaderMod.SpeakText(
+                    string.Format(T("{0} to repeat dialogue. {1} to cancel."), west, back),
+                    interrupt: true);
+            }
+            else if (IsInBattle)
             {
                 string west = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_WEST);
                 FFV_ScreenReaderMod.SpeakText(
@@ -244,6 +251,8 @@ namespace FFV_ScreenReader.Core
         {
             string reason;
             if (IsInBattle)                                reason = T("Unavailable in battle");
+            else if (DialogueTracker.IsInDialogue
+                  || GameStatePatches.IsInEventState)      reason = T("Unavailable during dialogue");
             else if (MenuStateRegistry.AnyActive())        reason = T("Unavailable in menu");
             else                                           reason = T("Unavailable here");
             FFV_ScreenReaderMod.SpeakText(reason, interrupt: true);
@@ -397,7 +406,14 @@ namespace FFV_ScreenReader.Core
             var mod = FFV_ScreenReaderMod.Instance;
             if (mod == null) return;
 
-            if (IsInBattle)
+            // Dialogue takes precedence over battle/field — if a message window is up, the
+            // user wants to repeat the line, not check Gil or HP.
+            if (DialogueTracker.IsInDialogue)
+            {
+                if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_WEST))
+                { DialogueTracker.RepeatCurrentPage(); State = ControllerState.Normal; return; }
+            }
+            else if (IsInBattle)
             {
                 // Battle mod mode: X = party HP check
                 if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_WEST))
@@ -423,23 +439,29 @@ namespace FFV_ScreenReader.Core
                     { mod.ToggleAudioBeacons(); State = ControllerState.Normal; return; }
                 }
 
-                // Right stick → teleport (field only)
-                if (GamepadManager.RStickUpPressed)
-                { mod.TeleportInDirection(new Vector2(0, 16)); State = ControllerState.Normal; return; }
+                // Right stick → teleport. Never during a cutscene: moving the player out from
+                // under a running event script can desync or soft-lock it. (Unreachable before
+                // input started running in event state — now it needs an explicit guard.)
+                if (!GameStatePatches.IsInEventState)
+                {
+                    if (GamepadManager.RStickUpPressed)
+                    { mod.TeleportInDirection(new Vector2(0, 16)); State = ControllerState.Normal; return; }
 
-                if (GamepadManager.RStickDownPressed)
-                { mod.TeleportInDirection(new Vector2(0, -16)); State = ControllerState.Normal; return; }
+                    if (GamepadManager.RStickDownPressed)
+                    { mod.TeleportInDirection(new Vector2(0, -16)); State = ControllerState.Normal; return; }
 
-                if (GamepadManager.RStickLeftPressed)
-                { mod.TeleportInDirection(new Vector2(-16, 0)); State = ControllerState.Normal; return; }
+                    if (GamepadManager.RStickLeftPressed)
+                    { mod.TeleportInDirection(new Vector2(-16, 0)); State = ControllerState.Normal; return; }
 
-                if (GamepadManager.RStickRightPressed)
-                { mod.TeleportInDirection(new Vector2(16, 0)); State = ControllerState.Normal; return; }
+                    if (GamepadManager.RStickRightPressed)
+                    { mod.TeleportInDirection(new Vector2(16, 0)); State = ControllerState.Normal; return; }
+                }
             }
 
-            // Right stick down → announce mod mode controls (always available)
-            // Note: in field, right stick down triggers teleport south above instead
-            if (IsInBattle && GamepadManager.RStickDownPressed)
+            // Right stick down → announce mod mode controls.
+            // Note: in field, right stick down triggers teleport south above instead; in battle
+            // and dialogue nothing claims it, so it reaches the context-appropriate help here.
+            if ((IsInBattle || DialogueTracker.IsInDialogue) && GamepadManager.RStickDownPressed)
                 AnnounceModModeControls();
         }
 

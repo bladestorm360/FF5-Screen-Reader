@@ -40,8 +40,8 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Suppress wall bumps during battle, dialogue, or events
-                if (BattleState.IsInBattle || DialogueTracker.IsInDialogue || GameStatePatches.IsInEventState)
+                // Shared audio gate: battle, event/cutscene, dialogue, menus, mod overlays, fades.
+                if (AudioLoopManager.IsAudioSuppressed)
                     return;
 
                 // Get player tile position (same conversion as CheckFootstep)

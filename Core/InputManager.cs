@@ -102,6 +102,14 @@ namespace FFV_ScreenReader.Core
             registry.Register(KeyCode.I, KeyContext.Global, HandleItemInfoKey, "Item details");
             registry.Register(KeyCode.U, KeyContext.Global, Menus.UsableByAnnouncer.AnnounceForCurrentContext, "Usable by jobs");
 
+            // Repeat the current dialogue page. Silent no-op outside a message window, so the
+            // key never speaks over anything on the field. Controller equivalent: mod + Square.
+            registry.Register(KeyCode.R, KeyContext.Global, () =>
+            {
+                if (Patches.DialogueTracker.IsInDialogue)
+                    Patches.DialogueTracker.RepeatCurrentPage();
+            }, "Repeat dialogue");
+
             // --- Field-only toggles (blocked in battle with feedback) ---
             RegisterFieldWithBattleFeedback(KeyCode.Quote, KeyModifier.None, mod.ToggleFootsteps, "Toggle footsteps");
             RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.Shift, mod.ToggleLandingPings, "Toggle landing pings");
@@ -217,6 +225,13 @@ namespace FFV_ScreenReader.Core
         /// </summary>
         private KeyContext DetermineContext()
         {
+            // Events/cutscenes: Global only. Keeps field/entity/waypoint/teleport hotkeys and
+            // the entity scanner inert during scripted sequences (and keeps their IL2CPP work
+            // off the frame) while mod mode, the repeat key, and Global info keys stay live.
+            // Placed first so the event path costs a single cached bool read.
+            if (Patches.GameStatePatches.IsInEventState)
+                return KeyContext.Global;
+
             if (IsBestiaryDetailActive())
                 return KeyContext.Bestiary;
 
@@ -419,10 +434,15 @@ namespace FFV_ScreenReader.Core
 
         /// <summary>
         /// Where mod-owned config hotkeys (F5, F8) apply: a live field map, including field
-        /// menus — but never battle or the title screen.
+        /// menus — but never battle, the title screen, dialogue, or a cutscene.
         ///
         /// Deliberately NOT ControllerRouter.IsFieldActive, which additionally excludes menus
         /// because it also drives audio suppression, the entity scanner, and mod-mode teleport.
+        ///
+        /// The dialogue/event terms block the mod MENU (and F5/F8) mid-conversation without
+        /// touching mod MODE, which stays reachable everywhere — see ControllerRouter's
+        /// Back-button branch. Before input ran during events these were unreachable anyway;
+        /// now that OnUpdate no longer early-returns, the gate has to be explicit.
         ///
         /// Does not apply to F1/F3: those are the game's own hotkeys that the mod polls without
         /// consuming and merely narrates, so their gate must mirror the game's own availability
@@ -431,7 +451,10 @@ namespace FFV_ScreenReader.Core
         /// </summary>
         internal static bool IsFieldOrFieldMenuActive()
         {
-            return IsOnValidMap() && !ControllerRouter.IsInBattle;
+            return IsOnValidMap()
+                && !ControllerRouter.IsInBattle
+                && !Patches.DialogueTracker.IsInDialogue
+                && !Patches.GameStatePatches.IsInEventState;
         }
 
         private bool IsStatusScreenActive()
