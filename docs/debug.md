@@ -774,6 +774,28 @@ Deleting it needed one extra step, though, and it is the interesting part: with 
 
 **Lesson**: when a shared "clear everything" call is removed, trace which guard each *other* caller was relying on it to reset. Cross-pane staleness belongs with the thing that changes focus, not in an entry hook that races the navigation patch.
 
+### Job List Read Three Times on Entry — the Clear, Not the Announcer (2026-07-26)
+
+**Problem**: entering Jobs read `"Knight Lv. 0: ABP: 0/10"` three times — `10:32:56.757`, `.759`, `.771`.
+
+**Why this is NOT the equip/magic defect, despite looking identical**: the same entry logged `[JobSelect] initial focus read gave up after 6 frames` at `.857`. "Gave up" means every one of the six deferred attempts returned false, so `MenuFocusAnnouncer` **never spoke**. All three lines came from the navigation patch, `JobChangeWindowController.SelectContent`. Removing the redundant *announcer* — the fix that worked for equip and the magic command bar — would have changed nothing here.
+
+**Root cause**: `SelectContent` fires several times while the job list builds, *and* `SelectJobInit` runs more than once per entry. `_lastIndex` should have absorbed fires 2 and 3, but `JobSelect_Init_Postfix`'s own `ClearLast()` landed **inside that burst** and wiped the guard twice. Two extra clears, two extra reads. Arithmetic that only closes if `SelectJobInit` re-enters: one clear can unmask at most one duplicate.
+
+**The generalisation** (now the header comment of `FieldJobAbilityReannouncePatches`): *a guard is cleared on the paths that LEAVE a state, never on the path that enters it.* An exit-path clear can only ever permit a later announcement; an entry-path clear races the game's own initialisation burst. Every `*Init` in that file now clears the guards of the **other** states in its family, so entering a state always finds its own guard already cleared by wherever it came from.
+
+**Fix**:
+- Job list: `SelectJobInit` unpatched entirely (`JobSelect_Init_Postfix` deleted). `SelectContent` owns the entry read, as proven by the log.
+- `JobChangeWindowController.SetActive(bool)` clears the job guard on the **hide** edge only — the show edge is not known to be once-per-open, and a clear while the window is up would be back inside the burst.
+- `ConfirmPopupInit` / `FixJobChangeInit` clear it too, so backing out of the confirm popup re-announces.
+- Ability window (`CommandInit` / `UseListInit` / `UseTargetInit`) and ability equip (`SelectCommandInit` / `SelectListInit`) swapped to sibling clears; `ChangedInit` / `ConfirmPopupInit` clear both equip panes; `AbilityWindowController.SetActive` and `AbilityChangeController.SetActive` clear their families on hide.
+
+**Why the deferred `Request` calls stay everywhere except the job list**: they are self-limiting. If navigation already spoke, `Announce()` hits the guard and returns false — the worst case is a `gave up after 6 frames` log line. That makes the fix correct whether or not navigation fires during a given `Init`, which matters because dump.cs has no method bodies and this codebase contains both outcomes (see the spell-list note above). Only the job list had *proof* its `Request` never spoke, so only it was deleted.
+
+**Folded-stub note**: `JobChangeWindowController.ResetController` shares address `0x2715A0` (2560928) with **4397** other methods — the same empty-body folding trap as `NoneInit`. `SetActive` is what carries window-level exit cleanup instead. All five newly hooked addresses were confirmed to have exactly one owner in `script.json` before patching.
+
+**Known gap**: switching the target character with L/R inside the job list does not re-announce if the cursor stays on the same row. Pre-existing — `SelectJobInit` did not re-fire on that transition either. `UpdateTargetCharacterView` is the obvious hook and is deliberately *not* used: it also runs during initialisation, so it would be an entry-path clear.
+
 ### Quick Save Read a Party Slot — and Why the First Fix Missed (2026-07-26)
 
 **Problem**: choosing Quick Save announced `"Bartz, Freelancer, Level 3, Front Row, HP 30/55, MP 8/14"` at `03:47:50.557`, 27 ms before `"Save your progress?"`.

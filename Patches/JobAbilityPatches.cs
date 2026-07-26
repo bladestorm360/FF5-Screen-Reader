@@ -1103,12 +1103,28 @@ namespace FFV_ScreenReader.Patches
     /// SelectContent / SetCursor mostly only fire on cursor movement, so the row the game starts
     /// on would otherwise be silent. Hooks the state-entry *Init methods.
     ///
-    /// The disjointness this design assumes does NOT hold universally — some navigation methods
-    /// run during initialisation, and then the *Init hook reads the same row a second time. The
-    /// guard cannot absorb it, because the *Init hook's own ClearLast() is what unmasks the
-    /// duplicate. Confirmed redundant and reduced to clear-only: AbilityCommand_Init_Postfix
-    /// (AbilityCommandController.SelectContent fires during CommandInit). Before adding or
-    /// keeping an *Init announce here, check the speech log for a ~1-frame double on entry.
+    /// THE INVARIANT: a navigation guard is cleared on the paths that LEAVE a state, never on the
+    /// path that enters it. Clearing on exit can only ever cause an extra announcement to be
+    /// allowed later; clearing on entry lands in the middle of the game's own SelectContent burst
+    /// and unmasks every re-fire after it.
+    ///
+    /// That is what produced the job-list triple read: the game fires JobChangeWindowController
+    /// .SelectContent several times while the list builds, and SelectJobInit runs more than once
+    /// per entry, so the hook's own ClearLast() wiped the guard twice mid-burst and three
+    /// identical lines reached the speech queue 2 ms and 12 ms apart. The deferred read was not
+    /// involved at all — the log line for the same entry was "initial focus read gave up after 6
+    /// frames", i.e. every attempt was correctly blocked by the guard. Removing the deferred
+    /// announce would have fixed nothing; the entry-path clear was the redundant call.
+    ///
+    /// So each *Init below clears the guards of the OTHER states in its family. Entering a state
+    /// therefore always finds its own guard already cleared by whichever state it came from, and
+    /// window-level SetActive(false) covers leaving the screen entirely.
+    ///
+    /// The deferred MenuFocusAnnouncer.Request calls are self-limiting and stay: if navigation
+    /// already spoke, Announce() hits the guard and returns false, so nothing is said twice. They
+    /// only matter for panes where navigation does NOT fire during Init. The one place a Request
+    /// was proven pointless — the job list, per the log above — is now unpatched entirely, the
+    /// same call the equip menu's InfoInit/SelectInit already made.
     ///
     /// Manual patching because every target is private or protected override.
     /// </summary>
@@ -1119,7 +1135,8 @@ namespace FFV_ScreenReader.Patches
         // AbilityCommandController (280453): contentList 0x28, selectCursor 0x38
         // AbilityContentListController (285082): selectCursor 0x38, contentList 0x50
         // AbilityUseContentListController (285635): contentList 0x48, selectCursor 0x50
-        // JobChangeWindowBaseController (292203): jobSelectCursor 0x40
+        // JobChangeWindowBaseController (292203): jobSelectCursor 0x40 — no longer read here, the
+        //   job list has no deferred read at all now (see ApplyPatches).
         // AbilityChangeController (286594): NO cursor field — index comes from the cache in
         //   AbilityChangeController_SelectContent_Patch / _SelectCommand_Patch.
         // All read typed below; offsets documented for traceability only.
@@ -1129,10 +1146,23 @@ namespace FFV_ScreenReader.Patches
         private static readonly Type AbilityUseListType = typeof(Il2CppSerial.FF5.UI.KeyInput.AbilityUseContentListController);
         private static readonly Type JobChangeType = typeof(Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController);
 
+        private static readonly Type[] OneBool = new[] { typeof(bool) };
+
         public static void ApplyPatches(HarmonyLib.Harmony harmony)
         {
-            Patch(harmony, JobChangeType, "SelectJobInit", nameof(JobSelect_Init_Postfix));
+            // ---- Job list -------------------------------------------------------------------
+            // SelectJobInit is deliberately NOT patched. JobChangeWindowController.SelectContent
+            // fires repeatedly while the list builds, so it announces the entry row on its own;
+            // the deferred read only ever hit the guard and gave up. Hooking it also put a
+            // ClearLast() inside that burst, which is what produced the triple read.
+            Patch(harmony, JobChangeType, "SetActive", nameof(JobWindow_SetActive_Postfix), OneBool);
 
+            // Leaving the list for either sub-state clears the guard so coming back re-announces.
+            Patch(harmony, JobChangeType, "ConfirmPopupInit", nameof(JobLeftList_Postfix));
+            Patch(harmony, JobChangeType, "FixJobChangeInit", nameof(JobLeftList_Postfix));
+
+            // ---- Ability window: command bar / spell list / target list ----------------------
+            Patch(harmony, AbilityWindowType, "SetActive", nameof(AbilityWindow_SetActive_Postfix), OneBool);
             Patch(harmony, AbilityWindowType, "CommandInit", nameof(AbilityCommand_Init_Postfix));
             Patch(harmony, AbilityWindowType, "UseListInit", nameof(SpellList_Init_Postfix));
             Patch(harmony, AbilityWindowType, "UseTargetInit", nameof(UseTarget_Init_Postfix));
@@ -1141,12 +1171,21 @@ namespace FFV_ScreenReader.Patches
             // safe to hook and serves as the single exit point for this whole family.
             Patch(harmony, AbilityWindowType, "NonInit", nameof(Exit_Init_Postfix));
 
-            // The target list also has its own Single/All states reached from UseTargetInit.
+            // The target list also has its own Single/All states reached from UseTargetInit. These
+            // two share ONE guard, so the sibling-invalidation rule cannot apply and they keep
+            // clearing it themselves — dropping that would silence the Single/All toggle. If the
+            // target list ever double-reads on entry, this pair is the place to look.
             Patch(harmony, AbilityUseListType, "SingleInit", nameof(UseTargetList_Init_Postfix));
             Patch(harmony, AbilityUseListType, "AllInit", nameof(UseTargetList_Init_Postfix));
 
+            // ---- Ability equip --------------------------------------------------------------
+            Patch(harmony, AbilityChangeType, "SetActive", nameof(AbilityChange_SetActive_Postfix), OneBool);
             Patch(harmony, AbilityChangeType, "SelectCommandInit", nameof(EquipCommand_Init_Postfix));
             Patch(harmony, AbilityChangeType, "SelectListInit", nameof(EquipList_Init_Postfix));
+
+            // Both panes are left for these two transient states, so both guards clear here.
+            Patch(harmony, AbilityChangeType, "ChangedInit", nameof(EquipLeftPane_Postfix));
+            Patch(harmony, AbilityChangeType, "ConfirmPopupInit", nameof(EquipLeftPane_Postfix));
 
             // JobChangeWindowController.NoneInit and AbilityChangeController.NoneInit are
             // deliberately NOT patched: both bodies are empty, and IL2CPP folds every empty method
@@ -1154,51 +1193,87 @@ namespace FFV_ScreenReader.Patches
             // job one shares 4886656). Patching a folded stub detours all of them at once and
             // hard-crashes on launch with no managed exception. Verify with script.json before
             // hooking any *Init: two entries sharing an "Address" means it is a folded stub.
-            // AbilityWindowController.NonInit above already covers the exit cleanup.
-        }
-
-        /// <summary>Any window left its panes — drop pending reads and clear the cached positions.</summary>
-        public static void Exit_Init_Postfix()
-        {
-            MenuFocusAnnouncer.Cancel();
-            AbilityChangeController_SelectContent_Patch.ClearLast();
-            AbilityChangeController_SelectCommand_Patch.ClearLast();
-        }
-
-        public static void JobSelect_Init_Postfix(object __instance)
-        {
-            var controller = __instance as Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController;
-            if (controller == null) return;
-
-            JobChangeWindowController_SelectContent_Patch.ClearLast();
-            MenuFocusAnnouncer.Request("JobSelect", () =>
-            {
-                if (!IsUsable(controller)) return false;
-
-                var cursor = controller.jobSelectCursor;    // inherited from JobChangeWindowBaseController
-                if (cursor == null) return false;
-
-                return JobChangeWindowController_SelectContent_Patch.Announce(controller, cursor.Index);
-            });
+            // JobChangeWindowController.ResetController is the same trap — it shares 0x2715A0
+            // (2560928) with 4397 other methods, so the SetActive hooks above are what carry the
+            // window-level exit cleanup. Every address hooked here was checked to have exactly one
+            // owner in script.json.
         }
 
         /// <summary>
-        /// Clear-only. AbilityCommandController.SelectContent already fires during CommandInit
-        /// with its data populated, so it announces the focused command itself — confirmed from
-        /// the speech log, where entering Magic read "White Magic" twice ~37 ms apart (the
-        /// navigation patch, then this hook's deferred read one frame later).
+        /// The ability window returned to its None state — drop any pending read and clear every
+        /// guard it owns, so the next entry announces. An exit-path clear can never double a read.
+        /// </summary>
+        public static void Exit_Init_Postfix()
+        {
+            MenuFocusAnnouncer.Cancel();
+            ClearAbilityWindowGuards();
+            ClearAbilityEquipGuards();
+        }
+
+        /// <summary>
+        /// The job window was shown or hidden by MainMenuController. Only the hide edge clears:
+        /// SetActive(true) is not known to be a once-per-open call, and a clear that fires while
+        /// the window is up would sit inside the SelectContent burst and unmask it again.
         ///
-        /// The hook still has to clear the guard: without it, backing out and re-entering on the
-        /// same command would hit `index == _lastIndex` and go silent. Clearing is the opposite of
-        /// a dedup net — it exists so a repeat entry DOES speak. Only the redundant
-        /// MenuFocusAnnouncer.Request was removed.
+        /// This is the only thing that makes a fresh entry into Jobs announce a row that was
+        /// already the last one spoken. If entering Jobs ever goes SILENT on the row you left on,
+        /// SetActive(false) is not firing on exit and the next signal to try is MainMenuController.
+        /// Deliberately does not call MenuFocusAnnouncer.Cancel(): the generation latch is global,
+        /// and the screen being returned to may already have requested its own read by now.
+        /// </summary>
+        public static void JobWindow_SetActive_Postfix(bool isActive)
+        {
+            if (!isActive)
+                JobChangeWindowController_SelectContent_Patch.ClearLast();
+        }
+
+        /// <summary>The job list was left for the confirm popup or the change animation.</summary>
+        public static void JobLeftList_Postfix()
+            => JobChangeWindowController_SelectContent_Patch.ClearLast();
+
+        /// <summary>The whole ability window was hidden — clear the three guards it owns.</summary>
+        public static void AbilityWindow_SetActive_Postfix(bool isActive)
+        {
+            if (!isActive) ClearAbilityWindowGuards();
+        }
+
+        /// <summary>The ability equip window was hidden — clear both of its pane guards.</summary>
+        public static void AbilityChange_SetActive_Postfix(bool isActive)
+        {
+            if (!isActive) ClearAbilityEquipGuards();
+        }
+
+        /// <summary>Both equip panes were left for a transient state, so both may re-announce.</summary>
+        public static void EquipLeftPane_Postfix() => ClearAbilityEquipGuards();
+
+        private static void ClearAbilityWindowGuards()
+        {
+            AbilityCommandController_SelectContent_Patch.ClearLast();
+            AbilityContentListController_SetCursor_Patch.ClearLast();
+            AbilityUseContentListController_SelectContent_Patch.ClearLast();
+        }
+
+        private static void ClearAbilityEquipGuards()
+        {
+            AbilityChangeController_SelectCommand_Patch.ClearLast();
+            AbilityChangeController_SelectContent_Patch.ClearLast();
+        }
+
+        /// <summary>
+        /// Entering the command bar means the spell list and the target list were left, so those
+        /// two guards clear here. The command guard is NOT cleared — AbilityCommandController
+        /// .SelectContent already fires during CommandInit with its data populated and announces
+        /// the focused command itself (confirmed from the speech log, where entering Magic once
+        /// read "White Magic" twice ~37 ms apart). Clearing it here would re-open that door.
+        /// Whatever state we arrived from has already cleared it on its own way out.
         /// </summary>
         public static void AbilityCommand_Init_Postfix(object __instance)
         {
             var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
             if (window == null) return;
 
-            AbilityCommandController_SelectContent_Patch.ClearLast();
+            AbilityContentListController_SetCursor_Patch.ClearLast();
+            AbilityUseContentListController_SelectContent_Patch.ClearLast();
         }
 
         public static void SpellList_Init_Postfix(object __instance)
@@ -1206,7 +1281,9 @@ namespace FFV_ScreenReader.Patches
             var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
             if (window == null) return;
 
-            AbilityContentListController_SetCursor_Patch.ClearLast();
+            // Siblings only — the spell-list guard was cleared by whichever state we came from.
+            AbilityCommandController_SelectContent_Patch.ClearLast();
+            AbilityUseContentListController_SelectContent_Patch.ClearLast();
             MenuFocusAnnouncer.Request("SpellList", () =>
             {
                 if (!IsUsable(window)) return false;
@@ -1226,6 +1303,12 @@ namespace FFV_ScreenReader.Patches
             var window = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityWindowController;
             if (window == null) return;
 
+            // Siblings, so backing out of targeting re-announces the spell and the command.
+            AbilityCommandController_SelectContent_Patch.ClearLast();
+            AbilityContentListController_SetCursor_Patch.ClearLast();
+
+            // Self-clear kept: the Single/All sub-states below share this one guard and have no
+            // sibling to clear it for them. See the note in ApplyPatches.
             AbilityUseContentListController_SelectContent_Patch.ClearLast();
             MenuFocusAnnouncer.Request("AbilityTarget", () =>
             {
@@ -1257,7 +1340,8 @@ namespace FFV_ScreenReader.Patches
             var controller = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController;
             if (controller == null) return;
 
-            AbilityChangeController_SelectCommand_Patch.ClearLast();
+            // Sibling only — the command guard was cleared by whichever state we came from.
+            AbilityChangeController_SelectContent_Patch.ClearLast();
             MenuFocusAnnouncer.Request("AbilityEquipCommand", () =>
             {
                 if (!IsUsable(controller)) return false;
@@ -1274,7 +1358,8 @@ namespace FFV_ScreenReader.Patches
             var controller = __instance as Il2CppSerial.FF5.UI.KeyInput.AbilityChangeController;
             if (controller == null) return;
 
-            AbilityChangeController_SelectContent_Patch.ClearLast();
+            // Sibling only — the list guard was cleared by whichever state we came from.
+            AbilityChangeController_SelectCommand_Patch.ClearLast();
             MenuFocusAnnouncer.Request("AbilityEquipList", () =>
             {
                 if (!IsUsable(controller)) return false;
@@ -1298,11 +1383,13 @@ namespace FFV_ScreenReader.Patches
             return MenuFocusAnnouncer.IsMenuOpen();
         }
 
-        private static void Patch(HarmonyLib.Harmony harmony, Type type, string methodName, string postfixName)
+        /// <param name="argTypes">Parameter types, when the name alone is ambiguous (SetActive).</param>
+        private static void Patch(HarmonyLib.Harmony harmony, Type type, string methodName,
+            string postfixName, Type[] argTypes = null)
         {
             try
             {
-                var target = AccessTools.Method(type, methodName);
+                var target = AccessTools.Method(type, methodName, argTypes);
                 if (target == null)
                 {
                     MelonLogger.Warning($"[JobAbility] {type.Name}.{methodName} not found");
