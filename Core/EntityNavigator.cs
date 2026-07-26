@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEngine;
 using FFV_ScreenReader.Field;
 using FFV_ScreenReader.Core.Filters;
+using FFV_ScreenReader.Utils;
 using Il2CppLast.Map;
 using Il2CppLast.Entity.Field;
 
@@ -68,9 +69,102 @@ namespace FFV_ScreenReader.Core
         public NavigableEntity CurrentEntity => selectedEntity;
         
         public int CurrentIndex => selectedEntity != null ? navigationList.IndexOf(selectedEntity) : -1;
-        
+
         public int EntityCount => navigationList.Count;
-        
+
+        /// <summary>
+        /// True when a filter is active that only takes effect during cycling. Those filters
+        /// never remove anything from navigationList, so the raw Count over-reports what the
+        /// player can actually reach by cycling.
+        /// </summary>
+        private bool AnyOnCycleFilterEnabled()
+        {
+            foreach (var filter in entityFilters)
+            {
+                if (filter.IsEnabled &&
+                    (filter.Timing == FilterTiming.OnCycle || filter.Timing == FilterTiming.All))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Entities the player can actually cycle to, and where the selection sits among
+        /// them — so with the pathfinding filter on, a 20-entity map with 4 reachable
+        /// announces "1 of 4" and cycling steps 1,2,3,4 in agreement with it.
+        ///
+        /// With no OnCycle filter enabled these are exactly EntityCount / CurrentIndex, so
+        /// the unfiltered announcement is unchanged.
+        /// </summary>
+        public int FilteredCount => EnsureFilteredView().Count;
+
+        public int FilteredIndex
+        {
+            get
+            {
+                if (selectedEntity == null) return -1;
+                return EnsureFilteredView().IndexOf(selectedEntity);
+            }
+        }
+
+        // Recomputing the filtered view means running every OnCycle filter over every
+        // entity — for the pathfinding filter that is a reachability test each. Cache it
+        // against the position it was computed for: the player stands still while cycling,
+        // so one computation serves an entire cycling burst.
+        private readonly List<NavigableEntity> filteredView = new List<NavigableEntity>();
+        private Vector3 filteredViewPos = new Vector3(float.NaN, float.NaN, float.NaN);
+        private int filteredViewListVersion = -1;
+        private bool filteredViewFiltersOn;
+        private int navigationListVersion;
+
+        /// <summary>Invalidates the cached filtered view. Call when the entity list changes.</summary>
+        private void InvalidateFilteredView() => navigationListVersion++;
+
+        private List<NavigableEntity> EnsureFilteredView()
+        {
+            bool filtersOn = AnyOnCycleFilterEnabled();
+
+            if (!filtersOn)
+            {
+                // No OnCycle filter: the filtered view IS the navigation list. Mirror it
+                // rather than running filters that would all pass anyway.
+                if (filteredViewListVersion != navigationListVersion || filteredViewFiltersOn)
+                {
+                    filteredView.Clear();
+                    filteredView.AddRange(navigationList);
+                    filteredViewListVersion = navigationListVersion;
+                    filteredViewFiltersOn = false;
+                    filteredViewPos = new Vector3(float.NaN, float.NaN, float.NaN);
+                }
+                return filteredView;
+            }
+
+            Vector3 playerPos = GetPlayerPosition();
+
+            bool sameCell =
+                !float.IsNaN(filteredViewPos.x) &&
+                Mathf.Abs(playerPos.x - filteredViewPos.x) < GameConstants.TILE_SIZE * 0.5f &&
+                Mathf.Abs(playerPos.y - filteredViewPos.y) < GameConstants.TILE_SIZE * 0.5f;
+
+            if (filteredViewFiltersOn && sameCell && filteredViewListVersion == navigationListVersion)
+                return filteredView;
+
+            var context = new FilterContext();
+            filteredView.Clear();
+
+            for (int i = 0; i < navigationList.Count; i++)
+            {
+                if (PassesOnCycleFilters(navigationList[i], context))
+                    filteredView.Add(navigationList[i]);
+            }
+
+            filteredViewPos = playerPos;
+            filteredViewListVersion = navigationListVersion;
+            filteredViewFiltersOn = true;
+
+            return filteredView;
+        }
+
         
         public EntityNavigator(EntityCache cache)
         {
@@ -135,16 +229,18 @@ namespace FFV_ScreenReader.Core
         private void HandleEntityRemoved(NavigableEntity entity)
         {
             navigationList.Remove(entity);
-            
+            InvalidateFilteredView();
+
             if (selectedEntity == entity)
             {
                 selectedEntity = navigationList.Count > 0 ? navigationList[0] : null;
             }
         }
-        
+
         public void RebuildNavigationList()
         {
             navigationList.Clear();
+            InvalidateFilteredView();
             
             var context = new FilterContext();
             
@@ -215,6 +311,7 @@ namespace FFV_ScreenReader.Core
             }
 
             navigationList.Insert(index, entity);
+            InvalidateFilteredView();
         }
         
         private List<NavigableEntity> SortByDistance(List<NavigableEntity> entities)

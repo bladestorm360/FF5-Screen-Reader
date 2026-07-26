@@ -9,7 +9,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Battle**: Turn order, command/target selection, damage/heal/status/defeat messages, per-phase results (EXP/Gil/ABP, level-up stats, abilities, items), steal results, MissType.NonView suppression, battle action object dedup. Optional A/B/C letters on same-named targets. Results ABP column appears only when it applies (not for Freelancer/mastered jobs).
 
-**Navigation**: Entity cycling (N/M), category filter (F), pathfinding filter (Shift+\ / Shift+P), exit grouping (Q), wall collision sound, waypoint system (add/rename/remove/cycle/pathfind).
+**Navigation**: Entity cycling (N/M), category filter (F), pathfinding filter (Shift+\ / Shift+P), exit grouping (Q), wall collision sound, waypoint system (add/rename/remove/cycle/pathfind). Long-range routing: a mod-owned terrain-attribute search while riding, and breadcrumb-chained searches on foot, both lifting the game's ~31.5-tile search window. Unreachable targets report only what is verified — no route — since terrain data cannot distinguish a vehicle-gated destination from an event-gated one. Entity counts reflect the active filter ("1 of 4", not "1 of 20").
 
 **Audio**: ModMenu (F8) with toggles/volume sliders/enum selectors. Wall tones, footsteps, audio beacons, landing pings. 16-bit audio, LRU tone cache, volume caching.
 
@@ -98,6 +98,18 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Enemy HP display toggle honoured | Done (was a dead preference — always leaked exact HP) |
 | Menu-state self-heal on return to field | Done (one missed Close hook used to disable all field features) |
 | Enemy letters (A/B/C) toggle | Done (mod-derived; FF5 has no game-side label. Default off) |
+| Spurious "0 gil" announced at mod load | Fixed 2026-07-26, **not yet verified**. Cause was frame-0 edge synthesis: `keyPrevious[]` starts all-false, so a key held on the mod's first input poll dispatched as a fresh press. Keyboard and gamepad snapshots are now primed. Confirm the log shows `Keyboard primed` and no `"0 gil"` before the title screen; re-test holding G through the whole load |
+| Gil gated to field + field menus | Fixed 2026-07-26, **not yet verified**. Title screen says "Not on map", battle says "Unavailable in battle", field menus still read gil |
+| Vehicle routing (`VehicleRouteSearcher`) — unbounded terrain-attribute flood while riding | Done, **not yet verified in-game**. Needs a ship/airship run past 32 tiles, a seam crossing to confirm world-map wrap, and a chocobo run to confirm per-transport terrain |
+| Breadcrumb chaining (`BreadcrumbRouteChainer`) — on-foot targets beyond the ~31.5-tile window | Written, then found **never to have executed** (first test, 2026-07-26): `MapRouteSearcher.Search` *throws* outside its window rather than returning empty, and a silent catch in `FindPathTo` swallowed it and returned before the fallback. Now routed through `SafeSearch`. **Still unverified — the hop search has never actually run.** Highest-risk check is the *retreat* case: a room whose exit faces away from the objective; a wrong implementation shows up as a spurious "no path" |
+| Silent catch around the whole routing path | Fixed 2026-07-26. Both the per-search wrapper and the outer backstop now log once. This is why an entire subsystem failed invisibly for a full session — a catch wrapping a feature must never be silent |
+| "Requires Pirate Ship" for vehicle-gated destinations | **Removed 2026-07-26.** Terrain reachability cannot see event gating, so the claim was unfalsifiable — naming a ship when the real blocker is an unfinished event is worse than silence. Terrain *naming* would not have helped: the check read each vehicle's `OkList` directly, and a name would be derived from that same data. Rationale in `docs/debug.md` |
+| Route speech: hop seams merged, long routes truncated to 6 legs + "and N more" | Done, **not yet verified in-game**. A straight run across hop seams must read "north 89", never "north 24, north 30, north 35" |
+| Filter-aware entity counts (`FilteredCount`/`FilteredIndex`) | Done, **not yet verified in-game**. With the pathfinding filter on, expect "1 of 4"; with all filters off, unchanged |
+| MapRouteSearcher coordinate space (`PathSpaceNormalizer`) | **Answered in-game 2026-07-26: WORLD space.** No pre-existing north/south inversion; on-foot routes were always described correctly. The conversion branch is dead on FF5 and stays only as a guard for the sibling ports |
+| Attribute grid build cost | **Measured 2026-07-26: 17 ms** for 256x256 (65,536 cells, max attribute 27). Well under the ~150 ms threshold that would have forced a bulk `int[,]` pointer read, so the simple per-cell build stays |
+| Routing portability to sibling FFPR mods | Done (structural). `Field/Routing/` is speech-free, log-free and god-class-free; port checklist in `docs/debug.md`. Not yet exercised against a sibling mod |
+| Beacon follows the route (aim at the next turn; retire the down-pitched "out of range" Mode B) | **Designed, not implemented** — blocked on in-game verification of the routing work above. Design in `docs/debug.md` → "Planned: beacon follows the route". Prerequisite: `RouteLeg` must carry each leg's end vertex. Key risk is the cached-route invalidation list, not the aiming itself |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

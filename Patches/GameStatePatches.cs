@@ -146,7 +146,17 @@ namespace FFV_ScreenReader.Patches
                 if (stateValue == STATE_EVENT)
                     _cachedIsInEvent = true;
                 else if (_cachedIsInEvent)
+                {
                     _cachedIsInEvent = false;
+
+                    // A tile's foot ID — the integer the routing grid is built from — is not
+                    // fixed for the whole game: MiscAssetDesc.MapFootAttribute remaps foot
+                    // IDs between story flags, applied through MapModel.SetConversionFootId.
+                    // A cutscene that flips such a flag changes what is passable without a
+                    // map reload, so drop the cached grid on the way out of every event.
+                    // Rebuilding is lazy, so this costs nothing unless the player then routes.
+                    FFV_ScreenReader.Field.Routing.VehicleRouteSearcher.InvalidateAll();
+                }
 
                 // Scene-load backstop for battle entry. BattleStartPatches normally gets here
                 // first, at the encounter itself, but Colosseum and AR battles never route
@@ -248,6 +258,16 @@ namespace FFV_ScreenReader.Patches
                     MoveStateHelper.OnMapTransition(isWorldMap);
                     FieldNavigationHelper.ResetVehicleTypeMap();
 
+                    // Terrain data is per-map, so the routing caches are stale now.
+                    FFV_ScreenReader.Field.Routing.VehicleRouteSearcher.InvalidateAll();
+
+                    // Build the world map's attribute grid here rather than on the first
+                    // keypress: this is already a loading screen, so a one-off scan of every
+                    // cell costs the player nothing. Skipped for interiors, which use the
+                    // game's own searcher and never read the grid.
+                    if (isWorldMap)
+                        BuildRoutingGrid(currentMapId);
+
                     // Schedule entity scan after a frame to let scene finish loading
                     FFV_ScreenReaderMod.Instance?.ScheduleDeferredEntityScan();
                 }
@@ -255,6 +275,31 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"[GameState] Error in CheckMapTransition: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Pre-builds the terrain attribute grid the vehicle searcher runs on. Failure is
+        /// not fatal — the grid is rebuilt lazily on first use if this could not run yet
+        /// (the field controller may not exist at every transition state).
+        /// </summary>
+        private static void BuildRoutingGrid(int mapId)
+        {
+            try
+            {
+                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+                var fieldMap = GameObjectCache.Get<Il2Cpp.FieldMap>();
+                var fieldController = fieldMap?.fieldController;
+
+                if (fieldController == null || playerController?.mapHandle == null)
+                    return;
+
+                FFV_ScreenReader.Field.Routing.VehicleRouteSearcher.EnsureGrid(
+                    fieldController, playerController.mapHandle, mapId);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[GameState] Routing grid pre-build skipped: {ex.Message}");
             }
         }
 

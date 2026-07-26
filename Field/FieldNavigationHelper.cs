@@ -10,6 +10,8 @@ using UnityEngine;
 using Il2Cpp;
 using MelonLoader;
 using FFV_ScreenReader.Utils;
+using FFV_ScreenReader.Field.Routing;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using MapRouteSearcher = Il2Cpp.MapRouteSearcher;
 using FieldPlayerController = Il2CppLast.Map.FieldPlayerController;
 
@@ -23,6 +25,7 @@ namespace FFV_ScreenReader.Field
         /// </summary>
         public static Dictionary<FieldEntity, (int Type, string MessageId)> VehicleTypeMap { get; }
             = new Dictionary<FieldEntity, (int, string)>();
+
 
         // Diagnostic one-shot flags — reset on map change
         private static bool _shouldLogEntities = true;
@@ -473,6 +476,10 @@ namespace FFV_ScreenReader.Field
         }
 
         public static PathInfo FindPathTo(Vector3 playerWorldPos, Vector3 targetWorldPos, IMapAccessor mapHandle, FieldPlayer player = null)
+            => FindPathTo(playerWorldPos, targetWorldPos, mapHandle, player, PathSearchMode.Quick);
+
+        public static PathInfo FindPathTo(Vector3 playerWorldPos, Vector3 targetWorldPos, IMapAccessor mapHandle,
+            FieldPlayer player, PathSearchMode mode)
         {
             var pathInfo = new PathInfo { Success = false };
 
@@ -480,6 +487,21 @@ namespace FFV_ScreenReader.Field
             {
                 pathInfo.ErrorMessage = "Map handle not available";
                 return pathInfo;
+            }
+
+            // Vehicles get their own searcher: MapRouteSearcher models walking collision, so
+            // it cannot see that a ship crosses ocean or an airship crosses mountains, and
+            // its 64x64 window puts the far side of a world map out of reach regardless.
+            // Sync first so the decision is never made on a cached state the game has moved
+            // past (same failsafe the V key uses).
+            MoveStateHelper.SyncWithActualGameState();
+            if (!RoutingAdapter.IsOnFoot())
+            {
+                var vehiclePath = TryVehicleRoute(playerWorldPos, targetWorldPos, mapHandle, player);
+                if (vehiclePath != null)
+                    return Finish(vehiclePath);
+                // Fall through: no grid, no transport id, or the searcher declined. The
+                // game's searcher is still better than nothing.
             }
 
             try
@@ -515,7 +537,7 @@ namespace FFV_ScreenReader.Field
                     for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
                     {
                         destCell.z = tryDestZ;
-                        pathPoints = MapRouteSearcher.Search(mapHandle, startCell, destCell, playerCollisionState);
+                        pathPoints = SafeSearch(mapHandle, startCell, destCell, playerCollisionState);
 
                         if (pathPoints != null && pathPoints.Count > 0)
                         {
@@ -555,7 +577,7 @@ namespace FFV_ScreenReader.Field
                             for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
                             {
                                 adjacentDestCell.z = tryDestZ;
-                                pathPoints = MapRouteSearcher.Search(mapHandle, startCell, adjacentDestCell, playerCollisionState);
+                                pathPoints = SafeSearch(mapHandle, startCell, adjacentDestCell, playerCollisionState);
 
                                 if (pathPoints != null && pathPoints.Count > 0)
                                 {
@@ -574,40 +596,211 @@ namespace FFV_ScreenReader.Field
                 }
                 else
                 {
-                    pathPoints = MapRouteSearcher.SearchSimple(mapHandle, startCell, destCell);
+                    try
+                    {
+                        pathPoints = MapRouteSearcher.SearchSimple(mapHandle, startCell, destCell);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogSearchThrewOnce(ex);
+                        pathPoints = null;
+                    }
                 }
 
                 if (pathPoints == null || pathPoints.Count == 0)
                 {
+                    // The plain search came up empty. Only now — and only for an explicit
+                    // player action — is it worth chaining several searches together to
+                    // reach past the game's ~31.5-tile window. Quick mode (the entity filter,
+                    // the beacon loop) never pays for this.
+                    if (mode == PathSearchMode.Full)
+                    {
+                        var chained = TryChainedRoute(playerWorldPos, targetWorldPos, mapHandle, player);
+                        if (chained != null)
+                            return Finish(chained);
+                    }
+
                     return pathInfo;
                 }
                 
-                pathInfo.WorldPath = new List<Vector3>();
+                var rawPath = new List<Vector3>();
 
                 for (int i = 0; i < pathPoints.Count; i++)
                 {
-                    pathInfo.WorldPath.Add(pathPoints[i]);
+                    rawPath.Add(pathPoints[i]);
                 }
+
+                // Settle which coordinate space the game's searcher works in, then hand the
+                // caller world space regardless — DirectionHelper reads +y as north, which
+                // is only true in world space.
+                PathSpaceNormalizer.Detect(startCell, rawPath, mapWidth, mapHeight);
+                pathInfo.WorldPath = PathSpaceNormalizer.ToWorld(rawPath, mapWidth, mapHeight);
 
                 pathInfo.Success = true;
                 pathInfo.StepCount = pathPoints.Count > 0 ? pathPoints.Count - 1 : 0;
-                pathInfo.Description = DescribePath(pathInfo.WorldPath);
 
-                return pathInfo;
+                return Finish(pathInfo);
             }
             catch (System.Exception ex)
             {
+                // A silent catch here is what hid the breadcrumb subsystem for an entire
+                // test session: it swallowed the search exception and returned before the
+                // long-range fallback could run, leaving nothing in the log at all. Keep the
+                // backstop, but never let it be quiet again.
                 pathInfo.ErrorMessage = $"Pathfinding error: {ex.Message}";
+
+                if (!loggedOuterCatch)
+                {
+                    loggedOuterCatch = true;
+                    MelonLogger.Warning($"[Routing] Route search aborted ({ex.GetType().Name}: {ex.Message}); " +
+                                        "this target will report no path and no fallback will run");
+                }
+
                 return pathInfo;
             }
         }
         
-        private static string DescribePath(List<Vector3> worldPath)
-        {
-            if (worldPath == null || worldPath.Count < 2)
-                return "No movement needed";
+        private static bool loggedSearchThrew;
+        private static bool loggedOuterCatch;
 
-            var segments = new List<string>();
+        /// <summary>
+        /// `MapRouteSearcher.Search`, with a throw turned into "no path found".
+        ///
+        /// The game's searcher does not return an empty list for a destination outside its
+        /// 64x64 window — it raises `MapRouteSearchException` (dump.cs:262688). Before this
+        /// wrapper existed that exception escaped all the way to the method's outer catch,
+        /// which returned silently, so the long-range fallback below it was unreachable and
+        /// the whole breadcrumb subsystem never ran once. A far target simply said "no path"
+        /// with nothing in the log to say why.
+        /// </summary>
+        private static Il2CppSystem.Collections.Generic.List<Vector3> SafeSearch(
+            IMapAccessor mapHandle, Vector3 startCell, Vector3 destCell, bool collisionEnabled)
+        {
+            try
+            {
+                return MapRouteSearcher.Search(mapHandle, startCell, destCell, collisionEnabled);
+            }
+            catch (Exception ex)
+            {
+                LogSearchThrewOnce(ex);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// One-shot: this fires from the beacon loop and once per entity in the pathfinding
+        /// filter, so an ungated line would flood the log. Names the consequence rather than
+        /// the error, per the TryPatch convention in docs/debug.md.
+        /// </summary>
+        private static void LogSearchThrewOnce(Exception ex)
+        {
+            if (loggedSearchThrew) return;
+            loggedSearchThrew = true;
+            MelonLogger.Msg($"[Routing] Out-of-window search threw ({ex.GetType().Name}: {ex.Message}); " +
+                            "treating as no-path so long-range fallback can run");
+        }
+
+        /// <summary>
+        /// Renders Legs and Description from WorldPath. Every successful route — vehicle,
+        /// breadcrumb, or the game's own searcher — leaves through here, so all three sound
+        /// identical and none of the searchers has to build a string.
+        /// </summary>
+        private static PathInfo Finish(PathInfo pathInfo)
+        {
+            if (pathInfo == null) return null;
+
+            if (pathInfo.Success)
+            {
+                pathInfo.Legs = BuildLegs(pathInfo.WorldPath);
+                pathInfo.Description = DescribeRoute(pathInfo);
+            }
+
+            return pathInfo;
+        }
+
+        /// <summary>
+        /// Runs the breadcrumb chainer for an on-foot target the plain search could not
+        /// reach. Returns null when chaining does not apply, leaving the caller's own
+        /// failure result intact.
+        /// </summary>
+        private static PathInfo TryChainedRoute(Vector3 playerWorldPos, Vector3 targetWorldPos,
+            IMapAccessor mapHandle, FieldPlayer player)
+        {
+            try
+            {
+                return BreadcrumbRouteChainer.TryChain(playerWorldPos, targetWorldPos, mapHandle, player);
+            }
+            catch (Exception ex)
+            {
+                RoutingAdapter.WarnOnce("chain-entry", $"Chained route failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Routes with the vehicle searcher. Returns null when it cannot run at all (no
+        /// field controller, no transport id, grid not built) so the caller can fall back
+        /// to the game's searcher rather than reporting a spurious failure.
+        /// </summary>
+        private static PathInfo TryVehicleRoute(Vector3 playerWorldPos, Vector3 targetWorldPos,
+            IMapAccessor mapHandle, FieldPlayer player)
+        {
+            try
+            {
+                var fieldMap = GameObjectCache.Get<FieldMap>();
+                var fieldController = fieldMap?.fieldController;
+                var transportController = fieldController?.transportation;
+                if (fieldController == null || transportController == null)
+                    return null;
+
+                var userData = Il2CppLast.Management.UserDataManager.Instance();
+                if (userData == null) return null;
+                int mapId = userData.CurrentMapId;
+
+                // Terrain attributes govern movement on world maps. Inside towns and
+                // dungeons it is layers and collision entities that decide, and the
+                // attribute grid models neither — so a route built from it there would be
+                // confidently wrong. The player can still be mounted in an interior (riding
+                // Boko in before the scripted dismount), so this needs an explicit guard
+                // rather than relying on vehicle state alone.
+                if (!RoutingAdapter.IsWorldMap(mapId))
+                    return null;
+
+                if (!RoutingAdapter.TryGetCurrentTransportId(transportController, out int transportId))
+                    return null;
+
+                if (!VehicleRouteSearcher.EnsureGrid(fieldController, mapHandle, mapId))
+                    return null;
+
+                return VehicleRouteSearcher.FindPath(fieldController, mapHandle, transportController,
+                    mapId, transportId, playerWorldPos, targetWorldPos);
+            }
+            catch (Exception ex)
+            {
+                RoutingAdapter.WarnOnce("vehicle-route", $"Vehicle route failed, falling back: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Maximum legs spoken before the route is summarised. A real world-map route hugs
+        /// terrain and runs to dozens of short legs, which is unusable as speech. The player
+        /// walks what they heard and presses the key again — the search re-runs from their
+        /// new position, so there is no stored route and nothing to invalidate.
+        /// </summary>
+        private const int MAX_SPOKEN_LEGS = 6;
+
+        /// <summary>
+        /// Collapses a cell-by-cell path into straight runs. Consecutive steps in the same
+        /// direction merge, which is what makes a route stitched from several breadcrumb
+        /// hops read as "north 89" rather than "north 24, north 30, north 35".
+        /// </summary>
+        internal static List<RouteLeg> BuildLegs(List<Vector3> worldPath)
+        {
+            var legs = new List<RouteLeg>();
+            if (worldPath == null || worldPath.Count < 2)
+                return legs;
+
             Vector3 currentDir = Vector3.zero;
             int stepCount = 0;
 
@@ -615,7 +808,7 @@ namespace FFV_ScreenReader.Field
             {
                 Vector3 dir = worldPath[i] - worldPath[i - 1];
                 dir.Normalize();
-                
+
                 if (Vector3.Distance(dir, currentDir) < 0.1f)
                 {
                     stepCount++;
@@ -623,21 +816,73 @@ namespace FFV_ScreenReader.Field
                 else
                 {
                     if (stepCount > 0)
-                    {
-                        string dirName = GetCardinalDirectionName(currentDir);
-                        segments.Add($"{dirName} {stepCount}");
-                    }
+                        legs.Add(new RouteLeg(GetCardinalDirectionName(currentDir), stepCount));
 
                     currentDir = dir;
                     stepCount = 1;
                 }
             }
-            
+
             if (stepCount > 0)
+                legs.Add(new RouteLeg(GetCardinalDirectionName(currentDir), stepCount));
+
+            return legs;
+        }
+
+        /// <summary>
+        /// The single place route text is produced. Both searchers feed it, so a vehicle
+        /// route and a breadcrumb route sound the same, and neither searcher has to know
+        /// anything about language.
+        /// </summary>
+        internal static string DescribeRoute(PathInfo pathInfo)
+        {
+            if (pathInfo?.Legs == null || pathInfo.Legs.Count == 0)
+                return T("No movement needed");
+
+            var parts = new List<string>();
+            int spoken = Mathf.Min(MAX_SPOKEN_LEGS, pathInfo.Legs.Count);
+
+            for (int i = 0; i < spoken; i++)
+                parts.Add($"{pathInfo.Legs[i].Direction} {pathInfo.Legs[i].Steps}");
+
+            int remaining = pathInfo.Legs.Count - spoken;
+            if (remaining > 0)
+                parts.Add(string.Format(T("and {0} more"), remaining));
+
+            string text = string.Join(", ", parts);
+
+            // Approach clause: the route stops short because the target's own tile is not
+            // one this vehicle can occupy. Saying how far short turns a confusing "you have
+            // arrived somewhere near it" into something actionable.
+            if (pathInfo.IsApproximate)
             {
-                string dirName = GetCardinalDirectionName(currentDir);
-                segments.Add($"{dirName} {stepCount}");
+                var offset = pathInfo.ApproachOffset;
+                int tiles = Mathf.RoundToInt(
+                    (Mathf.Abs(offset.x) + Mathf.Abs(offset.y)) * GameConstants.TILE_SIZE_INVERSE);
+
+                if (tiles > 0)
+                {
+                    string dir = DirectionHelper.GetCompassDirectionFromVector(
+                        new Vector3(offset.x, offset.y, 0f));
+                    text += ", " + string.Format(T("target {0} {1}"), tiles, dir);
+                }
+
+                if (pathInfo.IsLandingSpot)
+                    text += ", " + T("landing spot");
             }
+
+            return text;
+        }
+
+        private static string DescribePath(List<Vector3> worldPath)
+        {
+            var legs = BuildLegs(worldPath);
+            if (legs.Count == 0)
+                return T("No movement needed");
+
+            var segments = new List<string>();
+            foreach (var leg in legs)
+                segments.Add($"{leg.Direction} {leg.Steps}");
 
             return string.Join(", ", segments);
         }
@@ -648,6 +893,48 @@ namespace FFV_ScreenReader.Field
         }
     }
     
+    /// <summary>
+    /// How hard a caller is willing to work for a route.
+    ///
+    /// Quick is the default so that any call site added later is cheap by construction.
+    /// Only the two explicit player actions — pathfind-to-waypoint and announce-entity —
+    /// opt into Full; the per-entity filter and the 2 s beacon loop must never pay for
+    /// breadcrumb chaining.
+    /// </summary>
+    public enum PathSearchMode
+    {
+        Quick,
+        Full
+    }
+
+    /// <summary>
+    /// Why a route was not produced. Nothing speaks these — every failure says exactly what
+    /// the mod said before long-range routing existed — but the chainer sets and logs them,
+    /// and the distinction is what separates a real finding from a tuning problem when
+    /// reading a log.
+    /// </summary>
+    public enum RouteFailure
+    {
+        None = 0,
+        /// <summary>Search space exhausted. Within the model, there is genuinely no route.</summary>
+        NoPathProved,
+        /// <summary>A budget or bound fired first. Reachability is unknown.</summary>
+        StoppedEarly
+    }
+
+    /// <summary>One straight run of the route: a direction and how many steps to take.</summary>
+    public struct RouteLeg
+    {
+        public string Direction;
+        public int Steps;
+
+        public RouteLeg(string direction, int steps)
+        {
+            Direction = direction;
+            Steps = steps;
+        }
+    }
+
     public class PathInfo
     {
         public bool Success { get; set; }
@@ -655,5 +942,20 @@ namespace FFV_ScreenReader.Field
         public int StepCount { get; set; }
         public string Description { get; set; }
         public System.Collections.Generic.List<Vector3> WorldPath { get; set; }
+
+        /// <summary>Structured, untruncated. Description is rendered from this.</summary>
+        public System.Collections.Generic.List<RouteLeg> Legs { get; set; }
+
+        /// <summary>Route reaches a stand-in tile near the target, not the target itself.</summary>
+        public bool IsApproximate { get; set; }
+
+        /// <summary>Target minus the tile actually reached, in world units. Only set when approximate.</summary>
+        public Vector2 ApproachOffset { get; set; }
+
+        /// <summary>The stand-in tile is a valid landing/dock spot for the current vehicle.</summary>
+        public bool IsLandingSpot { get; set; }
+
+        /// <summary>Diagnostic only — never spoken. See RouteFailure.</summary>
+        public RouteFailure Failure { get; set; }
     }
 }

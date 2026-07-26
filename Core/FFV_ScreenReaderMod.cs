@@ -363,11 +363,13 @@ namespace FFV_ScreenReader.Core
             Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
             Vector3 targetPos = entity.GameEntity.transform.localPosition;
 
+            // Explicit player action — allowed to chain past the game's search window.
             pathInfo = FieldNavigationHelper.FindPathTo(
                 playerPos,
                 targetPos,
                 playerController.mapHandle,
-                playerController.fieldPlayer
+                playerController.fieldPlayer,
+                PathSearchMode.Full
             );
 
             return true;
@@ -439,7 +441,12 @@ namespace FFV_ScreenReader.Core
                     }
                 }
 
-                string countSuffix = $", {entityNavigator.CurrentIndex + 1} {T("of")} {entityNavigator.EntityCount}";
+                // Count what the player can actually cycle to, not what exists. With the
+                // pathfinding filter on, a 20-entity map with 4 reachable reads "1 of 4" and
+                // the index tracks the cycling order. With no cycle-time filter enabled these
+                // are the plain list values, so the unfiltered wording is unchanged.
+                string countSuffix = $", {entityNavigator.FilteredIndex + 1} {T("of")} {entityNavigator.FilteredCount}";
+
                 string announcement = pathInfo.Success ? $"{formatted}{countSuffix}" : $"{formatted}, {T("no path")}{countSuffix}";
                 SpeakText(announcement);
             }
@@ -576,6 +583,22 @@ namespace FFV_ScreenReader.Core
         {
             try
             {
+                // Gil is a field-and-menus reading. UserDataManager exists on the title
+                // screen but holds no loaded save, so without this gate the key reads a
+                // stale "0 gil" there — which is what a false input edge announced at boot.
+                // Field menus keep the field scene loaded, so IsOnValidMap stays true in them.
+                if (!InputManager.IsOnValidMap())
+                {
+                    SpeakText(T("Not on map"));
+                    return;
+                }
+
+                if (ControllerRouter.IsInBattle)
+                {
+                    SpeakText(T("Unavailable in battle"));
+                    return;
+                }
+
                 var userDataManager = Il2CppLast.Management.UserDataManager.Instance();
                 if (userDataManager == null)
                 {

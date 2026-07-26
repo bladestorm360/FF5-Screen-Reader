@@ -219,6 +219,26 @@
     "de": "kein Pfad", "es": "sin ruta", "ko": "경로 없음", "zht": "無路徑",
     "zhc": "无路径", "ru": "нет пути", "th": "ไม่มีเส้นทาง", "pt": "sem caminho"
   },
+  "No movement needed": {
+    "en": "No movement needed", "ja": "移動の必要なし", "fr": "Aucun déplacement nécessaire", "it": "Nessuno spostamento necessario",
+    "de": "Keine Bewegung nötig", "es": "No hace falta moverse", "ko": "이동할 필요 없음", "zht": "無需移動",
+    "zhc": "无需移动", "ru": "Двигаться не нужно", "th": "ไม่ต้องเคลื่อนที่", "pt": "Nenhum movimento necessário"
+  },
+  "and {0} more": {
+    "en": "and {0} more", "ja": "他{0}件", "fr": "et {0} de plus", "it": "e altri {0}",
+    "de": "und {0} weitere", "es": "y {0} más", "ko": "외 {0}개", "zht": "還有{0}段",
+    "zhc": "还有{0}段", "ru": "и ещё {0}", "th": "และอีก {0}", "pt": "e mais {0}"
+  },
+  "target {0} {1}": {
+    "en": "target {0} {1}", "ja": "目標は{1}に{0}", "fr": "cible à {0} vers {1}", "it": "obiettivo a {0} verso {1}",
+    "de": "Ziel {0} nach {1}", "es": "objetivo a {0} hacia {1}", "ko": "목표 {1} {0}칸", "zht": "目標{1}{0}格",
+    "zhc": "目标{1}{0}格", "ru": "цель {0} на {1}", "th": "เป้าหมาย {0} ทาง {1}", "pt": "alvo a {0} para {1}"
+  },
+  "landing spot": {
+    "en": "landing spot", "ja": "着陸地点", "fr": "point d'atterrissage", "it": "punto di atterraggio",
+    "de": "Landeplatz", "es": "punto de aterrizaje", "ko": "착륙 지점", "zht": "降落點",
+    "zhc": "降落点", "ru": "место высадки", "th": "จุดลงจอด", "pt": "ponto de pouso"
+  },
   "No pathable entities found": {
     "en": "No pathable entities found", "ja": "経路探索可能なエンティティが見つかりません", "fr": "Aucune entité accessible trouvée", "it": "Nessuna entità raggiungibile trovata",
     "de": "Keine erreichbaren Objekte gefunden", "es": "No se encontraron entidades accesibles", "ko": "경로 탐색 가능한 개체를 찾을 수 없습니다", "zht": "找不到可尋路的實體",

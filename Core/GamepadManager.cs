@@ -234,6 +234,11 @@ namespace FFV_ScreenReader.Core
 
         public static void Shutdown()
         {
+            // Re-arm both primings so an Initialize → Shutdown → Initialize cycle starts
+            // from a seeded snapshot rather than an all-false one.
+            keyboardPrimed = false;
+            gamepadPrimed = false;
+
             if (gamepadHandle != IntPtr.Zero)
             {
                 try { SDL3.SDL_CloseGamepad(gamepadHandle); } catch { }
@@ -459,7 +464,10 @@ namespace FFV_ScreenReader.Core
             gamepadType = SDL3.SDL_GAMEPAD_TYPE_UNKNOWN;
 
             // Wipe edge-detection state so a reconnect doesn't synthesize fake "released"
-            // or "pressed" transitions from the stale snapshot.
+            // or "pressed" transitions from the stale snapshot. Clearing alone is not
+            // enough for the "pressed" half — an all-false previous snapshot turns any
+            // button held at reconnect into a fresh press — so re-arm priming as well.
+            gamepadPrimed = false;
             Array.Clear(btnCurrent, 0, btnCurrent.Length);
             Array.Clear(btnPrevious, 0, btnPrevious.Length);
             Array.Clear(rstickCurrent, 0, rstickCurrent.Length);
@@ -470,28 +478,79 @@ namespace FFV_ScreenReader.Core
             LeftTrigger = RightTrigger = 0f;
         }
 
+        /// <summary>
+        /// Seeds the keyboard snapshot on the very first poll. Without it keyPrevious[] is
+        /// all-false, so any key physically down on the mod's first input frame satisfies
+        /// "current && !previous" and dispatches as a fresh press — which is how a held G
+        /// announced gil on the boot screen with nobody touching the keyboard. The mod's
+        /// first poll can land seconds after load (SDL drains its queued GAMEPAD_ADDED on
+        /// the same frame), so there is plenty of time for a key to be down.
+        /// </summary>
+        private static bool keyboardPrimed;
+
         private static void PollKeyboard()
         {
             anyKeyDownThisFrame = false;
 
+            bool priming = !keyboardPrimed;
+
             for (int i = 0; i < TrackedVKCodes.Length; i++)
             {
                 int vk = TrackedVKCodes[i];
-                keyPrevious[vk] = keyCurrent[vk];
-                keyCurrent[vk] = (GetAsyncKeyState(vk) & 0x8000) != 0;
+                bool down = (GetAsyncKeyState(vk) & 0x8000) != 0;
+
+                // Priming: previous := current, so a key already held produces no edge.
+                keyPrevious[vk] = priming ? down : keyCurrent[vk];
+                keyCurrent[vk] = down;
 
                 if (keyCurrent[vk] && !keyPrevious[vk])
                     anyKeyDownThisFrame = true;
             }
+
+            if (priming)
+            {
+                keyboardPrimed = true;
+                LogPrimedKeys();
+            }
         }
+
+        /// <summary>
+        /// One-shot: names any keys found held on the priming frame. If a spurious
+        /// announcement ever reappears at load, this line is the difference between
+        /// "a key really was down" and "the cause is somewhere else entirely".
+        /// </summary>
+        private static void LogPrimedKeys()
+        {
+            var held = new List<string>();
+            for (int i = 0; i < TrackedVKCodes.Length; i++)
+            {
+                int vk = TrackedVKCodes[i];
+                if (keyCurrent[vk])
+                    held.Add($"0x{vk:X2}");
+            }
+
+            MelonLogger.Msg(held.Count == 0
+                ? "[GamepadManager] Keyboard primed, no keys held"
+                : $"[GamepadManager] Keyboard primed, ignoring held keys: {string.Join(", ", held)}");
+        }
+
+        /// <summary>
+        /// Same priming as the keyboard, re-armed on every open. CloseAndClearGamepadState()
+        /// zeroes both button arrays, so a button (or a held stick) that survives a
+        /// disconnect/reconnect would otherwise synthesize a press on the next poll.
+        /// </summary>
+        private static bool gamepadPrimed;
 
         private static void PollGamepad()
         {
+            bool priming = !gamepadPrimed;
+
             // Buttons: copy current to previous, read all 15
             for (int i = 0; i < SDL3.SDL_GAMEPAD_BUTTON_COUNT; i++)
             {
-                btnPrevious[i] = btnCurrent[i];
-                btnCurrent[i] = SDL3.SDL_GetGamepadButton(gamepadHandle, i);
+                bool down = SDL3.SDL_GetGamepadButton(gamepadHandle, i);
+                btnPrevious[i] = priming ? down : btnCurrent[i];
+                btnCurrent[i] = down;
             }
 
             // Left stick
@@ -529,6 +588,19 @@ namespace FFV_ScreenReader.Core
             lstickCurrent[DIR_DOWN] = rawLY > LSTICK_DIR_THRESHOLD;
             lstickCurrent[DIR_LEFT] = rawLX < -LSTICK_DIR_THRESHOLD;
             lstickCurrent[DIR_RIGHT] = rawLX > LSTICK_DIR_THRESHOLD;
+
+            // Sticks prime the same way: previous := current, so a stick already deflected
+            // when the pad opens produces no direction edge. Done after the direction
+            // computation because these are derived values, not raw reads.
+            if (priming)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    rstickPrevious[i] = rstickCurrent[i];
+                    lstickPrevious[i] = lstickCurrent[i];
+                }
+                gamepadPrimed = true;
+            }
         }
 
         // =====================================================================

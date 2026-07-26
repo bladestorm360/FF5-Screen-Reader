@@ -107,11 +107,14 @@ namespace FFV_ScreenReader.Core
 
             Vector3 playerPos = playerController.fieldPlayer.transform.localPosition;
 
+            // Explicit player action, so it opts into the expensive search: on foot this
+            // allows breadcrumb chaining past the game's ~31.5-tile window.
             var pathInfo = FieldNavigationHelper.FindPathTo(
                 playerPos,
                 waypoint.Position,
                 playerController.mapHandle,
-                playerController.fieldPlayer
+                playerController.fieldPlayer,
+                PathSearchMode.Full
             );
 
             NavigationTargetTracker.MarkWaypoint();

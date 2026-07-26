@@ -49,7 +49,12 @@
 - `NavigableEntity` — Entity wrapper (TreasureChestEntity overrides FormatDescription)
 - `GroupEntity` — Grouped entities, delegates to IGroupingStrategy representative
 - `EntityFactory` — Creates entities, filters duplicates (goName + entityName checks)
-- `FieldNavigationHelper` — Pathfinding, distance, terrain attributes, landing detection
+- `FieldNavigationHelper` — Pathfinding, distance, terrain attributes, landing detection. Owns `FindPathTo` (the single choke point for every route), `PathInfo`/`RouteLeg`/`RouteFailure`/`PathSearchMode`, `BuildLegs`, `DescribeRoute`, `DescribeFailure`, and `KnownTransports`
+- `Routing/` — Long-range route search. Portable by design: no speech, no localization, no logging, no god-class references. See "Routing architecture" below
+  - `RoutingAdapter` — Every game-specific fact (tile size, world-map ids, wrap flags, transport ids, struct offsets, logging hook). **The only file a port should need to edit**
+  - `VehicleRouteSearcher` — Terrain-attribute grid + per-transport passability + memoised BFS flood. Used when riding
+  - `BreadcrumbRouteChainer` — Hop-level A* chaining several `MapRouteSearcher` searches. Used on foot beyond the game's window
+  - `PathSpaceNormalizer` — Self-calibrating cell-vs-world coordinate detection for the game's searcher
 
 ### Menus (`Menus/`)
 - `MenuTextDiscovery` — Generic UI hierarchy text discovery
@@ -928,3 +933,361 @@ NativeMethodInfoPtr_Last_Map_IEventAccessor_EventEncountBoss_Private_Virtual_Fin
 **Fix**: correct name first in the candidate list, plus a reflection fallback matching any method whose name *ends with* the bare method name, so a future interop naming change degrades to a scan rather than to silence.
 
 **Lesson (the reason this was caught at all)**: the warning named the *user-visible consequence*, not just the failure. A bare "patch failed" line would have been scrolled past; "field audio will keep playing through the transition" is checkable. Every `TryPatch` warning in this codebase should read that way.
+
+---
+
+## Routing architecture (2026-07-26)
+
+### The two limits that forced a mod-owned searcher
+
+`MapRouteSearcher` cannot route a vehicle, for two independent reasons:
+
+1. **A 64x64 cell window.** `MapRouteSearcher.SearchHorizontalLimit` and
+   `SearchVerticalLimit` are both 64 (`dump.cs:262506`), so the search covers roughly
+   ±31.5 tiles from the start. The far side of a world map is out of reach by construction —
+   this is why Wind Shrine → Tule never worked, on foot or otherwise.
+2. **It models walking.** It searches the *collision* mapping data. A ship crossing ocean
+   and an airship crossing mountains are invisible to that model.
+
+### Which searcher runs when
+
+`FieldNavigationHelper.FindPathTo` is the single choke point — all five call sites go
+through it, so nothing needs its own routing logic.
+
+| Situation | Searcher |
+|---|---|
+| Riding, on a world map | `VehicleRouteSearcher` (unbounded flood over terrain attributes) |
+| Riding, in an interior | Game's `MapRouteSearcher` — see the interior guard below |
+| On foot, target within ~31 cells | Game's `MapRouteSearcher`, unchanged |
+| On foot, target beyond the window, `PathSearchMode.Full` | `BreadcrumbRouteChainer` |
+| On foot, `PathSearchMode.Quick` | Game's `MapRouteSearcher` only — never chains |
+
+**Interior guard**: the vehicle searcher additionally requires `IsWorldMap(mapId)`, not just
+vehicle state. Terrain attributes govern movement on world maps; inside towns and dungeons
+it is layers and collision entities that decide, and the attribute grid models neither. The
+player *can* be mounted in an interior (riding Boko in before the scripted dismount), so
+vehicle state alone is not a sufficient gate — a route built from the grid there would be
+confidently wrong.
+
+### `MapRouteSearcher.Search` THROWS outside its window — it does not return empty
+
+The single most important fact in this section, because getting it wrong silently disabled an
+entire subsystem for a full test session.
+
+For a destination outside the 64x64 window, `Search` raises `MapRouteSearchException`
+(`dump.cs:262688`). It does **not** return `null` or an empty list. Any code that treats "no
+route" as "empty result" will never see the far-target case at all.
+
+`FieldNavigationHelper.FindPathTo` originally wrapped its whole body in one `try` whose catch
+set `pathInfo.ErrorMessage` and returned **without logging**. So every long-range target threw,
+the catch swallowed it, and the breadcrumb fallback sitting a few lines below was unreachable.
+Symptoms: far targets said "no path", near targets behaved normally, and the log contained
+nothing at all — not even a warning.
+
+Now: every `Search` call goes through `FieldNavigationHelper.SafeSearch`, which converts a
+throw into "no points" so the normal empty-result path runs. Both that catch and the outer
+backstop log **once** (they are reached from the 2 s beacon loop and once per entity in the
+pathfinding filter, so ungated logging would flood).
+
+**Rule for this codebase:** a catch that wraps a whole feature must never be silent. The
+one-shot log costs nothing and is the difference between a five-minute diagnosis and staring
+at a clean log wondering why a feature does nothing.
+
+### Removed: the vehicle-requirement inference ("Requires Pirate Ship")
+
+Built, then deleted 2026-07-26 before ever shipping usefully. Recorded because the idea is
+tempting enough to be reinvented.
+
+It flooded the terrain grid once per vehicle under that vehicle's `OkList` and reported the
+least-capable vehicle whose reachable set contained the target — so a town across the ocean
+answered "Requires Pirate Ship" instead of "no path".
+
+**Why it had to go: terrain reachability cannot see event gating.** A destination may be
+closed by an unfinished story event rather than by terrain, and nothing in the terrain data
+distinguishes the two. A confident "Requires Pirate Ship" when the real blocker is an
+unfinished event sends the player somewhere useless — strictly worse than saying nothing. The
+claim was unfalsifiable from inside the mod.
+
+**Terrain naming would not have rescued it.** This is the part worth understanding, because
+"if only we could tell water from mountain" is the natural next thought. The check never
+classified terrain: it asked each vehicle's `OkList` directly, which is the game's own ground
+truth for "may this vehicle occupy this tile". A terrain *name* would have to be derived from
+that same data ("walking can't enter, ship can" → water), making it a strictly longer path to
+an identical answer with an extra chance to mislabel. Naming was only ever narration on top of
+the same unreliable inference. The defect was never the labelling — it was the inference.
+
+Two further flaws found while removing it, both real, neither the reason:
+
+- The flood started at the **player's** cell under the *vehicle's* rules, with the start tile
+  seeded passable unconditionally. Standing on land under ship rules, it leaked into adjacent
+  water and spread over the whole ocean — it never verified the ship was reachable or even
+  present.
+- An airship's `OkList` admits nearly every tile, so its flood reached everything including
+  tiles it could never land on. Reachability is the wrong test for a flying vehicle;
+  `CheckLandingList` is.
+
+Failure wording therefore reverts to exactly what the mod said before long-range routing
+existed: the entity announce says `no path`, the waypoint pathfind falls back to
+`waypoint.FormatDescription`. `RouteFailure` survives with `NoPathProved` / `StoppedEarly`,
+spoken by nothing, set and logged by the chainer — that distinction separates a real finding
+from a tuning problem when reading a log.
+
+### `CheckOkList` indexing
+
+Decompiled at `docs/Scripts/decompiled_vehicle_methods.c:758`:
+`CheckOkList(transportId, attribute)` looks up `modelList[transportId]`, indexes
+`okList[attribute - 1]`, and returns `== 1`. **Attribute 0 always returns false** — the
+guard short-circuits before the index. `CheckLandingList` is identical against `landingList`.
+`VehicleRouteSearcher` mirrors this by starting its lookup table at index 1.
+
+### Cell attributes are "foot IDs" — and there are no terrain names
+
+Confirmed by a full dump search (2026-07-26). The integer from
+`FieldController.GetCellAttribute` is a **foot ID**, and it is the *same* integer the
+Geomancer/Gaia ability uses:
+
+```
+GetCellAttribute -> foot ID
+  -> MapAttribute.footInfoList : Dictionary<int, FootInformation>   (dump.cs:322083)
+  -> FootInformation.battle_background_asset_id                     (dump.cs:351290)
+  -> BattleBackgroundAsset.ability_random_group_id                  (dump.cs:347273)
+  -> AbilityRandomGroup -> the Gaia spell pool                      (dump.cs:346331)
+```
+
+Battle terrain and map cell attribute are **not** separate systems — no per-map "field type"
+field is involved.
+
+**There is no terrain name anywhere in FF5 PR.** No terrain enum, no terrain master table,
+no `message_id` on `FootInformation` or `BattleBackgroundAsset`, no terrain strings in
+`stringliteral.json`. `MessageManager` cannot localize a cell attribute because nothing in
+the chain carries a message id. `MapConstants` has 15 nested types and none of them are
+terrain. (False friend: `AttributeType` at `dump.cs:312572` is *elemental* — Flame/Cold/
+Thunder — not terrain.)
+
+This is why routing answers **capability** ("Requires Pirate Ship") rather than terrain
+("crosses ocean"): a cell the walking transport cannot enter and the ship can *is* water by
+construction, and the capability answer is both derivable and more actionable. No terrain
+name table is needed or wanted.
+
+If a naming feature is ever wanted, the only two semantic sources are:
+- `Serial.FF5.Map.TransportationEvent.RiverFootAttribute` / `ForestFootAttribute`
+  (`dump.cs:289194`) — hardcoded `List<int>` of foot IDs. Exactly two categories.
+- `FootInformation.BattleBackgroundAssetId` as a stable terrain-*class* key (all forest
+  tiles share one), with a mod-supplied name table. The asset names themselves are numbered
+  (`bg_ff6_29` style in the FF6 dump), not semantic.
+
+**Foot IDs are not fixed for the whole game.** `MiscAssetDesc.MapFootAttribute` /
+`ConversionTargetFootId` / `AfterConversionFootId` (`dump.cs:276606-276634`) remap foot IDs
+between story flags, applied via `MapModel.SetConversionFootId` (`dump.cs:328268`). The
+cached grid is therefore dropped on map transition **and on every exit from event state**,
+because a cutscene can flip such a flag without a map reload. Rebuilds are lazy, so the
+invalidation is free unless the player then routes.
+
+### Why a flood and not per-target A*
+
+`VehicleRouteSearcher` runs one uniform-cost BFS from the player and memoises it on
+`(mapId, transportId, playerCell)`. Movement cost is uniform, so BFS is already an exact
+shortest-path search, and one flood answers all three questions the callers ask:
+
+- entity-filter reachability → `dist[target] >= 0`, O(1) per entity
+- a path to any target → walk the `parent` array
+- the nearest reachable stand-in tile → ring-expand from the target
+
+That last one is what makes an airship useful: it cannot sit on a town tile, so the route
+goes to the closest tile it *can* occupy and `PathInfo` carries the remaining offset plus
+whether that tile is a landing spot.
+
+### Breadcrumb chaining: what makes it correct
+
+The lever is that `MapRouteSearcher.Search` accepts an **arbitrary start cell** — it need not
+be the player's. So the mod searches from virtual cells, stitches the results, and never
+moves anything, keeping layers/hidden passages/`IgnoreRoute` handled by the game.
+
+Two design points that are easy to get wrong:
+
+- **A* over hop nodes, not a greedy chain.** "Hop toward the target, repeat" is greedy
+  best-first with a 31-tile horizon and dead-ends permanently on any concave obstacle bigger
+  than the horizon. Edges are real `Search` results, edge cost is the returned step count,
+  and a closed set lets a pocket be costed and abandoned.
+- **Bound the region, never the trajectory.** An earlier draft bailed when the last few hops
+  had not got closer. That is wrong: a route that must back out of a room regresses for
+  several hops before turning the corner, so *any* "give up when not getting closer" rule
+  cannot solve those maps. The bound is instead
+  `max(WINDOW_RADIUS, |start − target| × 1.5) + 32` cells from the start. Backward candidate
+  bearings (`±135°, 180°`) are in the candidate set from the **first** expansion, never added
+  as a last resort.
+
+**Two outcomes, both silent about the reason:**
+
+| Outcome | Condition | Spoken |
+|---|---|---|
+| No path proved | Open set emptied, no budget hit | Caller's existing failure wording |
+| Stopped early | Hop cap / wall clock / region bound fired | Caller's existing failure wording |
+
+They sound identical on purpose — the player cannot act on the difference, and a partial route
+into a dead end is worse than silence. The distinction lives in the log only.
+
+**Cost note.** The removed vehicle pre-check also short-circuited the expensive case, so an
+ocean-locked target now runs the hop search to exhaustion before reporting failure. That
+should be *fast* in exactly that case — the player is on an island, the reachable node set is
+small, and the frontier empties quickly. The budget (`MAX_HOPS` 24, `BUDGET_MS` 400) caps the
+worst case on large open landmasses. Watch the log rather than pre-optimising.
+
+### Coordinate space: a real ambiguity, resolved at runtime
+
+`MapRouteSearcher.Search` is *given* cell positions and its `Node` type stores `CellPos`,
+which suggests it returns cell positions. But every route is described through
+`DirectionHelper`, which reads **+y as north** — true in world space and backwards in cell
+space, where y grows southward. One of those readings is wrong and the dump cannot say which.
+
+`PathSpaceNormalizer` settles it empirically instead of guessing: the first path of a session
+is compared against the start expressed *both* ways (two references, because a single
+threshold would misfire at the coordinates where a cell index and a world unit coincide).
+The verdict is cached and logged, and cell-space paths are converted so callers only ever
+see world space.
+
+**Answered in-game 2026-07-26: `WORLD space`.** There was no pre-existing north/south
+inversion — on-foot routes were always described correctly. The conversion branch is
+therefore dead code on FF5. It stays as a guard for the sibling ports, where the answer has
+not been measured and must not be assumed.
+
+### Performance notes
+
+(`docs/PerformanceIssues.md` referenced in CLAUDE.md does not exist in this repo; routing
+performance notes live here.)
+
+- **Attribute grid build** — one `GetCellAttribute` per cell, so 65k interop calls on a
+  256x256 world map. Built from the map-transition hook so the cost lands during a loading
+  screen, and only for world maps. Elapsed ms is logged. If it ever exceeds ~150 ms, switch
+  to a bulk `int[,]` read of `GetCurrentMappingData()` using the Il2CppArray layout (2D
+  bounds at `+0x10`, 16 bytes per dimension; data at `+0x20`).
+- **Passability table** — one `CheckOkList` per *distinct attribute*, not per cell. The foot
+  ID space is small (`LandingGroup` master is `type1`…`type32`), so this is ~32 interop calls
+  per vehicle instead of 65k.
+- **Flood memoisation** — recomputed only when map, transport, or player cell changes. This
+  matters because `FindPathTo` is called from the 2 s beacon loop and once per entity by the
+  pathfinding filter.
+- **Filtered entity view** — `EntityNavigator.FilteredCount`/`FilteredIndex` evaluate every
+  OnCycle filter over every entity, so the result is cached against the position it was
+  computed at. The player stands still while cycling, so one computation serves a whole
+  cycling burst.
+- **Chaining is opt-in** — `PathSearchMode.Quick` is the default so any call site added later
+  is cheap by construction. Only the waypoint-pathfind key and the entity announce pass
+  `Full`. Consequence: with the filter on `Quick`, a far target can be hidden by the
+  pathfinding filter yet still routable with `/`.
+
+### Planned: beacon follows the route, not the objective
+
+**Status: designed, not implemented.** Blocked on in-game verification of the routing work
+above — if long-range routing does not hold up, none of this applies.
+
+#### Why the current beacon stops making sense
+
+`BeaconLoop` (`Core/AudioLoopManager.cs:293`) is entirely straight-line to the final target:
+
+| Cue | Derived from | Line |
+|---|---|---|
+| Pan (left/right) | `targetPos.x - playerPos.x` | `:423-424` |
+| North/south tone | `targetPos.y < playerPos.y - 8f` | `:426` |
+| Volume | straight-line distance | `:421` |
+| Ping interval | straight-line distance | `:397-407` |
+| Pitch | halved when no path found | `:384-408` |
+
+That is defensible only while the pathfinder cannot see far enough to know better. Once it
+can, a straight-line bearing is actively misleading: standing at the Wind Shrine, Tule may be
+due north while the only walkable route runs east first. The beacon says "north" and walks
+the player into the ocean — worse than no beacon, because it is confidently wrong.
+
+#### Aim at the next turn, not the next breadcrumb
+
+Breadcrumb *nodes* are the wrong target. They are hop seams at arbitrary ~24-cell spacing,
+artifacts of how the search was budgeted, and one can land mid-corridor where nothing about
+the player's movement changes.
+
+The meaningful target is the **next turn**: the vertex ending leg 0 of `PathInfo.Legs`. That
+is by definition the point where the required direction changes, which is exactly what a
+directional cue should mark. Everything the beacon already computes then works unchanged,
+just against that vertex instead of the objective:
+
+- pan from `nextTurn.x - playerPos.x`
+- north/south from `nextTurn.y` vs `playerPos.y`
+- volume and interval from distance to the next turn (or route distance remaining — see
+  below), not straight-line distance to the objective
+
+**Prerequisite:** `RouteLeg` is currently `{ Direction, Steps }` with no position, so the turn
+vertex cannot be located. `BuildLegs` (`Field/FieldNavigationHelper.cs`) must also carry each
+leg's end vertex — either a `Vector3 EndPosition` on `RouteLeg`, or the index into
+`PathInfo.WorldPath`. Small change, but nothing else can proceed without it.
+
+#### The cadence problem, and why the route has to be cached
+
+The beacon calls `FindPathTo` every tick, on `PathSearchMode.Quick`, and **must not** move to
+`Full` on that cadence — chaining is hundreds of milliseconds and this runs at 0.5-5 Hz.
+
+But Quick is exactly what fails in the long-range case this feature is for. So the beacon
+cannot both re-search every tick and know the route.
+
+Resolution: **search once, re-aim many times.** Run one `Full` search when the target is
+chosen — `RestartBeacon` (`:121`) already fires on the pathfind key — cache the resulting
+`WorldPath`/`Legs`, and per tick merely pick the nearest un-passed turn from the cache. No
+search per tick at all, which is cheaper than today.
+
+This reintroduces stored route state, which the speech path deliberately avoids. It therefore
+needs explicit invalidation, and getting this list wrong is the likely source of bugs:
+
+- target changed (`lastBeaconTarget` already tracks this, `:342`)
+- map changed (hook alongside the existing `VehicleRouteSearcher.InvalidateAll()`)
+- exit from event state (foot IDs can convert — same reason the grid drops)
+- vehicle boarded or dismounted (traversability changed entirely)
+- player displaced far from the cached path (teleport, or simply walking off it) — re-search
+  rather than aiming at a stale turn
+
+#### Retiring Mode B
+
+The down-pitched "out of range" beacon exists because the game's searcher could not see past
+~31.5 tiles, so "no path" usually meant "too far to tell". That reason is gone: a failed route
+is now one of three *definite* answers (vehicle-gated, proved impossible, stopped early).
+
+Dead once this lands: `MODE_B_INTERVAL_FAR`, `MODE_B_INTERVAL_NEAR`, `MODE_B_FAR_TILES`,
+`MODE_B_NEAR_TILES` (`:64-67`), the `lowPitch` local, and the `pathValid` branch (`:384-409`).
+`SoundPlayer.PlayBeacon`'s `lowPitch` parameter (`Utils/SoundPlayer.cs:262`) has no other
+caller and can lose the parameter with it.
+
+**What replaces it is not nothing.** Genuinely unreachable targets still exist — that is the
+whole point of the vehicle-gated outcome. Pinging low forever at a town across the ocean is
+worse than saying `Requires Pirate Ship` once and going quiet. Recommended: on a `Full` route
+failure, speak the reason via `FieldNavigationHelper.DescribeFailure` **once**, then silence
+the beacon, re-arming the announcement only on the invalidation events listed above.
+
+One caveat to respect: a `Quick` failure inside the search window is still ambiguous, so the
+speak-the-reason path must fire only on a `Full` result. Otherwise the beacon will announce
+"No route" for targets that are merely momentarily blocked.
+
+#### Distance cues should follow the route
+
+Related, and worth doing at the same time: volume and interval currently scale with
+straight-line distance, so a target 5 tiles away through a wall — 80 tiles by route — sounds
+almost arrived. With a cached route, `PathInfo.StepCount` (or remaining steps from the
+player's position) is the honest measure. `MODE_A_FAR_TILES` is 31.5 (`:61`), which is the old
+window radius; if distances become route distances, that ceiling wants re-tuning too.
+
+### Port checklist (FF1 / FF2 / FF3 / FF4)
+
+Copy `Field/Routing/` wholesale, then:
+
+1. Rename the namespace in all four files.
+2. `RoutingAdapter` — re-derive every field. **There are no struct offsets to port**; the
+   only one this code ever had went away with the vehicle-requirement check, and it should
+   stay that way.
+   - `TileSize` / `TileSizeInverse` (FF5 is 16; do not assume).
+   - `IsWorldMap(mapId)` — FF5 uses ids 0/1/2.
+   - `WorldMapWrapsX/Y` — verify by routing across the map seam.
+3. `PathInfo` — add `Legs`, `IsApproximate`, `ApproachOffset`, `IsLandingSpot`, `Failure`.
+4. `FieldNavigationHelper` — route **every** `MapRouteSearcher.Search` call through a
+   `SafeSearch`-style wrapper. This is not optional: `Search` throws outside its window, and
+   an unwrapped call makes the whole chainer unreachable (see above).
+5. Add the `mod_text.json` keys, **translated fresh for that game** (Rule 8 — never copy
+   translation strings between FF mods): `No movement needed`, `and {0} more`,
+   `target {0} {1}`, `landing spot`.
+6. Verify with: `grep -nE '\bT\(|SpeakText|LocalizationHelper|MelonLogger|GameObjectCache'`
+   over `Field/Routing/` — must be clean outside `RoutingAdapter.cs`.
