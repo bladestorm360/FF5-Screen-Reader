@@ -33,6 +33,14 @@ namespace FFV_ScreenReader.Menus
                     return;
                 }
 
+                // Equip before Item, matching HandleItemInfoKey's order.
+                if (EquipMenuTracker.ValidateState())
+                {
+                    ItemDetailsAnnouncer.AnnounceEquipJobsFor(
+                        EquipMenuTracker.LastItemType, EquipMenuTracker.LastItemId);
+                    return;
+                }
+
                 if (ItemMenuTracker.ValidateState())
                 {
                     ItemDetailsAnnouncer.AnnounceEquipRequirements();

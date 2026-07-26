@@ -17,6 +17,7 @@ namespace FFV_ScreenReader.Utils
         // Menu state keys (must match usage in state classes)
         public const string ITEM_MENU = "ItemMenu";
         public const string ITEM_USE = "ItemUse";
+        public const string EQUIP_MENU = "EquipMenu";
         public const string JOB_MENU = "JobMenu";
         public const string ABILITY_MENU = "AbilityMenu";
         public const string ABILITY_SLOT_MENU = "AbilitySlotMenu";

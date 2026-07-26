@@ -321,6 +321,12 @@ namespace FFV_ScreenReader.Core
             {
                 Patches.ShopDetailsAnnouncer.AnnounceCurrentItemDetails();
             }
+            // Equip before Item: the equip panes take ownership when focused, but this order
+            // also means a stale ItemMenuTracker can never win while equipment is up.
+            else if (Patches.EquipMenuTracker.ValidateState())
+            {
+                Patches.ItemDetailsAnnouncer.AnnounceEquipDescription();
+            }
             else if (Patches.ItemMenuTracker.ValidateState())
             {
                 Patches.ItemDetailsAnnouncer.AnnounceItemDescription();
@@ -345,6 +351,7 @@ namespace FFV_ScreenReader.Core
             {
                 Patches.JobAbilityTrackerHelper.ClearAllTrackers();
                 Patches.ItemMenuTracker.ClearState();
+                Patches.EquipMenuTracker.ClearState();
                 AnnounceConfigTooltip();
             }
         }

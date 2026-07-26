@@ -38,6 +38,7 @@ namespace FFV_ScreenReader.Patches
 
                 // Clear all menu tracker states to prevent stale data
                 ItemMenuTracker.ClearState();
+                EquipMenuTracker.ClearState();
                 JobAbilityTrackerHelper.ClearAllTrackers();
                 SaveLoadMenuState.ResetState();
                 ConfigMenuState.ClearState();

@@ -65,7 +65,24 @@ namespace FFV_ScreenReader.Patches
                 if (itemData == null)
                     return;
 
-                string announcement = BuildEquipJobsAnnouncement(itemData.ItemType, itemData.ItemId);
+                AnnounceEquipJobsFor(itemData.ItemType, itemData.ItemId, interrupt);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[ItemDetails] Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Announces which unlocked jobs can equip a given content type/id. Split out so the
+        /// equip menu can reuse it — its panes carry the type/id directly rather than an
+        /// ItemListContentData.
+        /// </summary>
+        public static void AnnounceEquipJobsFor(int itemType, int itemId, bool interrupt = true)
+        {
+            try
+            {
+                string announcement = BuildEquipJobsAnnouncement(itemType, itemId);
                 if (string.IsNullOrEmpty(announcement))
                     return;
 
@@ -74,6 +91,25 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"[ItemDetails] Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Reads the focused equipment's description in the equip menu — the I key equivalent of
+        /// AnnounceItemDescription for a screen whose two panes carry different data types.
+        /// </summary>
+        public static void AnnounceEquipDescription(bool interrupt = true)
+        {
+            try
+            {
+                string description = TextUtils.StripIconMarkup(EquipMenuTracker.LastDescription);
+                FFV_ScreenReaderMod.SpeakText(
+                    string.IsNullOrWhiteSpace(description) ? T("No description available") : description.Trim(),
+                    interrupt);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[EquipDetails] Description error: {ex.Message}");
             }
         }
 

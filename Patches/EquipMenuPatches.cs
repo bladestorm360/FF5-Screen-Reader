@@ -19,6 +19,76 @@ namespace FFV_ScreenReader.Patches
     /// returns TRUE when it spoke and FALSE when the data isn't usable yet, which is what lets the
     /// MenuFocusAnnouncer settle loop retry until the pane is built.
     /// </summary>
+    /// <summary>
+    /// Holds whichever piece of equipment the equip menu currently has focused, so the I and U
+    /// details keys work there the way they do in the items menu.
+    ///
+    /// Stores extracted values rather than a typed object because the two panes hand over
+    /// different types: the item-select list yields ItemListContentData, the slot pane yields
+    /// OwnedItemData. Both expose a name, a description and a content type/id, which is all the
+    /// details keys need.
+    ///
+    /// Before this existed, pressing I inside the equip menu fell through to ItemMenuTracker —
+    /// whose ValidateState() is a bare `return IsActive` with no liveness check — and read the
+    /// last row focused in the ITEMS menu. Backing out of Items fires MainMenuController.InitNone,
+    /// which clears nothing, so the stale flag survived. Hence SetFocus also clears the item and
+    /// job/ability trackers, exactly as the job/ability announcers do.
+    /// </summary>
+    public static class EquipMenuTracker
+    {
+        public static bool IsActive
+        {
+            get => MenuStateRegistry.IsActive(MenuStateRegistry.EQUIP_MENU);
+            set => MenuStateRegistry.SetActive(MenuStateRegistry.EQUIP_MENU, value);
+        }
+
+        public static string LastName { get; private set; }
+        public static string LastDescription { get; private set; }
+        public static int LastItemType { get; private set; }
+        public static int LastItemId { get; private set; }
+
+        public static bool ValidateState() => IsActive;
+
+        // One-shot per pane. BuildEquipJobsAnnouncement gates on content type 2 (weapon) /
+        // 3 (armor). The select pane supplies ItemListContentData.ItemType, the slot pane
+        // supplies OwnedItemData.TypeId — very likely the same space, but unconfirmed. If the U
+        // key is silent on real equipment, this line says which value arrived.
+        private static bool _loggedSelect;
+        private static bool _loggedSlot;
+
+        internal static void LogTypeOnce(string pane, int itemType, int itemId)
+        {
+            if (pane == "select") { if (_loggedSelect) return; _loggedSelect = true; }
+            else { if (_loggedSlot) return; _loggedSlot = true; }
+
+            MelonLogger.Msg($"[EquipDetails] {pane} pane: itemType={itemType} itemId={itemId} "
+                + "(expect 2=weapon / 3=armor for the U key to resolve jobs)");
+        }
+
+        /// <summary>Records the focused piece and takes ownership of the details keys.</summary>
+        public static void SetFocus(string name, string description, int itemType, int itemId)
+        {
+            IsActive = true;
+            LastName = name;
+            LastDescription = description;
+            LastItemType = itemType;
+            LastItemId = itemId;
+
+            // Equip has focus now, so no other menu's remembered row is current.
+            ItemMenuTracker.ClearState();
+            JobAbilityTrackerHelper.ClearAllTrackers();
+        }
+
+        public static void ClearState()
+        {
+            IsActive = false;
+            LastName = null;
+            LastDescription = null;
+            LastItemType = 0;
+            LastItemId = 0;
+        }
+    }
+
     public static class EquipMenuState
     {
         // Scroll-view / cursor-settle re-fires on an unchanged row, one guard per pane. Each guard
@@ -93,11 +163,31 @@ namespace FFV_ScreenReader.Patches
                 {
                     equippedItem = itemData.Name;
 
-                    // Get parameter message (ATK +15, DEF +8, etc.)
-                    string paramMessage = itemData.ParameterMessage;
-                    if (!string.IsNullOrEmpty(paramMessage))
+                    // Track for the I/U details keys. OwnedItemData is not an
+                    // ItemListContentData, so the pieces are extracted rather than the object
+                    // being handed over. Note the game's own typo: the description property on
+                    // OwnedItemData is spelled "Deiscription" (dump.cs:364383), which is why
+                    // this pane never spoke one — ".Description" simply does not exist here.
+                    string slotDescription = itemData.Deiscription;
+                    EquipMenuTracker.SetFocus(itemData.Name, slotDescription,
+                                              itemData.TypeId, itemData.ItemId);
+                    EquipMenuTracker.LogTypeOnce("slot", itemData.TypeId, itemData.ItemId);
+
+                    // Auto Detail gates the stat line and the description together, so F7 off
+                    // leaves a bare name for fast scrolling. Both stay available on the I key.
+                    if (PreferencesManager.AutoDetailEnabled)
                     {
-                        equippedItem += ", " + paramMessage;
+                        // Get parameter message (ATK +15, DEF +8, etc.)
+                        string paramMessage = itemData.ParameterMessage;
+                        if (!string.IsNullOrEmpty(paramMessage))
+                        {
+                            equippedItem += ", " + paramMessage;
+                        }
+
+                        if (!string.IsNullOrEmpty(slotDescription))
+                        {
+                            equippedItem += ", " + slotDescription;
+                        }
                     }
                 }
             }
@@ -162,18 +252,30 @@ namespace FFV_ScreenReader.Patches
             // Build announcement with equipment details
             string announcement = itemName;
 
-            // Add mechanical info (ATK +15, DEF +8, etc.)
-            string paramMessage = StripIconMarkup(equipmentData.ParameterMessage);
-            if (!string.IsNullOrEmpty(paramMessage))
-            {
-                announcement += $", {paramMessage}";
-            }
-
-            // Add description if available
             string description = StripIconMarkup(equipmentData.Description);
-            if (!string.IsNullOrEmpty(description))
+
+            // Track for the I/U details keys. This pane's rows ARE ItemListContentData — the
+            // same type the items menu uses — so ItemType/ItemId feed BuildEquipJobsAnnouncement
+            // directly.
+            EquipMenuTracker.SetFocus(itemName, description,
+                                      equipmentData.ItemType, equipmentData.ItemId);
+            EquipMenuTracker.LogTypeOnce("select", equipmentData.ItemType, equipmentData.ItemId);
+
+            // Auto Detail gates the stat line and the description together, matching the slot
+            // pane. Previously both were spoken unconditionally and F7 did nothing here.
+            if (PreferencesManager.AutoDetailEnabled)
             {
-                announcement += $", {description}";
+                // Add mechanical info (ATK +15, DEF +8, etc.)
+                string paramMessage = StripIconMarkup(equipmentData.ParameterMessage);
+                if (!string.IsNullOrEmpty(paramMessage))
+                {
+                    announcement += $", {paramMessage}";
+                }
+
+                if (!string.IsNullOrEmpty(description))
+                {
+                    announcement += $", {description}";
+                }
             }
 
             // Append list position last (after mechanical info/description).
