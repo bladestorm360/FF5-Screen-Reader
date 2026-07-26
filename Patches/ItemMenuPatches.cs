@@ -64,9 +64,16 @@ namespace FFV_ScreenReader.Patches
         // SelectContent carries a WithinRangeType — the scroll view re-invokes it on range
         // recalculation with an unchanged row. Also debounces Auto Detail, whose queued
         // (interrupt:false) description would otherwise play twice back to back.
-        private static string _lastItemAnnouncement;
-        private static string _lastTargetAnnouncement;
-        private static string _lastCommandAnnouncement;
+        //
+        // Keyed on INDEX, never on the built string. Two inventory slots can hold items with the
+        // same name — the two different "Pendant" key items, or any stack the game splits — and a
+        // text guard silently swallowed the second one, so arrowing between them said nothing.
+        // MenuPosition.Format only disambiguates them when position announcements are switched on,
+        // so the text is genuinely identical the rest of the time. Position is what changed when
+        // the cursor moved, so position is what the guard compares.
+        private static int _lastItemIndex = -1;
+        private static int _lastTargetIndex = -1;
+        private static int _lastCommandIndex = -1;
 
         /// <summary>
         /// Clears the guards so a menu (re)entry always announces, even when the focused row is
@@ -74,9 +81,9 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void ClearLastAnnouncements()
         {
-            _lastItemAnnouncement = null;
-            _lastTargetAnnouncement = null;
-            _lastCommandAnnouncement = null;
+            _lastItemIndex = -1;
+            _lastTargetIndex = -1;
+            _lastCommandIndex = -1;
         }
 
         /// <summary>
@@ -97,8 +104,8 @@ namespace FFV_ScreenReader.Patches
             string commandName = view.Data.Name;
             if (string.IsNullOrEmpty(commandName)) return false;
 
-            if (commandName == _lastCommandAnnouncement) return false;
-            _lastCommandAnnouncement = commandName;
+            if (index == _lastCommandIndex) return false;
+            _lastCommandIndex = index;
 
             FFV_ScreenReaderMod.SpeakText(commandName);
             return true;
@@ -142,8 +149,8 @@ namespace FFV_ScreenReader.Patches
             // Append list position last (after quantity/description).
             announcement = MenuPosition.Format(announcement, index, count);
 
-            if (announcement == _lastItemAnnouncement) return false;
-            _lastItemAnnouncement = announcement;
+            if (index == _lastItemIndex) return false;
+            _lastItemIndex = index;
 
             FFV_ScreenReaderMod.SpeakText(announcement);
             return true;
@@ -163,8 +170,8 @@ namespace FFV_ScreenReader.Patches
             // Append target position last.
             announcement = MenuPosition.Format(announcement, index, count);
 
-            if (announcement == _lastTargetAnnouncement) return false;
-            _lastTargetAnnouncement = announcement;
+            if (index == _lastTargetIndex) return false;
+            _lastTargetIndex = index;
 
             FFV_ScreenReaderMod.SpeakText(announcement);
             return true;

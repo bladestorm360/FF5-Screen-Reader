@@ -45,6 +45,13 @@ namespace FFV_ScreenReader.Patches
                 // Track the active character for H key status announcement
                 ActiveBattleCharacterTracker.CurrentActiveCharacter = data;
 
+                // The item and ability lists are rebuilt with this window, and their guards are
+                // index-keyed, so a stationary cursor over a row whose contents changed (a stack
+                // spent last turn) would otherwise stay silent. Cleared before the character-id
+                // early-return below so a cancel back out of target selection also re-announces.
+                BattleItemInfomationController_SelectContent_Patch.ClearLast();
+                BattleQuantityAbilityInfomationController_SelectContent_Patch.ClearLast();
+
                 // Activate battle state if not already in battle
                 if (!BattleState.IsInBattle)
                 {
@@ -144,8 +151,13 @@ namespace FFV_ScreenReader.Patches
     public static class BattleItemInfomationController_SelectContent_Patch
     {
         // SelectContent carries a WithinRangeType — the scroll view re-fires it on range
-        // recalculation with an unchanged row, so compare the built string.
-        private static string _lastAnnouncement;
+        // recalculation with an unchanged row. Keyed on index, not the built string: the battle
+        // inventory can hold two slots with the same item name, and a text guard made arrowing
+        // between them silent. Cleared each time the command window is (re)built.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a fresh turn re-announces the focused row.</summary>
+        public static void ClearLast() => _lastIndex = -1;
 
         [HarmonyPostfix]
         public static void Postfix(BattleItemInfomationController __instance, Il2CppLast.UI.Cursor targetCursor)
@@ -221,8 +233,8 @@ namespace FFV_ScreenReader.Patches
                 // Append list position last (after quantity / description).
                 announcement = MenuPosition.Format(announcement, index, activeList != null ? activeList.Count : 0);
 
-                if (announcement == _lastAnnouncement) return;
-                _lastAnnouncement = announcement;
+                if (index == _lastIndex) return;
+                _lastIndex = index;
 
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }
@@ -240,8 +252,11 @@ namespace FFV_ScreenReader.Patches
         new Type[] { typeof(Il2CppLast.UI.Cursor), typeof(Il2CppLast.UI.CustomScrollView.WithinRangeType) })]
     public static class BattleQuantityAbilityInfomationController_SelectContent_Patch
     {
-        // Same scroll-view re-fire as the item list above.
-        private static string _lastAnnouncement;
+        // Same scroll-view re-fire as the item list above, and index-keyed for the same reason.
+        private static int _lastIndex = -1;
+
+        /// <summary>Clears the guard so a fresh turn re-announces the focused row.</summary>
+        public static void ClearLast() => _lastIndex = -1;
 
         [HarmonyPostfix]
         public static void Postfix(BattleQuantityAbilityInfomationController __instance, Il2CppLast.UI.Cursor targetCursor)
@@ -285,8 +300,8 @@ namespace FFV_ScreenReader.Patches
                 // Append list position last (after description).
                 announcement = MenuPosition.Format(announcement, index, __instance.contentList != null ? __instance.contentList.Count : 0);
 
-                if (announcement == _lastAnnouncement) return;
-                _lastAnnouncement = announcement;
+                if (index == _lastIndex) return;
+                _lastIndex = index;
 
                 CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(announcement));
             }

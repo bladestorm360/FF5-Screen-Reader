@@ -24,9 +24,14 @@ namespace FFV_ScreenReader.Patches
         // Scroll-view / cursor-settle re-fires on an unchanged row, one guard per pane. Each guard
         // is only ever consulted within its own pane: the slot and item-list announcers clear each
         // other's guard on focus change, so moving between panes always re-announces.
-        private static string _lastCommand;
-        private static string _lastSlot;
-        private static string _lastSelectRow;
+        //
+        // Keyed on INDEX, never on the built string. Both panes routinely render identical text
+        // for different rows — two unequipped slots both read "Empty, Attack +3", and a duplicate
+        // of the same weapon appears twice in the item list — and a text guard made arrowing
+        // between them silent. Position is what changed, so position is what the guard compares.
+        private static int _lastCommandIndex = -1;
+        private static int _lastSlotIndex = -1;
+        private static int _lastSelectRowIndex = -1;
 
         /// <summary>
         /// Clears every guard, so entering the equipment window from the command bar always
@@ -34,9 +39,9 @@ namespace FFV_ScreenReader.Patches
         /// </summary>
         public static void ClearLastAnnouncements()
         {
-            _lastCommand = null;
-            _lastSlot = null;
-            _lastSelectRow = null;
+            _lastCommandIndex = -1;
+            _lastSlotIndex = -1;
+            _lastSelectRowIndex = -1;
         }
 
         /// <summary>Announces one equipment command-bar entry. Returns true when it spoke.</summary>
@@ -54,8 +59,8 @@ namespace FFV_ScreenReader.Patches
             string commandName = view.Data.Name;
             if (string.IsNullOrEmpty(commandName)) return false;
 
-            if (commandName == _lastCommand) return false;
-            _lastCommand = commandName;
+            if (index == _lastCommandIndex) return false;
+            _lastCommandIndex = index;
 
             FFV_ScreenReaderMod.SpeakText(commandName);
             return true;
@@ -129,10 +134,10 @@ namespace FFV_ScreenReader.Patches
             // each guard now only ever suppresses a re-fire on an unchanged row *within* its
             // own pane, which is all it was ever for. Done before the dedup check so it still
             // happens when this call is itself a re-fire.
-            _lastSelectRow = null;
+            _lastSelectRowIndex = -1;
 
-            if (announcement == _lastSlot) return false;
-            _lastSlot = announcement;
+            if (index == _lastSlotIndex) return false;
+            _lastSlotIndex = index;
 
             FFV_ScreenReaderMod.SpeakText(announcement);
             return true;
@@ -176,10 +181,10 @@ namespace FFV_ScreenReader.Patches
 
             // Mirror of the invalidation in AnnounceEquipSlot: focus is on the item list, so the
             // slot pane's remembered row is stale and cancelling back to it must re-announce.
-            _lastSlot = null;
+            _lastSlotIndex = -1;
 
-            if (announcement == _lastSelectRow) return false;
-            _lastSelectRow = announcement;
+            if (index == _lastSelectRowIndex) return false;
+            _lastSelectRowIndex = index;
 
             FFV_ScreenReaderMod.SpeakText(announcement);
             return true;
