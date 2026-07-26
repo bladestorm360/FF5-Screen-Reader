@@ -25,6 +25,15 @@ namespace FFV_ScreenReader.Core
         private static int currentRow;
         private static int currentCol;
 
+        // Set by Open(), cleared by the first HandleInput() after it. GamepadManager's
+        // IsButtonPressed is pure edge detection and does NOT consult
+        // ControllerRouter.consumedButtons, so the button that opened this window is still
+        // reading as "pressed" when HandleInput runs later in the SAME frame. Circle opens it
+        // from mod mode and Circle also closes it, so without this the window would open and
+        // shut on one press. Owning that edge is not deduplication — the press has already
+        // been acted on.
+        private static bool swallowInputThisFrame;
+
         private static BattleResultDataStore.ResultPage Page
         {
             get
@@ -50,6 +59,7 @@ namespace FFV_ScreenReader.Core
             }
 
             IsOpen = true;
+            swallowInputThisFrame = true;
             currentPage = BattleResultDataStore.Pages.Count - 1;
             currentRow = 0;
             currentCol = 0;
@@ -67,6 +77,7 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
+            swallowInputThisFrame = false;
             currentPage = 0;
             currentRow = 0;
             currentCol = 0;
@@ -82,6 +93,13 @@ namespace FFV_ScreenReader.Core
         public static bool HandleInput()
         {
             if (!IsOpen) return false;
+
+            // The press that opened this window is still live this frame — consume it.
+            if (swallowInputThisFrame)
+            {
+                swallowInputThisFrame = false;
+                return true;
+            }
 
             // Close: Escape OR B (EAST) OR Start
             if (GamepadManager.IsKeyCodePressed(KeyCode.Escape)

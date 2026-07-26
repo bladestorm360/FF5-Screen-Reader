@@ -1229,15 +1229,10 @@
     "de": "{0} Wegpunkte gelöscht", "es": "{0} puntos de ruta eliminados", "ko": "웨이포인트 {0}개를 삭제했습니다", "zht": "已刪除 {0} 個路標",
     "zhc": "已删除 {0} 个路标", "ru": "Удалено точек: {0}", "th": "ลบจุดหมาย {0} จุดแล้ว", "pt": "{0} pontos de referência excluídos"
   },
-  "Path to {0}: {1}": {
-    "en": "Path to {0}: {1}", "ja": "{0} への経路: {1}", "fr": "Chemin vers {0} : {1}", "it": "Percorso per {0}: {1}",
-    "de": "Weg nach {0}: {1}", "es": "Ruta a {0}: {1}", "ko": "{0}까지의 경로: {1}", "zht": "前往 {0} 的路徑：{1}",
-    "zhc": "前往 {0} 的路径：{1}", "ru": "Путь к {0}: {1}", "th": "เส้นทางไป {0}: {1}", "pt": "Caminho para {0}: {1}"
-  },
-  "No path to {0}. {1}": {
-    "en": "No path to {0}. {1}", "ja": "{0} への経路がありません。{1}", "fr": "Aucun chemin vers {0}. {1}", "it": "Nessun percorso per {0}. {1}",
-    "de": "Kein Weg nach {0}. {1}", "es": "No hay ruta a {0}. {1}", "ko": "{0}까지의 경로가 없습니다. {1}", "zht": "沒有前往 {0} 的路徑。{1}",
-    "zhc": "没有前往 {0} 的路径。{1}", "ru": "Нет пути к {0}. {1}", "th": "ไม่มีเส้นทางไป {0} {1}", "pt": "Sem caminho para {0}. {1}"
+  "{0} for battle results. {1} to cancel.": {
+    "en": "{0} for battle results. {1} to cancel.", "ja": "{0}で戦闘結果。{1}でキャンセル。", "fr": "{0} pour les résultats de combat. {1} pour annuler.", "it": "{0} per i risultati della battaglia. {1} per annullare.",
+    "de": "{0} für Kampfergebnisse. {1} zum Abbrechen.", "es": "{0} para resultados de combate. {1} para cancelar.", "ko": "{0}: 전투 결과. {1}: 취소.", "zht": "{0} 查看戰鬥結果。{1} 取消。",
+    "zhc": "{0} 查看战斗结果。{1} 取消。", "ru": "{0} — итоги боя. {1} — отмена.", "th": "{0} ดูผลการต่อสู้ {1} ยกเลิก", "pt": "{0} para resultados da batalha. {1} para cancelar."
   },
   "Original": {
     "en": "Original", "ja": "オリジナル", "fr": "Original", "it": "Originale",

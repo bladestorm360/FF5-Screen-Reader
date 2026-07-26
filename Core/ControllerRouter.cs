@@ -162,7 +162,14 @@ namespace FFV_ScreenReader.Core
         {
             string back = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_BACK);
 
-            if (DialogueTracker.IsInDialogue)
+            if (BattleResultDataStore.HasData)
+            {
+                string east = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_EAST);
+                FFV_ScreenReaderMod.SpeakText(
+                    string.Format(T("{0} for battle results. {1} to cancel."), east, back),
+                    interrupt: true);
+            }
+            else if (DialogueTracker.IsInDialogue)
             {
                 string west = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_WEST);
                 FFV_ScreenReaderMod.SpeakText(
@@ -406,9 +413,25 @@ namespace FFV_ScreenReader.Core
             var mod = FFV_ScreenReaderMod.Instance;
             if (mod == null) return;
 
+            // Battle results take precedence over the battle branch below: BattleState.IsInBattle
+            // is still true while the victory screen is up, so without this the results screen
+            // would fall through to "party HP" instead.
+            if (BattleResultDataStore.HasData)
+            {
+                if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_EAST))
+                {
+                    // Leave mod mode BEFORE opening: while the navigator is open, Update()
+                    // early-returns every frame, so HandleStateTransitions never runs and the
+                    // mod button could not cancel. State would stay ModMode for the whole
+                    // session and silently eat the next face button after closing.
+                    State = ControllerState.Normal;
+                    BattleResultNavigator.Open();
+                    return;
+                }
+            }
             // Dialogue takes precedence over battle/field — if a message window is up, the
             // user wants to repeat the line, not check Gil or HP.
-            if (DialogueTracker.IsInDialogue)
+            else if (DialogueTracker.IsInDialogue)
             {
                 if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_WEST))
                 { DialogueTracker.RepeatCurrentPage(); State = ControllerState.Normal; return; }

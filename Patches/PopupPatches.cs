@@ -85,6 +85,7 @@ namespace FFV_ScreenReader.Patches
         private const int JOB_CHANGE_NAME_OFFSET = 0x40;
         private const int JOB_CHANGE_CONFIRM_OFFSET = 0x48;
         private const int JOB_CHANGE_CMDLIST_OFFSET = 0x50;
+        private const int JOB_CHANGE_SELECT_CURSOR_OFFSET = 0x60;
         private const int CHANGE_NAME_DESCRIPTION_OFFSET = 0x30;
         private const int TOUCH_COMMON_TITLE_OFFSET = 0x28;
         private const int TOUCH_COMMON_MESSAGE_OFFSET = 0x38;
@@ -206,25 +207,36 @@ namespace FFV_ScreenReader.Patches
             IntPtr messagePtr = Marshal.ReadIntPtr(ptr + COMMON_MESSAGE_OFFSET);
             string message = ReadTextFromPointer(messagePtr);
             string announcement = BuildAnnouncement(title, message);
+            return AppendFocusedButton(announcement, ptr, COMMON_SELECT_CURSOR_OFFSET, COMMON_CMDLIST_OFFSET);
+        }
 
-            // Append initially focused button text
+        /// <summary>
+        /// Appends the text of the button the cursor starts on. Without this a popup announces
+        /// its question but never the option the player is about to confirm — the choices then
+        /// only speak once the cursor MOVES, which is silent for anyone who just presses A.
+        ///
+        /// Only for popup classes that actually own a selectCursor + commandList. InfomationPopup
+        /// (dump.cs:474165) has neither — it is a message-only popup — so it is not a caller.
+        /// </summary>
+        private static string AppendFocusedButton(string announcement, IntPtr ptr,
+                                                  int cursorOffset, int cmdListOffset)
+        {
             try
             {
-                IntPtr cursorPtr = Marshal.ReadIntPtr(ptr + COMMON_SELECT_CURSOR_OFFSET);
-                if (cursorPtr != IntPtr.Zero)
-                {
-                    var cursor = new GameCursor(cursorPtr);
-                    string buttonText = ReadButtonFromCommandList(ptr, COMMON_CMDLIST_OFFSET, cursor.Index);
-                    if (!string.IsNullOrWhiteSpace(buttonText))
-                    {
-                        buttonText = TextUtils.StripRichTextTags(buttonText);
-                        announcement = $"{announcement} {buttonText}";
-                    }
-                }
-            }
-            catch { }
+                IntPtr cursorPtr = Marshal.ReadIntPtr(ptr + cursorOffset);
+                if (cursorPtr == IntPtr.Zero) return announcement;
 
-            return announcement;
+                var cursor = new GameCursor(cursorPtr);
+                string buttonText = ReadButtonFromCommandList(ptr, cmdListOffset, cursor.Index);
+                if (string.IsNullOrWhiteSpace(buttonText)) return announcement;
+
+                buttonText = TextUtils.StripRichTextTags(buttonText);
+                return string.IsNullOrEmpty(announcement) ? buttonText : $"{announcement} {buttonText}";
+            }
+            catch
+            {
+                return announcement;
+            }
         }
 
         private static string ReadGameOverSelectPopup(IntPtr ptr)
@@ -247,7 +259,13 @@ namespace FFV_ScreenReader.Patches
             string jobName = ReadTextFromPointer(jobNamePtr);
             IntPtr confirmPtr = Marshal.ReadIntPtr(ptr + JOB_CHANGE_CONFIRM_OFFSET);
             string confirmText = ReadTextFromPointer(confirmPtr);
-            return BuildAnnouncement(jobName, confirmText);
+            string announcement = BuildAnnouncement(jobName, confirmText);
+
+            // KeyInput JobChangePopup (dump.cs:474247): commandList 0x50, selectCursor 0x60.
+            // Without this the popup read "Monk. Are you sure you want to change jobs?" and
+            // stopped — Yes/No only spoke once the cursor moved.
+            return AppendFocusedButton(announcement, ptr,
+                JOB_CHANGE_SELECT_CURSOR_OFFSET, JOB_CHANGE_CMDLIST_OFFSET);
         }
 
         private static string ReadChangeNamePopup(IntPtr ptr)
@@ -584,6 +602,71 @@ namespace FFV_ScreenReader.Patches
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// Announces the initially-focused option of an in-message choice window — the "Leave?"
+    /// prompt on a dungeon warp point and its kin.
+    ///
+    /// These are NOT popups: the question is spoken by the message system (interrupt:false),
+    /// and the choice list is a separate MessageSelectController that nothing announced on
+    /// open. Its options only spoke once the cursor MOVED, via the generic
+    /// CursorNavigationPatches reader — so a player who just pressed A never heard which
+    /// option they were confirming.
+    ///
+    /// Show(int defaultIndex) is the moment the list is presented and carries the starting
+    /// focus. Verified shared=1 in script.json (not a folded empty stub).
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.MessageSelectController),
+                  nameof(Il2CppLast.UI.KeyInput.MessageSelectController.Show))]
+    public static class MessageSelectController_Show_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.UI.KeyInput.MessageSelectController __instance, int defaultIndex)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                // Settle loop rather than an immediate read: Show() is what populates the
+                // rows, so the Text components may not carry their strings for a frame.
+                MenuFocusAnnouncer.Request("MessageChoice", () => Announce(__instance, defaultIndex));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Popup] Error in MessageSelectController.Show patch: {ex.Message}");
+            }
+        }
+
+        private static bool Announce(Il2CppLast.UI.KeyInput.MessageSelectController controller, int defaultIndex)
+        {
+            var contentList = controller.contentList;      // List<MessageSelectContentController> @ 0x40
+            if (contentList == null || contentList.Count == 0) return false;
+
+            // The cursor is the truth once it exists; defaultIndex is the fallback for the
+            // frame before Show() has placed it.
+            int index = defaultIndex;
+            var cursor = controller.selectCursor;          // Cursor @ 0x58
+            if (cursor != null) index = cursor.Index;
+            if (index < 0 || index >= contentList.Count) return false;
+
+            var content = contentList[index];
+            if (content == null) return false;
+
+            var view = content.view;                       // MessageSelectContentView @ 0x28
+            if (view == null) return false;
+
+            string text = TextUtils.GetTextSafe(view.text);   // Text @ 0x20
+            if (string.IsNullOrEmpty(text)) return false;
+
+            text = TextUtils.StripIconMarkup(text);
+            if (string.IsNullOrEmpty(text)) return false;
+
+            // interrupt:false so it queues behind the message that posed the question,
+            // which the message system also speaks non-interrupting.
+            FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(text, index, contentList.Count), interrupt: false);
+            return true;
+        }
     }
 
 }

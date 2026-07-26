@@ -119,14 +119,15 @@ namespace FFV_ScreenReader.Core
             if (FFV_ScreenReaderMod.AudioBeaconsEnabled)
                 FFV_ScreenReaderMod.Instance?.RestartBeacon();
 
+            // Bare turn-by-turn, matching entity pathfinding. The waypoint name is not
+            // repeated: the player just chose it, and re-reading it delays the directions.
             if (pathInfo.Success)
             {
-                FFV_ScreenReaderMod.SpeakText(string.Format(T("Path to {0}: {1}"), waypoint.WaypointName, pathInfo.Description));
+                FFV_ScreenReaderMod.SpeakText(pathInfo.Description);
             }
             else
             {
-                string description = waypoint.FormatDescription(playerPos);
-                FFV_ScreenReaderMod.SpeakText(string.Format(T("No path to {0}. {1}"), waypoint.WaypointName, description));
+                FFV_ScreenReaderMod.SpeakText(waypoint.FormatDescription(playerPos));
             }
         }
 

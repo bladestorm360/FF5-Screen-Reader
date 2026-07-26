@@ -129,4 +129,16 @@ On the field the right stick drives the entity scanner instead (up/down cycle en
 
 Start: open the mod menu, with the same availability as F8.
 
+Mod button (Back/Select/View) puts the controller into mod mode for one press. What the next button does depends on where you are:
+
+On the battle results screen, Circle/B: open the battle results log — the controller equivalent of l. Circle also closes it again.
+
+In dialogue, Square/X: repeat the current line.
+
+In battle, Square/X: read party HP.
+
+On the field, Square/X reads Gil, Triangle/Y reads your location, and the right stick teleports.
+
+Right stick down while in mod mode lists what the current buttons do. The mod button cancels mod mode.
+
 control plus shift plus /: clear all waypoints, requires pressing twice in rapid succession.
