@@ -54,6 +54,16 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Quick Save SaveLoadMenuState.IsActive leak (silenced main-menu cursor until menu reopened) | Done — **not explicitly exercised**. Silent failure mode; needs the specific check: quick save, dismiss the popup, then move the main-menu cursor without returning to the field |
 | Battle results job level up: typed hook on SetJobProficiencyData | Deferred — diagnostic logging in place; needs a battle with jobs unlocked to confirm page content |
 | Spell list initial focus: is SpellList_Init_Postfix redundant like the command bar? | Open — needs a party member who knows magic. Enter the spell list; a ~1-frame double means apply the same clear-only change. See docs/debug.md |
+| List guards keyed on index rather than announced text (two same-named items, two empty equip slots) | Done — needs in-game verification |
+| Popup initial focus: job-change popup button + in-message choice windows ("Leave?") | Done — needs in-game verification |
+| Waypoint pathing speaks bare directions (no "Path to X" preamble) | Done — needs in-game verification |
+| Battle results log on controller (mod button + Circle) | Done — needs in-game verification |
+| Battle state enters at the encounter, not the first command window (wall tones) | Done — needs in-game verification |
+| Battle message guards scoped to one battle (pooled BattleActData) | Done — needs in-game verification |
+| Battle menu left/right announces the landed-on sub-menu option | Done — needs in-game verification |
+| Equip menu Auto Detail gate + I/U details keys (and the Items-menu stale read) | Done — needs in-game verification; one-shot log confirms the content-type space |
+| Status screen Commands/Abilities panel in stat navigation | Done — needs in-game verification |
+| Jobs screen equippable types + description/equippable panel gate | Not started — phase 1 is a discovery run (log GetEquipIconList for all 22 jobs) |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
 | Entity name translator (JSON-based, EntityDump key 0) | Done |
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
