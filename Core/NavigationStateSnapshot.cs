@@ -1,28 +1,25 @@
 namespace FFV_ScreenReader.Core
 {
     /// <summary>
-    /// Captures the current navigation toggle state for save/restore during battle or dialogue.
-    /// Replaces manual 5-boolean save/restore pattern.
+    /// Captures navigation state for save/restore during battle or dialogue.
+    ///
+    /// This used to carry five booleans, four of which (wall tones, footsteps, audio beacons,
+    /// landing pings) were passed to RestoreNavigationAfterBattle and then ignored — that
+    /// enabled state moved to PreferencesManager, and the loops re-arm themselves from the
+    /// preference once suppression clears. Only the pathfinding filter is genuinely per-battle
+    /// state that has to be carried across.
     /// </summary>
     public struct NavigationStateSnapshot
     {
-        public bool WallTones;
-        public bool Footsteps;
-        public bool AudioBeacons;
-        public bool LandingPings;
         public bool PathfindingFilter;
 
         /// <summary>
-        /// Captures the current state from AudioLoopManager and the mod's pathfinding filter.
+        /// Captures the current state from the mod's pathfinding filter.
         /// </summary>
         public static NavigationStateSnapshot Capture(AudioLoopManager audioLoopManager)
         {
             return new NavigationStateSnapshot
             {
-                WallTones = audioLoopManager?.IsWallTonesEnabled ?? false,
-                Footsteps = audioLoopManager?.IsFootstepsEnabled ?? false,
-                AudioBeacons = audioLoopManager?.IsAudioBeaconsEnabled ?? false,
-                LandingPings = audioLoopManager?.IsLandingPingsEnabled ?? false,
                 PathfindingFilter = FFV_ScreenReaderMod.PathfindingFilterEnabled
             };
         }
@@ -35,11 +32,11 @@ namespace FFV_ScreenReader.Core
             var mod = FFV_ScreenReaderMod.Instance;
             if (mod != null)
             {
-                mod.RestoreNavigationAfterBattle(WallTones, Footsteps, AudioBeacons, PathfindingFilter, LandingPings);
+                mod.RestoreNavigationAfterBattle(PathfindingFilter);
             }
             else
             {
-                audioLoopManager?.RestoreNavigationAfterBattle(WallTones, Footsteps, AudioBeacons, PathfindingFilter, LandingPings);
+                audioLoopManager?.RestoreNavigationAfterBattle(PathfindingFilter);
             }
         }
     }

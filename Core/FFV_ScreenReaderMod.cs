@@ -140,6 +140,8 @@ namespace FFV_ScreenReader.Core
             SaveLoadPatches.ApplyPatches(harmony);
 
             BattleCommandMessagePatches.ApplyPatches(harmony);
+            BattleCommandStatePatches.ApplyPatches(harmony);
+            BattleStartPatches.ApplyPatches(harmony);
             NamingPatches.ApplyPatches(harmony);
 
             // Config menu: title-screen Language dropdown focus + keyboard/gamepad remap assign-flow.
@@ -674,9 +676,9 @@ namespace FFV_ScreenReader.Core
         internal void ToggleLandingPings() => audioLoopManager?.ToggleLandingPings();
 
         internal void SuppressNavigationForBattle() => audioLoopManager?.SuppressNavigationForBattle();
-        internal void RestoreNavigationAfterBattle(bool wallTones, bool footsteps, bool audioBeacons, bool pathfindingFilter, bool landingPings = false)
+        internal void RestoreNavigationAfterBattle(bool pathfindingFilter)
         {
-            audioLoopManager?.RestoreNavigationAfterBattle(wallTones, footsteps, audioBeacons, pathfindingFilter, landingPings);
+            audioLoopManager?.RestoreNavigationAfterBattle(pathfindingFilter);
             filterByPathfinding = pathfindingFilter;
             if (entityNavigator != null) entityNavigator.FilterByPathfinding = pathfindingFilter;
         }

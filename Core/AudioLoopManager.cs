@@ -684,10 +684,10 @@ namespace FFV_ScreenReader.Core
         /// Restores navigation loops after battle. Called by BattleState.Reset().
         /// Clears the suppression gate and re-arms any loops the enabled preference wants
         /// (StartX is a no-op when already running or when the pref is off — e.g. after a
-        /// scene reload stopped the coroutines). The enabled-toggle bool parameters are legacy
-        /// (enabled state now lives in PreferencesManager); only the pathfinding filter is restored.
+        /// scene reload stopped the coroutines). Enabled state lives in PreferencesManager, so
+        /// the only thing worth carrying across a battle is the pathfinding filter.
         /// </summary>
-        public void RestoreNavigationAfterBattle(bool wallTones, bool footsteps, bool audioBeacons, bool pathfindingFilter, bool landingPings = false)
+        public void RestoreNavigationAfterBattle(bool pathfindingFilter)
         {
             suppressed = false;
             if (entityNavigator != null) entityNavigator.FilterByPathfinding = pathfindingFilter;

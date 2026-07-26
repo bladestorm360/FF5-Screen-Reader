@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
 using Il2CppLast.UI.KeyInput;
@@ -89,42 +90,57 @@ namespace FFV_ScreenReader.Patches
         // (cancel-back from targeting), so track the last announced position.
         private static int _lastIndex = -1;
 
+        /// <summary>Clears the guard so a (re)entered state announces its focused command.</summary>
+        public static void ClearLast() => _lastIndex = -1;
+
         [HarmonyPostfix]
         public static void Postfix(BattleCommandSelectController __instance, int index)
         {
+            Announce(__instance, index);
+        }
+
+        /// <summary>
+        /// Announces one battle command. Shared by cursor movement and the state-entry path;
+        /// returns true when it spoke.
+        /// </summary>
+        public static bool Announce(BattleCommandSelectController __instance, int index)
+        {
             try
             {
-                if (__instance == null) return;
+                if (__instance == null) return false;
 
                 // SUPPRESSION: If targeting is active, do not announce commands
                 // Use flags set by BattleTargetPatches and ItemUseTracker patches
                 // This avoids expensive FindObjectOfType calls on every cursor movement
-                if (BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive) return;
+                if (BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive) return false;
 
-                if (index == _lastIndex) return;
-                _lastIndex = index;
+                if (index == _lastIndex) return false;
 
                 var contentController = SelectContentHelper.TryGetItem(__instance.contentList, index);
-                if (contentController == null || contentController.TargetCommand == null) return;
+                if (contentController == null || contentController.TargetCommand == null) return false;
 
                 string mesIdName = contentController.TargetCommand.MesIdName;
-                if (string.IsNullOrWhiteSpace(mesIdName)) return;
+                if (string.IsNullOrWhiteSpace(mesIdName)) return false;
 
                 var messageManager = MessageManager.Instance;
-                if (messageManager == null) return;
+                if (messageManager == null) return false;
 
                 string commandName = messageManager.GetMessage(mesIdName);
-                if (string.IsNullOrWhiteSpace(commandName)) return;
+                if (string.IsNullOrWhiteSpace(commandName)) return false;
+
+                _lastIndex = index;
 
                 // Append list position last (command index within the battle command list).
                 int commandCount = __instance.contentList != null ? __instance.contentList.Count : 0;
                 commandName = MenuPosition.Format(commandName, index, commandCount);
 
                 CoroutineManager.StartManaged(DelayedBattleCommandSpeech(commandName));
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in BattleCommandSelectController.SetCursor patch: {ex.Message}");
+                return false;
             }
         }
 
@@ -308,6 +324,90 @@ namespace FFV_ScreenReader.Patches
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in BattleQuantityAbilityInfomationController.SelectContent patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Announces the focused command when the battle menu moves BETWEEN its sub-menus.
+    ///
+    /// The battle command window is a state machine, not one list
+    /// (BattleCommandSelectController.State: None=0, Change=1, Normal=2, Defence=3,
+    /// Manipulate=4). Normal is the job's command list, Defence is the defend/flee menu and
+    /// Change is the row menu; left/right switch STATE via UpdateByState, they do not move a
+    /// cursor. All four states share one contentList, repopulated per state from normalList /
+    /// changeList / defenceList / manipulateList, so the existing announce path already
+    /// produces the right string — only the trigger was missing, which is why vertical
+    /// movement spoke and horizontal was silent.
+    ///
+    /// Clearing the cursor guard is the load-bearing half: switching state usually lands on
+    /// the SAME index (0 in Normal, 0 in Defence), so any SetCursor fired during the state's
+    /// own init is swallowed by `index == _lastIndex`. Clearing makes it speak; it is the
+    /// opposite of a dedup net.
+    ///
+    /// The deferred read then covers the other case — a state whose init does NOT drive
+    /// SetCursor at all. Announce() carries its own index guard, so if SetCursor already
+    /// spoke this position the deferred call is a no-op and cannot double. The callback
+    /// returns true either way so the settle loop does not retry for six frames.
+    ///
+    /// Manual patching: all four targets are private. Each is shared=1 in script.json and
+    /// therefore a real body — the *Exit family is deliberately NOT hooked, since an empty
+    /// body would fold onto the 4398-method stub address and hard-crash at launch.
+    /// </summary>
+    public static class BattleCommandStatePatches
+    {
+        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        {
+            PatchState(harmony, "NormalInit");
+            PatchState(harmony, "ChangeInit");
+            PatchState(harmony, "DefenceInit");
+            PatchState(harmony, "ManipulateInit");
+        }
+
+        private static void PatchState(HarmonyLib.Harmony harmony, string methodName)
+        {
+            try
+            {
+                var target = AccessTools.Method(typeof(BattleCommandSelectController), methodName);
+                if (target == null)
+                {
+                    MelonLogger.Warning($"[BattleCommand] {methodName} not found — moving left/right "
+                        + "into that sub-menu will not announce");
+                    return;
+                }
+
+                var postfix = typeof(BattleCommandStatePatches).GetMethod(
+                    nameof(StateInit_Postfix), BindingFlags.Public | BindingFlags.Static);
+                harmony.Patch(target, postfix: new HarmonyMethod(postfix));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[BattleCommand] Failed to patch {methodName}: {ex.Message}");
+            }
+        }
+
+        public static void StateInit_Postfix(BattleCommandSelectController __instance)
+        {
+            try
+            {
+                if (__instance == null) return;
+
+                BattleCommandSelectController_SetCursor_Patch.ClearLast();
+
+                MenuFocusAnnouncer.Request("BattleCommand", () =>
+                {
+                    if (!MenuFocusAnnouncer.IsAlive(__instance)) return false;
+
+                    var cursor = __instance.selectCursor;       // Cursor @ 0x68
+                    if (cursor == null) return false;
+
+                    BattleCommandSelectController_SetCursor_Patch.Announce(__instance, cursor.Index);
+                    return true;
+                });
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[BattleCommand] Error in state init postfix: {ex.Message}");
             }
         }
     }

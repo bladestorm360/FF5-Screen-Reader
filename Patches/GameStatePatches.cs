@@ -26,15 +26,6 @@ namespace FFV_ScreenReader.Patches
         public static bool IsInBattle => _isInBattle;
 
         /// <summary>
-        /// Unconditionally clears battle state without restoring navigation.
-        /// </summary>
-        public static void ForceReset()
-        {
-            _isInBattle = false;
-            ActiveBattleCharacterTracker.CurrentActiveCharacter = null;
-        }
-
-        /// <summary>
         /// Called when battle starts. Stores current navigation settings and suppresses them.
         /// </summary>
         public static void SetActive()
@@ -42,6 +33,18 @@ namespace FFV_ScreenReader.Patches
             if (_isInBattle) return;
 
             _isInBattle = true;
+
+            // Scope the battle-message guards to this battle. Both are intra-battle by design —
+            // one suppresses per-hit re-invocation for the same BattleActData, the other a
+            // dual-wield second swing — but BattleActData is POOLED, so the next battle hands
+            // back an object at the same address and the first action is swallowed before a
+            // string is ever built. Their per-turn reset (SetCommandSelectTarget) never runs at
+            // a battle boundary, and cannot: a preemptive strike or an enemy acting first
+            // produces actions before any command window exists.
+            //
+            // Placed above the mod null-check, which returns early.
+            ScrollMessageManager_Play_Patch.ResetLastMessage();
+            ParameterActFunctionManagment_CreateActFunction_Patch.ResetLastAction();
 
             var mod = FFV_ScreenReader.Core.FFV_ScreenReaderMod.Instance;
             if (mod == null) return;
@@ -82,6 +85,7 @@ namespace FFV_ScreenReader.Patches
         private const int STATE_FIELD_READY = 2;
         private const int STATE_PLAYER = 3;
         private const int STATE_EVENT = 12;
+        private const int STATE_BATTLE = 13;
 
         // Config menu bestiary states (SubSceneManagerMainGame.State)
         private const int STATE_MENU_LIBRARY_UI = 17;
@@ -143,6 +147,13 @@ namespace FFV_ScreenReader.Patches
                     _cachedIsInEvent = true;
                 else if (_cachedIsInEvent)
                     _cachedIsInEvent = false;
+
+                // Scene-load backstop for battle entry. BattleStartPatches normally gets here
+                // first, at the encounter itself, but Colosseum and AR battles never route
+                // through EventProcedure. SetActive() is idempotent, so whichever fires first
+                // wins and the other is a no-op.
+                if (stateValue == STATE_BATTLE)
+                    BattleState.SetActive();
 
                 // Field states: check map transitions and clear battle state
                 if (stateValue == STATE_FIELD_READY || stateValue == STATE_PLAYER || stateValue == STATE_CHANGE_MAP)
