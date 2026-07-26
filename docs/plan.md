@@ -45,13 +45,15 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Performance optimization (GameObjectCache, state flags, GameConstants) | Done |
 | LocalizationHelper (12-language mod string dictionary) | Done |
 | Battle results navigator (L key, navigable grid with EXP/Next/ABP) | Done (ABP fix applied) |
-| Battle results navigator multi-page (PageUp/PageDown or L1/R1, one page per result phase + one per levelling character) | Done — needs in-game verification |
-| Battle results level-up page announcement (Lv./HP/MP/job, before → after) | Done |
-| Battle results compact row format ("HP: 44 > 53 (9)" instead of before/after/change labels) | Done — needs in-game verification |
-| Quick Save completion popup announcement (orphaned postfix registered on InitComplite) | Done — needs in-game verification |
-| Quick Save SaveLoadMenuState.IsActive leak (silenced main-menu cursor until menu reopened) | Done — needs in-game verification |
+| Battle results navigator multi-page (PageUp/PageDown or L1/R1, one page per result phase + one per levelling character) | Verified in-game 2026-07-26 |
+| Battle results level-up page announcement (Lv./HP/MP/job, before → after) | Verified in-game 2026-07-26 |
+| Battle results compact row format ("HP: 44 > 53 (9)" instead of before/after/change labels) | Verified in-game 2026-07-26 |
+| Quick Save completion popup announcement (orphaned postfix registered on InitComplite) | Verified in-game 2026-07-26 |
+| Magic command bar initial focus read twice (AbilityCommand_Init_Postfix reduced to clear-only) | Verified in-game 2026-07-26 |
 | Battle results EXP totals-only speech format (level-ups moved off page 1) | Done |
+| Quick Save SaveLoadMenuState.IsActive leak (silenced main-menu cursor until menu reopened) | Done — **not explicitly exercised**. Silent failure mode; needs the specific check: quick save, dismiss the popup, then move the main-menu cursor without returning to the field |
 | Battle results job level up: typed hook on SetJobProficiencyData | Deferred — diagnostic logging in place; needs a battle with jobs unlocked to confirm page content |
+| Spell list initial focus: is SpellList_Init_Postfix redundant like the command bar? | Open — needs a party member who knows magic. Enter the spell list; a ~1-frame double means apply the same clear-only change. See docs/debug.md |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
 | Entity name translator (JSON-based, EntityDump key 0) | Done |
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
