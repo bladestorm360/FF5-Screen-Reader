@@ -117,7 +117,8 @@ namespace FFV_ScreenReader.Menus
         Vitals,         // HP, MP
         Attributes,     // Strength, Agility, Stamina, Magic
         CombatStats,    // Attack, Defense, Evasion, Magic Defense
-        Progression     // Jobs, Abilities
+        Progression,    // Jobs, Abilities
+        Commands        // The on-screen Commands/Abilities panel (varies by job)
     }
 
     /// <summary>
@@ -143,15 +144,21 @@ namespace FFV_ScreenReader.Menus
     public static class StatusNavigationReader
     {
         private static List<StatusStatDefinition> statList = null;
-        private static readonly int[] GroupStartIndices = new int[] { 0, 6, 8, 12, 16 };
+
+        // Derived from the built list rather than hardcoded: the Commands group's length
+        // changes with the character's job, so fixed indices cannot describe it.
+        private static int[] GroupStartIndices = new int[] { 0 };
+
+        // The panel's own header ("Commands/Abilities"), captured while reading the rows so the
+        // group announces with the game's localized wording instead of a hardcoded string.
+        private static string commandsGroupLabel;
 
         /// <summary>
-        /// Initialize the stat list with all 19 visible stats in UI order
+        /// Rebuilds the stat list in UI order. Called per character on screen entry, because
+        /// the trailing Commands group is read from what that character actually has.
         /// </summary>
         public static void InitializeStatList()
         {
-            if (statList != null) return;
-
             statList = new List<StatusStatDefinition>();
 
             // Character Info Group (indices 0-5)
@@ -181,6 +188,84 @@ namespace FFV_ScreenReader.Menus
             // Progression Group (indices 16-17)
             statList.Add(new StatusStatDefinition("Jobs", StatGroup.Progression, ReadJobs));
             statList.Add(new StatusStatDefinition("Abilities", StatGroup.Progression, ReadAbilities));
+
+            // Commands Group — variable length, read from the screen
+            AppendCommandRows();
+
+            GroupStartIndices = BuildGroupStartIndices();
+        }
+
+        /// <summary>
+        /// Appends one row per entry actually rendered in the Commands/Abilities panel.
+        ///
+        /// Read from the rendered rows, never reconstructed. The panel is filled by
+        /// StatusDetailsController.SetBattleCommandText, which runs several filter helpers and
+        /// two Func&lt;Command,bool&gt; predicate caches — those are what strip Defend, Row and
+        /// Flee. Rebuilding the list from Job command ids, the master Command table, or
+        /// OwnedAbilityList puts back exactly what the game filtered out, which is how an
+        /// earlier attempt ended up listing every command in the game. For the same reason,
+        /// avoid StatusDetailsCommandChangeBaseController.GetAllAbility — that is the full
+        /// "everything you could equip" pick-list, not what is on screen.
+        /// </summary>
+        private static void AppendCommandRows()
+        {
+            try
+            {
+                var controller = StatusNavigationTracker.Instance.ActiveController;
+                if (controller == null) return;
+
+                var view = controller.view;
+                if (view == null) return;
+
+                commandsGroupLabel = GetTextSafe(view.FixedBattleCommandText);
+
+                var contentList = view.EquipAbilityContentList;
+                if (contentList == null) return;
+
+                for (int i = 0; i < contentList.Count; i++)
+                {
+                    var content = contentList[i];
+                    if (content == null) continue;
+
+                    // The prefab authors a fixed number of slots and hides the unused ones
+                    // rather than destroying them, so an inactive row still holds the previous
+                    // character's text. SetActiveNoneAbilityText exists for exactly that.
+                    if (content.gameObject == null || !content.gameObject.activeInHierarchy) continue;
+                    if (content.TargetData == null) continue;
+
+                    var contentView = content.view;
+                    if (contentView == null || contentView.IconText == null) continue;
+
+                    string label = GetTextSafe(contentView.IconText.nameText);
+                    if (string.IsNullOrEmpty(label)) continue;
+
+                    label = StripIconMarkup(label);
+                    if (string.IsNullOrEmpty(label)) continue;
+
+                    // Captured, not computed: this is the string the screen is showing.
+                    string captured = label;
+                    statList.Add(new StatusStatDefinition(captured, StatGroup.Commands, _ => captured));
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Status] Could not read commands panel: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Group boundaries, computed from the list so a variable-length group works.
+        /// </summary>
+        private static int[] BuildGroupStartIndices()
+        {
+            var starts = new List<int>();
+            for (int i = 0; i < statList.Count; i++)
+            {
+                if (i == 0 || statList[i].Group != statList[i - 1].Group)
+                    starts.Add(i);
+            }
+            if (starts.Count == 0) starts.Add(0);
+            return starts.ToArray();
         }
 
         /// <summary>
@@ -319,6 +404,8 @@ namespace FFV_ScreenReader.Menus
                 case StatGroup.Attributes: return "Attributes";
                 case StatGroup.CombatStats: return "Combat Stats";
                 case StatGroup.Progression: return "Progression";
+                case StatGroup.Commands:
+                    return string.IsNullOrEmpty(commandsGroupLabel) ? "Commands" : commandsGroupLabel;
                 default: return group.ToString();
             }
         }
