@@ -822,3 +822,62 @@ Do **not** reconstruct this list. `SetBattleCommandText` runs four filter helper
 **Cleanups.** Deleted unreferenced `BattleState.ForceReset` (`MessagePatches.ForceReset` and `AudioLoopManager.ForceResetInternalState` are live — verify callers before touching anything by that name). `RestoreNavigationAfterBattle` went from five bools to one: four were passed and ignored once enabled state moved to `PreferencesManager`, which collapsed `NavigationStateSnapshot` to its one genuinely per-battle field.
 
 **Status**: all of the above build clean and are deployed; none are verified in-game yet.
+
+### Offline Data Sources: Ghidra Project and Game Bundles (2026-07-26)
+
+Two capabilities that were available all along and were not written down, each of which cost a wrong "that's runtime-only / not recoverable" conclusion before being found.
+
+**The Ghidra project is `FF5_Analysis`, not `GameAssembly.dll.c`.**
+
+`FF5/GameAssembly.dll.c` (55 MB, 1.3M lines) is a **types-only** export — structs, typedefs and vtables, ending in PE/DOS header definitions. It contains **zero function bodies** (`grep` for `FUN_`, `^{` returns nothing). Concluding from it that "no decompilation exists" is wrong.
+
+The real analysis is at `D:\Games\Dev\ghidra_12.0.3_PUBLIC\projects\FF5_Analysis.rep`, program name `GameAssembly.dll` (549 MB, fully analyzed). A single function decompiles from it in about a minute:
+
+```
+GHIDRA_HEADLESS_MAXMEM=8G analyzeHeadless.bat \
+  "D:\Games\Dev\ghidra_12.0.3_PUBLIC\projects" FF5_Analysis \
+  -process GameAssembly.dll -noanalysis \
+  -scriptPath <dir> -postScript DecompileOne.java
+```
+
+`-process ... -noanalysis` only — never `-import` (destroys the analysis) and never a timeout flag (aborts with no partial save). The script takes a VA (dump.cs prints `RVA` and `VA` per method; image base is `0x180000000`), calls `getFunctionContaining`, and prints `DecompInterface.decompileFunction(fn, 0, monitor)`.
+
+**This is the answer whenever dump.cs is signature-only.** Any hardcoded table built in a constructor — the exact case that blocked the jobs-screen work — is recoverable this way. IL2CPP helper calls are readable in the output: `FUN_18155fcf0(list, N, ...)` is `List<int>.Add(N)` and `FUN_1813f2030(dict, key, list, ...)` is `Dictionary<int,List<int>>.Add`. Note one constructor may build several such dictionaries in sequence (`JobInfomationData` builds equip icons, learned abilities, passives, equip abilities and learning levels), so a parser must stop at the first dictionary rather than keying blindly — later dictionaries reuse keys 1..22 and silently overwrite.
+
+**Game data is plain text inside the Addressables bundles.** UnityPy is installed and `tools/extract_entities.py` is the working precedent. Under `FINAL FANTASY V_Data/StreamingAssets/aa/StandaloneWindows64/`:
+
+| Bundle | Contents |
+|---|---|
+| `master_assets_all_*.bundle` | **92 master tables as plain CSV** TextAssets — `weapon`, `armor`, `job`, `job_group`, `content`, `icon`, `parts_group`, `item`, `monster`, … |
+| `message_assets_all_*.bundle` | **Localized text**, tab-separated `MSG_ID\ttext`. English is `system_en` (89 KB) + `etc_text_en`; 12 languages present |
+| `assetspath_assets_all_*.bundle` | The Addressables path index — grep it to find which bundle holds an asset |
+
+So master data and every localized string are readable offline. `MasterManager.GetList<T>()` at runtime and these CSVs are the same data.
+
+**Column traps found the hard way:** `weapon.type_id` is *not* the weapon category — it is `1` for 107 of 108 rows. The category is `weapon.category_type`, and `armor` has no category column at all (its `parts_group_id` is the *slot*). `content.icon_id` is `0` for all equipment, so item icons do not come from there; each item's icon is embedded as an `<IC_XXX>` prefix in its localized name string.
+
+
+### Jobs Screen "Equippable" Row (2026-07-26)
+
+The row is sprite icons with **no text**, so nothing could be scraped from the screen. Its source is a hardcoded `Dictionary<int, List<int>>` in the constructor of `Serial.FF5.Management.JobInfomationData`, surfaced at runtime via `ProviderManager.Instance.JobInfomationProvider.GetEquipIconList(jobId)`.
+
+**Extracted offline**, no playtest and no unlocked jobs required — the dictionary is built at construction for all 22 jobs and never consults save data. Decompiled that one constructor out of the `FF5_Analysis` Ghidra project (see the previous entry) and mirrored the result as a static table in `Utils/JobEquipData.cs`. Mirrored rather than called at runtime because it is build-time constant, it avoids a 22-job × 190-item scan per key press, and the returned icon ids need names the game does not ship.
+
+**Naming.** There is no message id for any weapon category — `MENU_JOB_EQUIPMENT` ("Equippable") and `MENU_JOB_WHICH_ALSO` ("Any") exist and are read from the screen, but the categories themselves are mod-authored in `mod_text.json` (16 keys × 12 locales). Names were confirmed against the game's own English item names in `system_en`, cross-checked with the FF5 wiki's weapon-type list:
+
+- `IC_WND` is **Staff**, not "wand" — every item in it is a Staff.
+- `IC_NSRD` is **Knight Sword** (Excalibur, Ragnarok, Defender), distinct from `IC_SRD` **Sword** (Broadsword, Long Sword).
+- `IC_TRW` is **Boomerang** (Moonring Blade, Rising Sun), which is *not* the same as the wiki's "thrown".
+- `IC_AX` and `IC_HMR` are separate **icons** even though the master data files axes and hammers under one `category_type` — which is why Berserker shows both.
+
+**Two wiki types deliberately absent.** "Thrown" (`IC_SRK`: Shuriken, Fuma Shuriken) and `IC_BAG` (Ash) resolve to job group 2 — *nobody* can equip them; they are Throw-command consumables, so they never appear in a job's row. "Short sword" is not its own icon: Kunai / Kodachi / Sasuke's Katana sit in the katana `category_type` but carry the knife icon.
+
+**One type the wiki omits.** `IC_FLL` (Flail, Morning Star) is a real equip category restricted to Red Mage, White Mage, Time Mage, Chemist and Mime — exactly matching the extracted rows. The wiki folds flails into staves, but the game draws a separate icon, so it gets its own name: one spoken name per icon keeps the readout 1:1 with what a sighted player sees, which is the rule for this screen.
+
+**Panel gate (a live bug, fixed here).** The footer's `X — View Description` swaps the info panel between the equippable row and the job description, as two sibling GameObjects on `JobChangeWindowView`: `infoContentBase` (0xF8) and `infoDescriptionBase` (0x100). `JobDetailsAnnouncer` read `InfoJobDescriptText` unconditionally, so with the equippable row showing, `I` spoke a description that was not on screen. It now reads whichever panel is active.
+
+**Deliberately not announced: job stat modifiers.** `Last.Data.Master.Job` exposes `Strength`/`Vitality`/`Agility`/`Magic` (dump.cs:353633), and they sit right beside everything else this feature touches — but the panel does not display them. Speaking them would invent information the sighted player does not have.
+
+Freelancer (job 1) and Monk (job 3) are intentionally empty in the table: the game routes them through `IsAll` / `IsNothingAllEquip` and prints text, which is read from the screen so it stays localized.
+
+**Status**: builds clean, deployed, not yet verified in-game.

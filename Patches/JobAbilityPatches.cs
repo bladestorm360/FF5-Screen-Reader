@@ -898,6 +898,21 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
+                // The X button ("View Description") swaps the info panel between the equippable
+                // row and the job description, as two sibling GameObjects. Read whichever is
+                // actually on screen -- this used to always read the description, so with the
+                // equippable row showing it spoke text the player could not see.
+                if (IsPanelActive(view.infoContentBase) && !IsPanelActive(view.infoDescriptionBase))
+                {
+                    string equippable = BuildEquippableAnnouncement(controller, view);
+                    if (!string.IsNullOrWhiteSpace(equippable))
+                    {
+                        FFV_ScreenReaderMod.SpeakText(equippable, interrupt);
+                        return;
+                    }
+                    if (!announceIfEmpty) return;
+                }
+
                 // Read job description directly from view's info text field
                 string announcement = "";
                 try
@@ -925,6 +940,56 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"Error announcing job details: {ex.Message}");
             }
+        }
+
+        private static bool IsPanelActive(UnityEngine.GameObject panel)
+            => panel != null && panel.activeInHierarchy;
+
+        /// <summary>
+        /// Reads the "Equippable" row for the highlighted job.
+        ///
+        /// The game draws this as sprite icons with no text at all, so the category names come
+        /// from JobEquipData (extracted offline — see docs/debug.md). The "Equippable" label and
+        /// the Freelancer / Monk special cases are read from the screen instead, since the game
+        /// does supply text for those and reading it keeps them localized for free.
+        /// </summary>
+        private static string BuildEquippableAnnouncement(
+            Il2CppSerial.FF5.UI.KeyInput.JobChangeWindowController controller, object viewObj)
+        {
+            try
+            {
+                var view = controller.view;
+                string label = GetTextSafe(view.InfoFixedEquipText);
+
+                // Freelancer ("Any") and Monk (nothing) render text rather than icons.
+                string special = GetTextSafe(view.InfoAllEquipText)
+                              ?? GetTextSafe(view.InfoNothingEquipAllText);
+                if (!string.IsNullOrWhiteSpace(special))
+                    return string.IsNullOrWhiteSpace(label) ? special : $"{label}: {special}";
+
+                var releaseJobs = controller.GetReleaseJobs();
+                var job = SelectContentHelper.TryGetItem(releaseJobs, JobMenuTracker.CurrentJobIndex);
+                if (job == null) return null;
+
+                string equippable = JobEquipData.GetEquippableText(job.Id);
+                if (string.IsNullOrWhiteSpace(equippable)) return null;
+
+                return string.IsNullOrWhiteSpace(label) ? equippable : $"{label}: {equippable}";
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Job Details] Equippable read failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Text only when the component is actually rendered, else null.</summary>
+        private static string GetTextSafe(UnityEngine.UI.Text text)
+        {
+            if (text == null || text.gameObject == null || !text.gameObject.activeInHierarchy)
+                return null;
+            string v = text.text;
+            return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
         }
     }
 

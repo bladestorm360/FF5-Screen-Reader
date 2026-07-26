@@ -1234,6 +1234,86 @@
     "de": "{0} für Kampfergebnisse. {1} zum Abbrechen.", "es": "{0} para resultados de combate. {1} para cancelar.", "ko": "{0}: 전투 결과. {1}: 취소.", "zht": "{0} 查看戰鬥結果。{1} 取消。",
     "zhc": "{0} 查看战斗结果。{1} 取消。", "ru": "{0} — итоги боя. {1} — отмена.", "th": "{0} ดูผลการต่อสู้ {1} ยกเลิก", "pt": "{0} para resultados da batalha. {1} para cancelar."
   },
+  "Sword": {
+    "en": "Sword", "ja": "剣", "fr": "Épée", "it": "Spada",
+    "de": "Schwert", "es": "Espada", "ko": "검", "zht": "劍",
+    "zhc": "剑", "ru": "Меч", "th": "ดาบ", "pt": "Espada"
+  },
+  "Knight Sword": {
+    "en": "Knight Sword", "ja": "騎士剣", "fr": "Épée de chevalier", "it": "Spada del cavaliere",
+    "de": "Ritterschwert", "es": "Espada de caballero", "ko": "기사검", "zht": "騎士劍",
+    "zhc": "骑士剑", "ru": "Рыцарский меч", "th": "ดาบอัศวิน", "pt": "Espada de cavaleiro"
+  },
+  "Katana": {
+    "en": "Katana", "ja": "刀", "fr": "Katana", "it": "Katana",
+    "de": "Katana", "es": "Katana", "ko": "카타나", "zht": "刀",
+    "zhc": "刀", "ru": "Катана", "th": "คาตานะ", "pt": "Katana"
+  },
+  "Knife": {
+    "en": "Knife", "ja": "ナイフ", "fr": "Dague", "it": "Pugnale",
+    "de": "Dolch", "es": "Daga", "ko": "나이프", "zht": "小刀",
+    "zhc": "小刀", "ru": "Нож", "th": "มีด", "pt": "Adaga"
+  },
+  "Spear": {
+    "en": "Spear", "ja": "槍", "fr": "Lance", "it": "Lancia",
+    "de": "Speer", "es": "Lanza", "ko": "창", "zht": "槍",
+    "zhc": "枪", "ru": "Копьё", "th": "หอก", "pt": "Lança"
+  },
+  "Axe": {
+    "en": "Axe", "ja": "斧", "fr": "Hache", "it": "Ascia",
+    "de": "Axt", "es": "Hacha", "ko": "도끼", "zht": "斧",
+    "zhc": "斧", "ru": "Топор", "th": "ขวาน", "pt": "Machado"
+  },
+  "Hammer": {
+    "en": "Hammer", "ja": "ハンマー", "fr": "Marteau", "it": "Martello",
+    "de": "Hammer", "es": "Martillo", "ko": "해머", "zht": "鎚",
+    "zhc": "锤", "ru": "Молот", "th": "ค้อน", "pt": "Martelo"
+  },
+  "Staff": {
+    "en": "Staff", "ja": "杖", "fr": "Bâton", "it": "Bastone",
+    "de": "Stab", "es": "Bastón", "ko": "지팡이", "zht": "杖",
+    "zhc": "杖", "ru": "Посох", "th": "ไม้เท้า", "pt": "Bastão"
+  },
+  "Rod": {
+    "en": "Rod", "ja": "ロッド", "fr": "Sceptre", "it": "Scettro",
+    "de": "Rute", "es": "Vara", "ko": "로드", "zht": "魔杖",
+    "zhc": "魔杖", "ru": "Жезл", "th": "คทา", "pt": "Cetro"
+  },
+  "Bow": {
+    "en": "Bow", "ja": "弓", "fr": "Arc", "it": "Arco",
+    "de": "Bogen", "es": "Arco", "ko": "활", "zht": "弓",
+    "zhc": "弓", "ru": "Лук", "th": "ธนู", "pt": "Arco"
+  },
+  "Boomerang": {
+    "en": "Boomerang", "ja": "ブーメラン", "fr": "Boomerang", "it": "Boomerang",
+    "de": "Bumerang", "es": "Bumerán", "ko": "부메랑", "zht": "回力鏢",
+    "zhc": "回力镖", "ru": "Бумеранг", "th": "บูมเมอแรง", "pt": "Bumerangue"
+  },
+  "Harp": {
+    "en": "Harp", "ja": "竪琴", "fr": "Harpe", "it": "Arpa",
+    "de": "Harfe", "es": "Arpa", "ko": "하프", "zht": "豎琴",
+    "zhc": "竖琴", "ru": "Арфа", "th": "พิณ", "pt": "Harpa"
+  },
+  "Bell": {
+    "en": "Bell", "ja": "ベル", "fr": "Clochette", "it": "Campana",
+    "de": "Glocke", "es": "Campana", "ko": "벨", "zht": "鈴",
+    "zhc": "铃", "ru": "Колокольчик", "th": "กระดิ่ง", "pt": "Sino"
+  },
+  "Whip": {
+    "en": "Whip", "ja": "ムチ", "fr": "Fouet", "it": "Frusta",
+    "de": "Peitsche", "es": "Látigo", "ko": "채찍", "zht": "鞭",
+    "zhc": "鞭", "ru": "Кнут", "th": "แส้", "pt": "Chicote"
+  },
+  "Flail": {
+    "en": "Flail", "ja": "フレイル", "fr": "Fléau", "it": "Mazzafrusto",
+    "de": "Flegel", "es": "Mangual", "ko": "플레일", "zht": "連枷",
+    "zhc": "连枷", "ru": "Цеп", "th": "กระบองโซ่", "pt": "Mangual"
+  },
+  "Shield": {
+    "en": "Shield", "ja": "盾", "fr": "Bouclier", "it": "Scudo",
+    "de": "Schild", "es": "Escudo", "ko": "방패", "zht": "盾",
+    "zhc": "盾", "ru": "Щит", "th": "โล่", "pt": "Escudo"
+  },
   "Original": {
     "en": "Original", "ja": "オリジナル", "fr": "Original", "it": "Originale",
     "de": "Original", "es": "Original", "ko": "오리지널", "zht": "原版",

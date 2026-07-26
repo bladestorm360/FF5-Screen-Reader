@@ -63,7 +63,8 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Battle menu left/right announces the landed-on sub-menu option | Done — needs in-game verification |
 | Equip menu Auto Detail gate + I/U details keys (and the Items-menu stale read) | Done — needs in-game verification; one-shot log confirms the content-type space |
 | Status screen Commands/Abilities panel in stat navigation | Done — needs in-game verification |
-| Jobs screen equippable types + description/equippable panel gate | Not started — phase 1 is a discovery run (log GetEquipIconList for all 22 jobs) |
+| Jobs screen equippable types (all 22 jobs, extracted offline from the Ghidra project) | Done — needs in-game verification |
+| Jobs screen description/equippable panel gate (I key read the wrong panel) | Done — needs in-game verification |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
 | Entity name translator (JSON-based, EntityDump key 0) | Done |
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
