@@ -821,7 +821,7 @@ Do **not** reconstruct this list. `SetBattleCommandText` runs four filter helper
 
 **Cleanups.** Deleted unreferenced `BattleState.ForceReset` (`MessagePatches.ForceReset` and `AudioLoopManager.ForceResetInternalState` are live — verify callers before touching anything by that name). `RestoreNavigationAfterBattle` went from five bools to one: four were passed and ignored once enabled state moved to `PreferencesManager`, which collapsed `NavigationStateSnapshot` to its one genuinely per-battle field.
 
-**Status**: all of the above build clean and are deployed; none are verified in-game yet.
+**Status**: verified in-game 2026-07-26, with one exception found by the startup warning — see the boss-encounter note below.
 
 ### Offline Data Sources: Ghidra Project and Game Bundles (2026-07-26)
 
@@ -880,4 +880,29 @@ The row is sprite icons with **no text**, so nothing could be scraped from the s
 
 Freelancer (job 1) and Monk (job 3) are intentionally empty in the table: the game routes them through `IsAll` / `IsNothingAllEquip` and prints text, which is read from the screen so it stays localized.
 
-**Status**: builds clean, deployed, not yet verified in-game.
+**Status**: verified in-game 2026-07-26.
+
+### Il2CppInterop Mangles Explicit Interface Implementations (2026-07-26)
+
+**Problem**: `BattleStartPatches` hooked `EventEncount` fine but not its boss counterpart. The startup warning fired:
+
+```
+[BattleStart] Could not resolve a hook for boss encounters
+  (tried: Last.Map.IEventAccessor.EventEncountBoss, EventEncountBoss).
+  Field audio will keep playing through the transition until the battle scene loads.
+```
+
+Random and scripted encounters entered battle state at the encounter as intended; **bosses silently fell back to the scene-load backstop**, ~1–2 s later.
+
+**Cause**: IL2CPP metadata (and dump.cs) spell an explicit interface implementation with dots — `Last.Map.IEventAccessor.EventEncountBoss`. Il2CppInterop rewrites those dots as **underscores**. Confirmed by string-scanning the generated assembly at `MelonLoader/Il2CppAssemblies/Assembly-CSharp.dll`:
+
+```
+Last_Map_IEventAccessor_EventEncountBoss
+NativeMethodInfoPtr_Last_Map_IEventAccessor_EventEncountBoss_Private_Virtual_Final_New_Void_MonsterParty_Vector2_Int32_0
+```
+
+**Rule**: when patching a method dump.cs prints as `Namespace.IInterface.Method`, the interop name is `Namespace_IInterface_Method`. `AccessTools.Method` will not find the dotted form. The generated assemblies under `MelonLoader/Il2CppAssemblies/` are the authority on any interop name and can be grepped directly — no need to guess or discover it at runtime.
+
+**Fix**: correct name first in the candidate list, plus a reflection fallback matching any method whose name *ends with* the bare method name, so a future interop naming change degrades to a scan rather than to silence.
+
+**Lesson (the reason this was caught at all)**: the warning named the *user-visible consequence*, not just the failure. A bare "patch failed" line would have been scrolled past; "field audio will keep playing through the transition" is checkable. Every `TryPatch` warning in this codebase should read that way.

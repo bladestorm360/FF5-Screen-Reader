@@ -34,11 +34,18 @@ namespace FFV_ScreenReader.Patches
                 new[] { "EventEncount" },
                 "random and scripted encounters");
 
-            // Explicit interface implementation — IL2CPP metadata names it
-            // "Last.Map.IEventAccessor.EventEncountBoss", but Il2CppInterop may expose it
-            // unqualified, so try both rather than assuming.
+            // Explicit interface implementation. IL2CPP metadata spells it
+            // "Last.Map.IEventAccessor.EventEncountBoss", but Il2CppInterop rewrites the dots as
+            // underscores — the real member is Last_Map_IEventAccessor_EventEncountBoss.
+            // Confirmed by scanning the generated Assembly-CSharp.dll; the dotted spelling does
+            // not resolve, which the startup warning caught in testing.
             PatchEncounter(harmony,
-                new[] { "Last.Map.IEventAccessor.EventEncountBoss", "EventEncountBoss" },
+                new[]
+                {
+                    "Last_Map_IEventAccessor_EventEncountBoss",
+                    "Last.Map.IEventAccessor.EventEncountBoss",
+                    "EventEncountBoss",
+                },
                 "boss encounters");
         }
 
@@ -48,15 +55,30 @@ namespace FFV_ScreenReader.Patches
             {
                 var type = typeof(Il2CppLast.Map.EventProcedure);
 
+                var postfix = typeof(BattleStartPatches).GetMethod(
+                    nameof(Encounter_Postfix), BindingFlags.Public | BindingFlags.Static);
+
                 foreach (var name in candidates)
                 {
                     var target = AccessTools.Method(type, name);
                     if (target == null) continue;
 
-                    var postfix = typeof(BattleStartPatches).GetMethod(
-                        nameof(Encounter_Postfix), BindingFlags.Public | BindingFlags.Static);
                     harmony.Patch(target, postfix: new HarmonyMethod(postfix));
                     MelonLogger.Msg($"[BattleStart] Hooked {name} for {what}");
+                    return;
+                }
+
+                // Last resort: match on the bare method name regardless of how the interface
+                // qualifier was mangled, so a future Il2CppInterop naming change degrades to a
+                // scan rather than to silence.
+                string bare = candidates[candidates.Length - 1];
+                foreach (var m in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
+                                                  | BindingFlags.Instance | BindingFlags.Static))
+                {
+                    if (!m.Name.EndsWith(bare, System.StringComparison.Ordinal)) continue;
+
+                    harmony.Patch(m, postfix: new HarmonyMethod(postfix));
+                    MelonLogger.Msg($"[BattleStart] Hooked {m.Name} for {what} (matched by scan)");
                     return;
                 }
 
