@@ -9,13 +9,13 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Battle**: Turn order, command/target selection, damage/heal/status/defeat messages, per-phase results (EXP/Gil/ABP, level-up stats, abilities, items), steal results, MissType.NonView suppression, battle action object dedup. Optional A/B/C letters on same-named targets. Results ABP column appears only when it applies (not for Freelancer/mastered jobs).
 
-**Navigation**: Entity cycling (N/M), category filter (F), pathfinding filter (Shift+\ / Shift+P), exit grouping (Q), wall collision sound, waypoint system (add/rename/remove/cycle/pathfind). Long-range routing: a mod-owned terrain-attribute search while riding, and breadcrumb-chained searches on foot, both lifting the game's ~31.5-tile search window. Unreachable targets report only what is verified — no route — since terrain data cannot distinguish a vehicle-gated destination from an event-gated one. Entity counts reflect the active filter ("1 of 4", not "1 of 20").
+**Navigation**: Entity cycling ([ ] or J/L), categories (Shift+[ ] or Shift+J/L, - =; Shift+K back to All), pathfinding filter (Shift+\ / Shift+P), layer filter (Ctrl+\ / Ctrl+P), exit grouping (Shift+M), backtick rescan, wall collision sound, waypoint system (add/rename/remove/cycle/pathfind). Long-range routing: a mod-owned terrain-attribute search while riding, and breadcrumb-chained searches on foot, both lifting the game's ~31.5-tile search window. Unreachable targets report only what is verified — no route — since terrain data cannot distinguish a vehicle-gated destination from an event-gated one. Entity counts reflect the active filter ("1 of 4", not "1 of 20").
 
 **Audio**: ModMenu (F8) with toggles/volume sliders/enum selectors. Wall tones, footsteps, audio beacons, landing pings. 16-bit audio, LRU tone cache, volume caching.
 
 **Vehicles**: Movement state announcements (on foot/ship/airship/chocobo/submarine), landing zone detection via terrain attributes + CheckLandingList/OkList, vehicle entity tracking on world map.
 
-**Other**: Dialogue/message auto-read, repeat current dialogue page (R key, or mod + Square on controller), timer (T key), F1 walk/run, F3 encounters, F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
+**Other**: Dialogue/message auto-read, repeat current dialogue page (R key, or mod + Square on controller), timer (T key), F1 walk/run and F3 encounters (narrated from the game's own setters, any input source), F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
 
 **Bestiary (Picture Book)**: Full screen reader support for the enemy encyclopedia. Works from both extras menu (title screen) and config menu (in-game). List navigation with entry number/name, detail view with navigable stat buffer (arrow keys, Shift for group jump, Ctrl for top/bottom), formation announcements, map/habitat name reading, page turn support, monster switching in detail view. Shift+I reads control tooltips. Minimap open/close/cycle with habitat names. Full map open/close/cycle with habitat names. Items read from master data (UI uses icons only). Config menu path supports list, detail, page turns, and monster switching (no map/formation views).
 
@@ -69,7 +69,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Jobs screen equippable types (all 22 jobs, extracted offline from the Ghidra project) | Verified in-game 2026-07-26 |
 | Jobs screen description/equippable panel gate (I key read the wrong panel) | Verified in-game 2026-07-26 |
 | EXP counter sound (rapid beep, auto-stops on animation end) | Done |
-| Entity name translator (JSON-based, EntityDump key 0) | Done |
+| Entity name translator (JSON-based) | Done. `EntityDump` is a dev tool and is no longer bound to a key (0 used to reach it from normal play) |
 | Offline mass entity-label extraction (tools/extract_entities.py → translation.generated.json, 1367 labels) | Done |
 | Entity labels translated into all 12 languages + promoted to embedded translation.json | Done |
 | Battle targeting status effects (Poison, Blind, etc.) | Done |
@@ -80,15 +80,15 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Music Player (Extra Sound) accessibility | Done (duration fix applied) |
 | Gallery (Extra Gallery) accessibility | Done |
 | Event loop freeze fix (Pyramid 5F) | Done (diagnostic code + grace period removed; fix lives in TimerPatches dynamic patch) |
-| Global accessibility toggle (Ctrl+F8) | Done (complete kill switch: coroutine cleanup, full state reset, reinit on re-enable) |
+| Global accessibility toggle (Ctrl+F8) | **Not present.** No Ctrl+F8 binding or `ToggleAccessibility` exists in the current code; this row described a feature that was later removed |
 | Battle text dual-wield suppression | Done (ally same-name + direct attack = skip second swing) |
 | SDL3 input/audio migration | Done (SDL3.cs + AudioEngine + GamepadManager; the earlier revert was superseded) |
 | Controller/gamepad support | Done (ControllerRouter state machine; right stick up/down/left mirror I / Shift+I / U in menus, entity scanner on field) |
 | Auto Detail (F7) | Done (F7 toggle + spoken confirmation; defaults on) |
 | Details key parity with FF1/FF4 | Done (I reads descriptions everywhere; equip-job list moved to the new U key) |
 | Shop equip compatibility (U) | Done (master-data lookup, so it works on unowned shop goods) |
-| F5 / F8 gating | Done (field + field menus; blocked in battle and on title screen. F1/F3 left alone — they are game keys the mod only narrates) |
-| Mod string localization | Done (250 keys x 12 languages; audit reports 0 missing `T()` keys) |
+| F5 / F8 gating | Done (field + field menus; blocked in battle and on title screen. F1/F3 are the game's keys — see the game-toggle row) |
+| Mod string localization | Done (384 keys x 12 languages after the 2026-09-23 parity pass; audit reports 0 missing `T()` keys. Mod-menu labels and waypoint category names are keys passed raw and translated at speak time) |
 | Job menu UI-based level/ABP/mastered reading | Done (replaces data-based OwnedJob.Level which returned wrong values) |
 | Status screen UI-based job level reading | Done (same level 0 fix) |
 | Mod mode reachable during dialogue/cutscenes | Done (OnUpdate no longer early-returns on event state) |
@@ -114,6 +114,27 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Attribute grid build cost | **Measured 2026-07-26: 17 ms** for 256x256 (65,536 cells, max attribute 27). Well under the ~150 ms threshold that would have forced a bulk `int[,]` pointer read, so the simple per-cell build stays |
 | Routing portability to sibling FFPR mods | Done (structural). `Field/Routing/` is speech-free, log-free and god-class-free; port checklist in `docs/debug.md`. Not yet exercised against a sibling mod |
 | Beacon follows the route (aim at the next turn; retire the down-pitched "out of range" Mode B) | **Designed, not implemented** — blocked on in-game verification of the routing work above. Design in `docs/debug.md` → "Planned: beacon follows the route". Prerequisite: `RouteLeg` must carry each leg's end vertex. Key risk is the cached-route invalidation list, not the aiming itself |
+| **FF1 parity pass (2026-09-23)** — rows below are built clean but **not yet verified in-game** unless stated | |
+| Field-menu hotkeys said "Not on map" (G, M, V, F5, F8, Start) | Fixed, **not yet verified**. `MainMenuController.Show`'s `GameObjectCache.ClearAll()` dropped the FieldPlayerController; Show now carries the field entries over, and `IsOnValidMap` self-heals for on-demand callers (the per-frame `DetermineContext` stays cache-only). Open the field menu and press G, M and F8 |
+| Config Gamepad/Keyboard Controls list navigation (arrows/WASD/D-pad, Ctrl+arrow top/bottom, `KeyContext.KeyHelp`) | Done, **not yet verified**. Hooks `ConfigKeysSettingController.GamePadHelpInit/KeyboardHelpInit` (open) and `GamePadSelectInit/KeyboardSelectInit/Close` (close). Expect the first control on open and "(N of M)" on each step |
+| Controls rows: mouse bindings, fixed-button glyphs (LB/RB/LT/RT/L3/R3/Back/Menu/D-pad), help-row names, `gamePadIconsRoot` gate | Done, **not yet verified**. Expect no spurious "(A)" on Reset to Defaults / Gamepad Controls rows |
+| Hotkey parity: backtick rescan, K = entity only, Shift+K = All, P/\ restart beacon when beacons on, Ctrl+P layer filter, F6 beacons (9 kept), WASD in stat buffers, 0 unbound | Done, **not yet verified** |
+| Status screen LB/RB character switch | Done, **not yet verified**. Hooks `Serial.Template.UI.StatusDetailsControllerBase.SetNextPlayer/SetPrevPlayer`; navigation now also arms when the summary read is empty. **Evasion left on `ConfirmedDefenseCount`**: the game fills each row through `ParameterUtility.GetValue(type)` with the row's `ParameterType` coming from prefab data, which the dump cannot show. Log `ParameterContentController.Type` on the Evasion row once to settle it |
+| Battle pause menu | Done, **not yet verified**. `BattlePauseController.SetCommandSelectCursor` (open + every move); expect the focused command with position, once per move |
+| Battle I key / right stick up in item and ability lists; Auto Detail gates their descriptions | Done, **not yet verified** |
+| Mod menu: I / right stick up describes the setting; "(N of M)" position; labels translate at speak time | Done, **not yet verified**. Labels used to be translated at mod load, before the game's language was known, so they were always English |
+| Localization sweep (entity kinds, steps, directions, category names, status/bestiary labels, waypoint categories, results totals, shop, timers, choices, popups) | Done. 112 new keys |
+| Shops: "Quantity: N, Total: X" (also on open), "(N of M)" on buy/sell rows, "Empty" sell slots, command bar gated to `ShopController.State.SelectCommand` | Done, **not yet verified**. The gate is a pointer read (stateMachine 0x98 → current 0x10 → Tag 0x10); if the command bar ever goes silent, the offsets are the first suspect |
+| Bestiary: `LibraryInfoController.SetData` is the sole detail announcer, top buffer entry "Name" | Done, **not yet verified**. Page-button hooks removed — page turns reach SetData via `LibraryInfoManager.NextPage/PreviousPage → ShowData`. Expect exactly one read per monster switch |
+| Controller mod mode + A = walk/run/vehicle (V equivalent) | Done, **not yet verified** |
+| F1/F3 announced whatever the source (keyboard, stick click, anything that drives the field toggle) | Done, **not yet verified**. Prefixes on `ConfigClient.SetIsAutoDash` / `CheatSettingsClient.SetIsEnableEncount`, gated to the field with no menu open and to a real change. Replaces the F1/F3 key polling |
+| Title screen "Press any button" | Done, **not yet verified**. `TitleWindowController.InitShortcutCommand`; FF1 found its equivalent boot-only, so check a return to title too |
+| Location banner after "Entering X" not repeated; first map load after boot announced | Done, **not yet verified** |
+| Line-fade text (intro/ending/game-over lines) | Fixed, **not yet verified**. Moved to `LineFadeMessageWindowController.SetData`: `LineFadeMessageManager.Play` has no caller, so the old hook never fired |
+| Battle back-out re-announce (command re-read on cancel from targeting); first ally read when single-ally targeting opens | Done, **not yet verified** |
+| Equip LB/RB character switch; config Library row re-announce; naming popup ". Current: X"; InputPopup reader | Done, **not yet verified** |
+| Battle messages: MP damage, drains, locale-independent attack/defend/item, per-battle guard resets, stale results no longer pin `KeyContext.BattleResult` | Done, **not yet verified**. Defend is recognised by `Command.CommandType == 8` (Defence) minus Escape (22) — confirm Defend still reads "X defends" |
+| Menu Text Discovery English-only fallbacks ("Battle Type", On/Off regex) | **Left as is** — last-resort paths after the typed `ConfigCommandView` reads; no locale-independent signal without in-game inspection |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

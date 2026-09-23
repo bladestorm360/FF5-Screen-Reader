@@ -76,6 +76,29 @@ namespace FFV_ScreenReader.Patches
         private static IntPtr _lastActDataPtr = IntPtr.Zero;
         private static string _lastSpokenActorName;
 
+        // Actions are classified by the command's identity, never its localized name (matching
+        // "attack"/"defend"/"item" text only ever worked in English). Ids from the game:
+        // CommandSortData.CommandId Fight = 1, Item = 3; Command.CommandType Defence = 8 is the
+        // Defend/Flee menu, and BattleConstants.EscapeCommandId = 22 is Flee.
+        private const int FIGHT_COMMAND_ID = 1;
+        private const int ITEM_COMMAND_ID = 3;
+        private const int ESCAPE_COMMAND_ID = 22;
+        private const int DEFENCE_COMMAND_TYPE = 8;
+        // The ability the Fight command executes (command master row 1, ability_id = 1).
+        private const int PLAIN_ATTACK_ABILITY_ID = 1;
+
+        private static int FirstAbilityId(BattleActData battleActData)
+        {
+            try
+            {
+                var abilityList = battleActData.abilityList;
+                if (abilityList != null && abilityList.Count > 0 && abilityList[0] != null)
+                    return abilityList[0].Id;
+            }
+            catch { }
+            return 0;
+        }
+
         /// <summary>Clears both guards so a repeated action announces fresh next turn.</summary>
         public static void ResetLastAction()
         {
@@ -94,43 +117,35 @@ namespace FFV_ScreenReader.Patches
                 string actorName = GetActorName(battleActData);
 
                 // Get the action/ability name
-                string actionName = GetActionName(battleActData);
+                string actionName = GetActionName(battleActData, out bool isCommandName);
 
                 if (!string.IsNullOrEmpty(actorName))
                 {
                     if (battleActData.Pointer == _lastActDataPtr) return;
                     _lastActDataPtr = battleActData.Pointer;
 
+                    var command = battleActData.Command;
+                    int commandId = command != null ? command.Id : 0;
+                    // A plain attack is the Fight command's own ability, or the Fight command with no
+                    // ability name at all. Keyed on the ability id rather than the command alone, so an
+                    // ability that runs under the Fight command still keeps its name.
+                    bool isDirectAttack = string.IsNullOrEmpty(actionName)
+                        || FirstAbilityId(battleActData) == PLAIN_ATTACK_ABILITY_ID
+                        || (isCommandName && commandId == FIGHT_COMMAND_ID);
+                    bool isDefend = command != null && command.CommandType == DEFENCE_COMMAND_TYPE
+                        && commandId != ESCAPE_COMMAND_ID;
+
                     string announcement;
-                    if (!string.IsNullOrEmpty(actionName))
-                    {
-                        string actionLower = actionName.ToLower();
-                        if (actionLower == "attack" || actionLower == "fight")
-                        {
-                            announcement = string.Format(T("{0} attacks"), actorName);
-                        }
-                        else if (actionLower == "defend" || actionLower == "guard")
-                        {
-                            announcement = string.Format(T("{0} defends"), actorName);
-                        }
-                        else if (actionLower == "item")
-                        {
-                            announcement = string.Format(T("{0} uses item"), actorName);
-                        }
-                        else
-                        {
-                            announcement = $"{actorName}, {actionName}";
-                        }
-                    }
-                    else
-                    {
+                    if (isDirectAttack)
                         announcement = string.Format(T("{0} attacks"), actorName);
-                    }
+                    else if (isDefend)
+                        announcement = string.Format(T("{0} defends"), actorName);
+                    else if (isCommandName && commandId == ITEM_COMMAND_ID)
+                        announcement = string.Format(T("{0} uses item"), actorName);
+                    else
+                        announcement = $"{actorName}, {actionName}";
 
                     // Ally dual-wield suppression: same ally name + direct attack = redundant second swing
-                    string lowerAction = actionName?.ToLower();
-                    bool isDirectAttack = string.IsNullOrEmpty(actionName)
-                        || lowerAction == "attack" || lowerAction == "fight";
                     bool isAlly = battleActData.AttackUnitData?.TryCast<Il2Cpp.BattlePlayerData>() != null;
 
                     if (isAlly && isDirectAttack && actorName == _lastSpokenActorName)
@@ -164,8 +179,11 @@ namespace FFV_ScreenReader.Patches
             return null;
         }
 
-        private static string GetActionName(BattleActData battleActData)
+        /// <param name="isCommandName">True when the name is the command's own (no named ability),
+        /// so "uses item" never replaces the name of the item actually used.</param>
+        private static string GetActionName(BattleActData battleActData, out bool isCommandName)
         {
+            isCommandName = false;
             try
             {
                 // Try to get the ability name first (spells, skills)
@@ -197,6 +215,7 @@ namespace FFV_ScreenReader.Patches
                             string localizedName = messageManager.GetMessage(commandMesId);
                             if (!string.IsNullOrEmpty(localizedName))
                             {
+                                isCommandName = true;
                                 return localizedName;
                             }
                         }
@@ -239,8 +258,43 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.Battle.Function.BattleBasicFunction), nameof(Il2CppLast.Battle.Function.BattleBasicFunction.CreateDamageView))]
     public static class BattleBasicFunction_CreateDamageView_Patch
     {
+        // BattleBaseFunction.<battleActData>k__BackingField — a protected property, so read by offset.
+        private const int OFFSET_BATTLE_ACT_DATA = 0x28;
+        // Ability.TypeId of weapon attacks (the Fight command's ability 1 has this type).
+        private const int WEAPON_ABILITY_TYPE = 4;
+
+        /// <summary>
+        /// The attack's own hit count against this target, from the function's calculation results
+        /// (ICalcResultDic → ICalcResult.GetHitCount). FF5 is an ATB game, and the game only draws
+        /// the on-screen ×N (BattleBasicFunction.CreateHitCount) when SystemConfigData.GetBattleType()
+        /// is Command — FF5's returns ATB — so CreateHitCount never fires here and the count has to
+        /// come from the calculation. Weapon attacks only, the same rule the ×N display uses; 1 for
+        /// anything else or on any failure.
+        /// </summary>
+        private static int ReadWeaponHitCount(Il2CppLast.Battle.Function.BattleBasicFunction function, Il2CppLast.Battle.BattleUnitData target)
+        {
+            try
+            {
+                if (function == null || target == null) return 1;
+                IntPtr actPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(function.Pointer, OFFSET_BATTLE_ACT_DATA);
+                if (actPtr == IntPtr.Zero) return 1;
+                var abilities = new BattleActData(actPtr).abilityList;
+                if (abilities == null || abilities.Count == 0 || abilities[0] == null
+                    || abilities[0].TypeId != WEAPON_ABILITY_TYPE)
+                    return 1;
+                var results = function.ICalcResultDic;
+                if (results == null || !results.ContainsKey(target)) return 1;
+                var result = results[target];
+                return result != null ? Math.Max(1, result.GetHitCount()) : 1;
+            }
+            catch
+            {
+                return 1;
+            }
+        }
+
         [HarmonyPostfix]
-        public static void Postfix(Il2CppLast.Battle.BattleUnitData data, int value, Il2CppLast.Systems.HitType hitType, bool isRecovery, Il2CppLast.Systems.CalcResult.MissType missType)
+        public static void Postfix(Il2CppLast.Battle.Function.BattleBasicFunction __instance, Il2CppLast.Battle.BattleUnitData data, int value, Il2CppLast.Systems.HitType hitType, bool isRecovery, Il2CppLast.Systems.CalcResult.MissType missType)
         {
             try
             {
@@ -249,10 +303,13 @@ namespace FFV_ScreenReader.Patches
                 // Consume the multi-hit "×N" multiplier captured by CreateHitCount (fires just before
                 // this view, on the same or adjacent frame). Reject a stale count from an earlier
                 // action that never produced a damage view, then reset to 1 so a later damage with no
-                // fresh hit count defaults to single.
+                // fresh hit count defaults to single. In practice FF5 never draws the ×N (see
+                // ReadWeaponHitCount), so the count comes from the attack's calculation.
                 bool fresh = UnityEngine.Time.frameCount - DamageViewUIManager_CreateHitCount_Patch.PendingHitCountFrame <= 1;
                 int hitCount = fresh ? DamageViewUIManager_CreateHitCount_Patch.PendingHitCount : 1;
                 DamageViewUIManager_CreateHitCount_Patch.PendingHitCount = 1;
+                if (hitCount <= 1)
+                    hitCount = ReadWeaponHitCount(__instance, data);
 
                 string message;
                 if (hitType == Il2CppLast.Systems.HitType.Miss)
@@ -263,13 +320,21 @@ namespace FFV_ScreenReader.Patches
 
                     message = string.Format(T("{0}: Miss"), targetName);
                 }
-                else if (hitType == Il2CppLast.Systems.HitType.Recovery)
-                {
-                    message = string.Format(T("{0}: Recovered {1} HP"), targetName, value);
-                }
-                else if (hitType == Il2CppLast.Systems.HitType.MPRecovery)
+                else if (hitType == Il2CppLast.Systems.HitType.MPRecovery
+                    || (hitType == Il2CppLast.Systems.HitType.MpAbs && isRecovery))
                 {
                     message = string.Format(T("{0}: Recovered {1} MP"), targetName, value);
+                }
+                else if (hitType == Il2CppLast.Systems.HitType.MPHit || hitType == Il2CppLast.Systems.HitType.MpAbs)
+                {
+                    // MP damage (Osmose, Rasp) and the losing side of an MP drain
+                    message = string.Format(T("{0}: {1} MP damage"), targetName, value);
+                }
+                else if (hitType == Il2CppLast.Systems.HitType.Recovery || isRecovery)
+                {
+                    // HP recovery, including the gaining side of an HP drain (HpAbs) — the game's
+                    // own isRecovery flag says which side of the drain this view is
+                    message = string.Format(T("{0}: Recovered {1} HP"), targetName, value);
                 }
                 else
                 {
@@ -316,10 +381,10 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // Note: Removed redundant BattleUIManager and BattleMenuController patches
-    // The ActFunctionProvider.ViewMessage patch now handles actor+action announcements
-    // The ScrollMessageManager.Play patch handles system messages like "Preemptive Strike"
-    // Each patch owns its own re-fire guard, cleared per turn by SetCommandSelectTarget above
+    // Actor + action announcements come from ParameterActFunctionManagment.CreateActFunction,
+    // system messages ("Preemptive Strike") from ScrollMessageManager.Play. Each patch owns its
+    // own re-fire guard, cleared per turn by SetCommandSelectTarget above and per battle by
+    // BattleState.SetActive.
 
     /// <summary>
     /// Patch BattleStealItemPlug.StealItem to announce when items are stolen
@@ -453,14 +518,14 @@ namespace FFV_ScreenReader.Patches
                     // Fallback: Announce raw ID if we couldn't resolve the name
                     if (conditionName == null)
                     {
-                        conditionName = $"Status {id}";
+                        conditionName = string.Format(T("Status {0}"), id);
                         MelonLogger.Warning($"[Status] Could not resolve condition ID {id}, announcing as raw ID");
                     }
                 }
                 catch (Exception condEx)
                 {
                     MelonLogger.Warning($"Error resolving condition ID {id}: {condEx.Message}");
-                    conditionName = $"Status {id}";
+                    conditionName = string.Format(T("Status {0}"), id);
                 }
 
                 // Add() returns false when the pair is already present — a genuine re-fire for

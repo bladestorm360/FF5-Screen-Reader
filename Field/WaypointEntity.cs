@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using FFV_ScreenReader.Core;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Field
 {
@@ -73,20 +74,22 @@ namespace FFV_ScreenReader.Field
             switch (category)
             {
                 case WaypointCategory.Docks:
-                    return "Dock";
+                    return T("Dock");
                 case WaypointCategory.Landmarks:
-                    return "Landmark";
+                    return T("Landmark");
                 case WaypointCategory.AirshipLandings:
-                    return "Airship Landing";
+                    return T("Airship Landing");
                 case WaypointCategory.Miscellaneous:
-                    return "Waypoint";
+                    return T("Waypoint");
                 default:
-                    return "Waypoint";
+                    return T("Waypoint");
             }
         }
 
         /// <summary>
-        /// Gets the category names for cycling announcements
+        /// Gets the category names for cycling announcements, as mod_text keys — callers translate
+        /// when speaking (the array is cached in a static initializer, before the game's language
+        /// is known).
         /// </summary>
         public static string[] GetCategoryNames()
         {

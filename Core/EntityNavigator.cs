@@ -7,6 +7,7 @@ using FFV_ScreenReader.Core.Filters;
 using FFV_ScreenReader.Utils;
 using Il2CppLast.Map;
 using Il2CppLast.Entity.Field;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -383,6 +384,30 @@ namespace FFV_ScreenReader.Core
             return false;
         }
         
+        /// <summary>
+        /// Selects the nearest entity the player can cycle to (passes the OnCycle filters), so a
+        /// category change lands on what cycling would reach first. False when there is none.
+        /// </summary>
+        public bool SelectFirst()
+        {
+            if (navigationList.Count == 0)
+                return false;
+
+            ReSortNavigationList();
+
+            var context = new FilterContext();
+            foreach (var candidate in navigationList)
+            {
+                if (PassesOnCycleFilters(candidate, context))
+                {
+                    selectedEntity = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private bool PassesOnCycleFilters(NavigableEntity entity, FilterContext context)
         {
             foreach (var filter in entityFilters)
@@ -407,21 +432,21 @@ namespace FFV_ScreenReader.Core
             switch (category)
             {
                 case EntityCategory.All:
-                    return "All";
+                    return T("All");
                 case EntityCategory.Chests:
-                    return "Chests";
+                    return T("Chests");
                 case EntityCategory.NPCs:
-                    return "NPCs";
+                    return T("NPCs");
                 case EntityCategory.MapExits:
-                    return "Map Exits";
+                    return T("Map Exits");
                 case EntityCategory.Events:
-                    return "Events";
+                    return T("Events");
                 case EntityCategory.Vehicles:
-                    return "Vehicles";
+                    return T("Vehicles");
                 case EntityCategory.Waypoints:
-                    return "Waypoints";
+                    return T("Waypoints");
                 default:
-                    return "Unknown";
+                    return T("Unknown");
             }
         }
     }

@@ -26,7 +26,14 @@ namespace FFV_ScreenReader.Core
 
         private abstract class MenuItem
         {
-            public string Name { get; protected set; }
+            // mod_text keys, translated when spoken: Initialize runs at mod load, before the game's
+            // MessageManager exists, so translating there would pin every label to English.
+            protected string nameKey;
+            protected string descriptionKey;
+
+            public string Name => T(nameKey);
+            // What the setting does, read on demand with I. Blank for section headers.
+            public string Description => string.IsNullOrEmpty(descriptionKey) ? "" : T(descriptionKey);
             public abstract string GetValueString();
             public abstract void Adjust(int delta);
             public abstract void Toggle();
@@ -37,11 +44,12 @@ namespace FFV_ScreenReader.Core
             private readonly Func<bool> getter;
             private readonly Action toggle;
 
-            public ToggleItem(string name, Func<bool> getter, Action toggle)
+            public ToggleItem(string name, Func<bool> getter, Action toggle, string description)
             {
-                Name = name;
+                nameKey = name;
                 this.getter = getter;
                 this.toggle = toggle;
+                descriptionKey = description;
             }
 
             public override string GetValueString() => getter() ? T("On") : T("Off");
@@ -54,11 +62,12 @@ namespace FFV_ScreenReader.Core
             private readonly Func<int> getter;
             private readonly Action<int> setter;
 
-            public VolumeItem(string name, Func<int> getter, Action<int> setter)
+            public VolumeItem(string name, Func<int> getter, Action<int> setter, string description)
             {
-                Name = name;
+                nameKey = name;
                 this.getter = getter;
                 this.setter = setter;
+                descriptionKey = description;
             }
 
             public override string GetValueString() => $"{getter()}%";
@@ -84,20 +93,21 @@ namespace FFV_ScreenReader.Core
             private readonly Func<int> getter;
             private readonly Action<int> setter;
 
-            public EnumItem(string name, string[] options, Func<int> getter, Action<int> setter)
+            public EnumItem(string name, string[] options, Func<int> getter, Action<int> setter, string description)
             {
-                Name = name;
+                nameKey = name;
                 this.options = options;
                 this.getter = getter;
                 this.setter = setter;
+                descriptionKey = description;
             }
 
             public override string GetValueString()
             {
                 int index = getter();
                 if (index >= 0 && index < options.Length)
-                    return options[index];
-                return "Unknown";
+                    return T(options[index]);
+                return T("Unknown");
             }
 
             public override void Adjust(int delta)
@@ -116,7 +126,7 @@ namespace FFV_ScreenReader.Core
         {
             public SectionHeader(string name)
             {
-                Name = name;
+                nameKey = name;
             }
 
             public override string GetValueString() => "";
@@ -128,10 +138,11 @@ namespace FFV_ScreenReader.Core
         {
             private readonly Action action;
 
-            public ActionItem(string name, Action action)
+            public ActionItem(string name, Action action, string description)
             {
-                Name = name;
+                nameKey = name;
                 this.action = action;
+                descriptionKey = description;
             }
 
             public override string GetValueString() => "";
@@ -143,97 +154,120 @@ namespace FFV_ScreenReader.Core
 
         /// <summary>
         /// Initializes the mod menu with all menu items.
-        /// Call this once during mod initialization.
+        /// Call this once during mod initialization. Every string here is a mod_text.json key,
+        /// translated when spoken (see MenuItem) — so no T() at these call sites.
         /// </summary>
         public static void Initialize()
         {
             items = new List<MenuItem>
             {
                 // Audio Feedback section
-                new SectionHeader(T("Audio Feedback")),
-                new ToggleItem(T("Wall Tones"),
+                new SectionHeader("Audio Feedback"),
+                new ToggleItem("Wall Tones",
                     () => PreferencesManager.WallTonesEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.ToggleWallTones()),
-                new ToggleItem(T("Footsteps"),
+                    () => FFV_ScreenReaderMod.Instance?.ToggleWallTones(),
+                    "Plays a tone toward any wall right next to you, so you can feel out corridors and doorways."),
+                new ToggleItem("Footsteps",
                     () => PreferencesManager.FootstepsEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.ToggleFootsteps()),
-                new ToggleItem(T("Audio Beacons"),
+                    () => FFV_ScreenReaderMod.Instance?.ToggleFootsteps(),
+                    "Plays a click for each tile you move on foot."),
+                new ToggleItem("Audio Beacons",
                     () => PreferencesManager.AudioBeaconsEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.ToggleAudioBeacons()),
-                new ToggleItem(T("Landing Pings"),
+                    () => FFV_ScreenReaderMod.Instance?.ToggleAudioBeacons(),
+                    "Pings the selected entity or waypoint, panned toward it and faster as you get closer. A lower pitch means there is no path. While on, backslash and P restart the beacon instead of reading directions."),
+                new ToggleItem("Landing Pings",
                     () => PreferencesManager.LandingPingsEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.ToggleLandingPings()),
-                new ToggleItem(T("Beacon Destination Announcement"),
+                    () => FFV_ScreenReaderMod.Instance?.ToggleLandingPings(),
+                    "While riding a vehicle, pings the directions in which you can land or get off."),
+                new ToggleItem("Beacon Destination Announcement",
                     () => PreferencesManager.AnnounceOnBeaconRestartEnabled,
-                    FFV_ScreenReaderMod.ToggleAnnounceOnBeaconRestart),
-                new ToggleItem(T("Menu Position Announcements"),
+                    FFV_ScreenReaderMod.ToggleAnnounceOnBeaconRestart,
+                    "When you restart the audio beacon, also reads the directions to its destination."),
+                new ToggleItem("Menu Position Announcements",
                     () => PreferencesManager.MenuPositionAnnouncementsEnabled,
-                    FFV_ScreenReaderMod.ToggleMenuPositionAnnouncements),
-                new ToggleItem(T("Auto Detail"),
+                    FFV_ScreenReaderMod.ToggleMenuPositionAnnouncements,
+                    "Adds the position in the list to menu entries, for example 3 of 12."),
+                new ToggleItem("Auto Detail",
                     () => PreferencesManager.AutoDetailEnabled,
-                    FFV_ScreenReaderMod.ToggleAutoDetail),
+                    FFV_ScreenReaderMod.ToggleAutoDetail,
+                    "Reads descriptions automatically as you move through items, abilities, equipment and shops. When off, press I for details."),
 
                 // Volume Controls section
-                new SectionHeader(T("Volume Controls")),
-                new VolumeItem(T("Wall Bump Volume"),
+                new SectionHeader("Volume Controls"),
+                new VolumeItem("Wall Bump Volume",
                     () => PreferencesManager.WallBumpVolume,
-                    PreferencesManager.SetWallBumpVolume),
-                new VolumeItem(T("Footstep Volume"),
+                    PreferencesManager.SetWallBumpVolume,
+                    "Volume of the sound played when you walk into a wall."),
+                new VolumeItem("Footstep Volume",
                     () => PreferencesManager.FootstepVolume,
-                    PreferencesManager.SetFootstepVolume),
-                new VolumeItem(T("Wall Tone Volume"),
+                    PreferencesManager.SetFootstepVolume,
+                    "Volume of the footstep clicks."),
+                new VolumeItem("Wall Tone Volume",
                     () => PreferencesManager.WallToneVolume,
-                    PreferencesManager.SetWallToneVolume),
-                new VolumeItem(T("Beacon Volume"),
+                    PreferencesManager.SetWallToneVolume,
+                    "Volume of the wall tones."),
+                new VolumeItem("Beacon Volume",
                     () => PreferencesManager.BeaconVolume,
-                    PreferencesManager.SetBeaconVolume),
-                new VolumeItem(T("Landing Ping Volume"),
+                    PreferencesManager.SetBeaconVolume,
+                    "Volume of the audio beacon pings."),
+                new VolumeItem("Landing Ping Volume",
                     () => PreferencesManager.LandingPingVolume,
-                    PreferencesManager.SetLandingPingVolume),
+                    PreferencesManager.SetLandingPingVolume,
+                    "Volume of the landing pings."),
 
                 // Navigation Filters section
-                new SectionHeader(T("Navigation Filters")),
-                new ToggleItem(T("Pathfinding Filter"),
+                new SectionHeader("Navigation Filters"),
+                new ToggleItem("Pathfinding Filter",
                     () => FFV_ScreenReaderMod.PathfindingFilterEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.TogglePathfindingFilter()),
-                new ToggleItem(T("Map Exit Filter"),
+                    () => FFV_ScreenReaderMod.Instance?.TogglePathfindingFilter(),
+                    "Entity cycling skips anything you cannot currently walk to."),
+                new ToggleItem("Map Exit Filter",
                     () => FFV_ScreenReaderMod.MapExitFilterEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.ToggleMapExitFilter()),
-                new ToggleItem(T("Layer Transition Filter"),
+                    () => FFV_ScreenReaderMod.Instance?.ToggleMapExitFilter(),
+                    "Exits that lead to the same place are merged into the closest one."),
+                new ToggleItem("Layer Transition Filter",
                     () => FFV_ScreenReaderMod.ToLayerFilterEnabled,
-                    () => FFV_ScreenReaderMod.Instance?.ToggleToLayerFilter()),
+                    () => FFV_ScreenReaderMod.Instance?.ToggleToLayerFilter(),
+                    "Hides layer transitions, the spots that move you between levels of the same map, from entity cycling."),
 
                 // Controller Settings section
-                new SectionHeader(T("Controller Settings")),
-                new ToggleItem(T("Stick Click Normalization"),
+                new SectionHeader("Controller Settings"),
+                new ToggleItem("Stick Click Normalization",
                     () => PreferencesManager.StickClickNormalizationEnabled,
-                    FFV_ScreenReaderMod.ToggleStickClickNormalization),
+                    FFV_ScreenReaderMod.ToggleStickClickNormalization,
+                    "When on, stick clicks go to the game for walk or run and encounters, and their mod functions move to mod mode. When off, the right stick click toggles the pathfinding filter and the left stick click toggles audio beacons."),
 
                 // Battle Results section
-                new SectionHeader(T("Battle Results")),
-                new ToggleItem(T("EXP Counter Sound"),
+                new SectionHeader("Battle Results"),
+                new ToggleItem("EXP Counter Sound",
                     () => PreferencesManager.ExpCounterEnabled,
-                    FFV_ScreenReaderMod.ToggleExpCounter),
-                new VolumeItem(T("EXP Counter Volume"),
+                    FFV_ScreenReaderMod.ToggleExpCounter,
+                    "Plays a ticking sound while experience counts up on the battle results screen."),
+                new VolumeItem("EXP Counter Volume",
                     () => PreferencesManager.ExpCounterVolume,
-                    PreferencesManager.SetExpCounterVolume),
+                    PreferencesManager.SetExpCounterVolume,
+                    "Volume of the experience counter ticking."),
 
                 // Battle Settings section
-                new SectionHeader(T("Battle Settings")),
-                new EnumItem(T("Enemy HP Display"),
-                    new[] { T("Numbers"), T("Percentage"), T("Hidden") },
+                new SectionHeader("Battle Settings"),
+                new EnumItem("Enemy HP Display",
+                    new[] { "Numbers", "Percentage", "Hidden" },
                     () => PreferencesManager.EnemyHPDisplay,
-                    PreferencesManager.SetEnemyHPDisplay),
-                new ToggleItem(T("Enemy Letters"),
+                    PreferencesManager.SetEnemyHPDisplay,
+                    "How enemy HP is read when you target an enemy: as numbers, as a percentage, or not at all."),
+                new ToggleItem("Enemy Letters",
                     () => PreferencesManager.EnemyLettersEnabled,
-                    FFV_ScreenReaderMod.ToggleEnemyLetters),
-                new EnumItem(T("Multi-hit Damage"),
-                    new[] { T("Total only"), T("With hit count") },
+                    FFV_ScreenReaderMod.ToggleEnemyLetters,
+                    "Adds a letter such as A or B to enemies that share a name, so you can tell them apart."),
+                new EnumItem("Multi-hit Damage",
+                    new[] { "Total only", "With hit count" },
                     () => PreferencesManager.DamageDisplay,
-                    PreferencesManager.SetDamageDisplay),
+                    PreferencesManager.SetDamageDisplay,
+                    "For attacks that hit several times, reads the total damage alone or together with the number of hits."),
 
                 // Close Menu action
-                new ActionItem(T("Close Menu"), Close)
+                new ActionItem("Close Menu", Close,
+                    "Closes the mod menu and returns to the game.")
             };
         }
 
@@ -337,7 +371,25 @@ namespace FFV_ScreenReader.Core
                 return true;
             }
 
+            // I - what the focused setting does
+            if (GamepadManager.IsKeyCodePressed(KeyCode.I))
+            {
+                AnnounceCurrentItemDescription();
+                return true;
+            }
+
             return true; // Consume all input while menu is open
+        }
+
+        /// <summary>Reads the focused setting's description. Bound to I and right stick up.</summary>
+        public static void AnnounceCurrentItemDescription()
+        {
+            if (items == null || currentIndex < 0 || currentIndex >= items.Count) return;
+
+            string desc = items[currentIndex].Description;
+            FFV_ScreenReaderMod.SpeakText(
+                string.IsNullOrWhiteSpace(desc) ? T("No description available") : desc,
+                interrupt: true);
         }
 
         public static void NavigateNext()
@@ -419,7 +471,26 @@ namespace FFV_ScreenReader.Core
                 announcement = $"{item.Name}: {value}";
             }
 
+            var (index, count) = NavigablePosition();
+            announcement = MenuPosition.Format(announcement, index, count);
+
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: interrupt);
+        }
+
+        /// <summary>
+        /// Position of the current item among the navigable (non-header) items. Headers are skipped
+        /// during navigation, so the player hears "(N of total settings)" without counting them.
+        /// </summary>
+        private static (int index, int count) NavigablePosition()
+        {
+            int count = 0, index = -1;
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (items[i] is SectionHeader) continue;
+                if (i == currentIndex) index = count;
+                count++;
+            }
+            return (index, count);
         }
     }
 }

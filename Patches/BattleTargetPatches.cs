@@ -90,7 +90,7 @@ namespace FFV_ScreenReader.Patches
             {
                 if (playerData == null) return null;
 
-                string name = "Unknown";
+                string name = T("Unknown");
                 int currentHp = 0;
                 int maxHp = 0;
                 int currentMp = 0;
@@ -146,7 +146,7 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
-                string result = $"{name}: HP: {currentHp}/{maxHp}. MP: {currentMp}/{maxMp}";
+                string result = $"{name}: {T("HP")}: {currentHp}/{maxHp}. {T("MP")}: {currentMp}/{maxMp}";
 
                 // Append status effects if any
                 var statusParam = playerData.BattleUnitDataInfo?.Parameter;
@@ -154,7 +154,7 @@ namespace FFV_ScreenReader.Patches
                 {
                     string conditions = CharacterStatusHelper.GetStatusConditions(statusParam);
                     if (!string.IsNullOrEmpty(conditions))
-                        result += $". status: {conditions}";
+                        result += $". {T("Status")}: {conditions}";
                 }
 
                 return result;
@@ -237,7 +237,7 @@ namespace FFV_ScreenReader.Patches
             {
                 if (enemyData == null) return null;
 
-                string name = "Unknown";
+                string name = T("Unknown");
                 int currentHp = 0;
                 int maxHp = 0;
 
@@ -301,7 +301,7 @@ namespace FFV_ScreenReader.Patches
                 {
                     string conditions = CharacterStatusHelper.GetStatusConditions(statusParam);
                     if (!string.IsNullOrEmpty(conditions))
-                        result += $". status: {conditions}";
+                        result += $". {T("Status")}: {conditions}";
                 }
 
                 return result;
@@ -482,6 +482,43 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"Error in SelectContent(Enemy) patch: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Reads the initially targeted ally when single-ally targeting opens (a Cure, a Potion).
+    /// EnemysInit places its cursor through SelectContent, so enemy targeting already announces on
+    /// open; PlayerInit (unique RVA 0x44D910) instead positions the cursor with
+    /// BattleCursorUtility.SetTargetPlayer and never calls SelectContent, so the first ally was
+    /// silent. The focused ally is GetPlayerTarget()[0]; its position comes from playerDataList.
+    /// AnnouncePlayerTarget's (mode, index) guard keeps a later SelectContent on the same ally quiet.
+    /// </summary>
+    [HarmonyPatch(typeof(BattleTargetSelectController), "PlayerInit")]
+    public static class BattleTargetSelectController_PlayerInit_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(BattleTargetSelectController __instance)
+        {
+            if (__instance == null) return;
+
+            MenuFocusAnnouncer.Request("BattleTarget", () =>
+            {
+                if (!MenuFocusAnnouncer.IsAlive(__instance)) return false;
+
+                var targets = __instance.GetPlayerTarget();
+                var players = __instance.playerDataList?.TryCast<Il2CppSystem.Collections.Generic.List<BattlePlayerData>>();
+                if (targets == null || targets.Count == 0 || targets[0] == null || players == null) return false;
+
+                for (int i = 0; i < players.Count; i++)
+                {
+                    if (players[i] != null && players[i].Pointer == targets[0].Pointer)
+                    {
+                        BattleTargetPatches.AnnouncePlayerTarget(__instance.playerDataList, i);
+                        return true;
+                    }
+                }
+                return false;
+            });
         }
     }
 

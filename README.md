@@ -49,96 +49,99 @@ waypoints.json goes in MelonLoader/UserData folder.
 
 ## Keys
 
-Game:
+### Game
 
-WASD or arrow keys: movement
+- WASD or arrow keys: movement
+- Enter: Confirm
+- Backspace: cancel
+- F1: toggle between walk and run. The mod announces the new setting, whichever way you toggle it.
+- F3: toggle random encounters on and off. The mod announces the new setting, whichever way you toggle it.
 
-Enter: Confirm
+### Mod
 
-Backspace: cancel
+- J and L or [ and ]: cycle destinations in pathfinder
+- Shift+J and L or - and =: change destination categories. Announces the category and its nearest destination.
+- \ or P: get directions to selected destination. With audio beacons on, restarts the beacon instead.
+- Shift+\ or Shift+P: Toggle pathfinding filter so that not all destinations are visible, just ones with a valid path.
+- Ctrl+\ or Ctrl+P: Toggle layer transition filter (hides stairs and layer-change destinations from navigation).
+- K: announce the currently selected destination again.
+- Shift+K: Reset category to all
+- Backtick (the key above Tab): rescan nearby entities.
+- ': Toggle footsteps
+- ;: Toggle wall tones
+- Shift+;: Toggle landing pings
+- F6 or 9: Toggle audio beacons
+- G: Announce current Gil
+- M: Announce current map.
+- Shift+M: Toggle map exit filter so multiple exits to the same place collapse to the nearest one.
+- H: In battle, announce the active character's HP, MP and status effects.
+- R: Repeat the current dialogue page.
+- T: Announce active timers. Shift+T: freeze or resume timers.
+- V: Announce walk or run, or the vehicle you are riding.
+- I: Read the description of whatever is highlighted. In configuration menu accessible from tab menu, read description of highlighted setting. In jobs menu, read description of highlighted job. In spell or ability menus, read description of highlighted spell or ability. In shop menus, reads description of highlighted item. In item menu, reads the description of the highlighted item. In battle item and ability lists, reads the description of the highlighted entry. In the mod menu, describes the highlighted setting.
+- U: Announce which unlocked jobs can equip the highlighted item. Works in the item menu and in shops. Silent for consumables and key items.
+- Shift+I: Read controls tool-tips on screens that have them.
+- Ctrl+Arrow keys: Teleport next to the selected destination (Ctrl+Up = north of it, etc.)
 
-Mod:
+### Waypoints (field only)
 
-J and L or [ and ]: cycle destinations in pathfinder
+- , and .: cycle between waypoints
+- Shift+, and Shift+.: cycle between waypoint categories
+- /: pathfind to waypoint
+- Shift+/: add waypoint at player position
+- Ctrl+.: Rename current waypoint
+- Ctrl+/: delete waypoint
+- Ctrl+Shift+/: clear all waypoints for the current map, requires pressing twice in rapid succession.
 
-Shift+J and L or - and =: change destination categories
+### Other toggles
 
-\ or p: get directions to selected destination
+- F5: Cycle enemy HP display between numbers, percentage and hidden. Available on the field and in field menus — set it before combat; it is not available during battle or on the title screen.
+- F7: Toggle Auto Detail. When on, descriptions announce automatically as you move through items, magic, equipment and shops, in and out of battle. When off, use I to read them on demand. Works anywhere, including battle.
+- F8: Open the mod menu. Available on the field and in field menus; not available during battle or on the title screen. Up and down arrows move through settings, left and right adjust, Enter toggles, I describes the highlighted setting, Escape or F8 closes.
 
-Shift+\ or P: Toggle pathfinding filter so that not all destinations are visible, just ones with a valid path.
+### Battle results screen
 
-K: announce currently selected destination.
+- L: Read individual character exp gained, exp tnl and ABP to next job level
 
-Shift+K: Reset to all category
+### When on a character's status screen
 
-G: Announce current Gil
+- up and down arrows (or W and S) read through statistics.
+- Shift plus arrows: jumps between groups, character info, vitals, statistics, combat statistics, progression.
+- control plus arrows: jump to beginning or end of statistics screen.
+- Switching to the next or previous character reads the new character.
 
-M: Announce current map.
+The bestiary detail screen uses the same keys, starting with the monster's name.
 
-H: In battle, announce character hp, mp, status effects.
+### Controls list (Configuration, Gamepad or Keyboard Controls)
 
-I: Read the description of whatever is highlighted. In configuration menu accessible from tab menu, read description of highlighted setting. In jobs menu, read description of highlighted job. In spell or ability menus, read description of highlighted spell or ability. In shop menus, reads description of highlighted item. In item menu, reads the description of the highlighted item.
+- up and down arrows (or W and S) step through the controls one at a time.
+- control plus arrows: jump to the first or last control.
 
-U: Announce which unlocked jobs can equip the highlighted item. Works in the item menu and in shops. Silent for consumables and key items.
-
-Shift+i: Read controls tool-tips on screens that have them.
-
-F5: Cycle enemy HP display between numbers, percentage and hidden. Available on the field and in field menus — set it before combat; it is not available during battle or on the title screen.
-
-F7: Toggle Auto Detail. When on, descriptions announce automatically as you move through items, magic, equipment and shops. When off, use I to read them on demand. Works anywhere, including battle.
-
-F8: Open the mod menu. Available on the field and in field menus; not available during battle or on the title screen.
-
-Battle Results Screen:
-
-l: Read individual character exp gained, exp tnl and ABP to next job level
-
-When on a character's status screen:
-
-up and down arrows read through statistics.
-
-Shift plus arrows: jumps between groups, character info, vitals, statistics, combat statistics, progression.
-
-control plus arrows: jump to beginning or end of statistics screen.
-
-Waypoint system:
-
-, and .: cycle between waypoints
-
-shift + , and .: cycle between waypoint categories
-
-/: pathfind to waypoint
-
-shift + /: add waypoint at player position
-
-Control+.: Rename current waypoint
-
-control plus /: delete waypoint
-
-Controller:
+### Game controller
 
 In menus, shops and battle, the right stick mirrors the keyboard detail keys:
 
-right stick up: same as I — read the description of what is highlighted
+- Right stick up: same as I — read the description of what is highlighted
+- Right stick down: same as Shift+I — read control tool-tips
+- Right stick left: same as U — announce which jobs can equip the highlighted item
+- D-pad or left stick up and down: step through the status screen, the bestiary detail screen and the Controls list.
 
-right stick down: same as Shift+I — read control tool-tips
+On the field the right stick drives the entity scanner instead (up/down cycle entities, left/right cycle categories), the D-pad cycles waypoints (up/down) and waypoint categories (left/right), and the left trigger pathfinds to the last selected target (or restarts the beacon when audio beacons are on).
 
-right stick left: same as U — announce which jobs can equip the highlighted item
+### Mod controller
 
-On the field the right stick drives the entity scanner instead (up/down cycle entities, left/right cycle categories).
+- Back/Select/View: Mod mode
+- Start/Menu: Mod menu, with the same availability as F8. D-pad or left stick up and down navigate, left and right adjust, A/Cross toggles, right stick up describes the highlighted setting, B/Circle or Start closes.
 
-Start: open the mod menu, with the same availability as F8.
+#### Mod mode combos (press the mod button, then one of the following)
 
-Mod button (Back/Select/View) puts the controller into mod mode for one press. What the next button does depends on where you are:
+- On the battle results screen, Circle/B: open the battle results log — the controller equivalent of L. Circle also closes it again.
+- In dialogue, Square/X: repeat the current line.
+- In battle, Square/X: read party HP.
+- On the field, Square/X reads Gil, Triangle/Y reads your location, Cross/A reads walk, run or vehicle, and the right stick teleports.
+- In battle or dialogue, right stick down while in mod mode lists what the current buttons do (on the field the right stick teleports instead). The mod button cancels mod mode.
 
-On the battle results screen, Circle/B: open the battle results log — the controller equivalent of l. Circle also closes it again.
+#### Stick clicks (Stick Click Normalization in the mod menu)
 
-In dialogue, Square/X: repeat the current line.
-
-In battle, Square/X: read party HP.
-
-On the field, Square/X reads Gil, Triangle/Y reads your location, and the right stick teleports.
-
-Right stick down while in mod mode lists what the current buttons do. The mod button cancels mod mode.
-
-control plus shift plus /: clear all waypoints, requires pressing twice in rapid succession.
+- Off (default): the left stick click toggles audio beacons, the right stick click toggles the pathfinding filter.
+- On: the stick clicks go to the game (walk/run and encounters, announced as above); press the mod button first to reach the mod functions.

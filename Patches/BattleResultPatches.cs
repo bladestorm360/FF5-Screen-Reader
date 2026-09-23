@@ -91,11 +91,11 @@ namespace FFV_ScreenReader.Patches
                 // Build totals-only announcement
                 var parts = new List<string>();
                 if (totalExp > 0)
-                    parts.Add($"{totalExp:N0} EXP");
+                    parts.Add($"{totalExp:N0} {T("EXP")}");
                 if (totalAbp > 0)
-                    parts.Add($"{totalAbp} ABP");
+                    parts.Add($"{totalAbp} {T("ABP")}");
                 if (totalGil > 0)
-                    parts.Add($"{totalGil:N0} Gil");
+                    parts.Add($"{totalGil:N0} {T("Gil")}");
 
                 BuildPointsPage(data);
 
@@ -181,8 +181,8 @@ namespace FFV_ScreenReader.Patches
             }
 
             string[] colHeaders = anyAbp
-                ? new[] { "EXP", "Next", "ABP" }
-                : new[] { "EXP", "Next" };
+                ? new[] { T("EXP"), T("Next"), T("ABP") }
+                : new[] { T("EXP"), T("Next") };
 
             var cells = new string[names.Count, colHeaders.Length];
             for (int i = 0; i < names.Count; i++)
@@ -664,6 +664,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
+                BattleResultState.StopExpCounterIfPlaying();
                 MelonLogger.Msg("[BattleResult] ShowLevelUpAbilitysInit fired");
                 var skillCtrl = __instance.skillController;
                 if (skillCtrl == null) return;

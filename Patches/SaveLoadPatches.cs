@@ -7,6 +7,7 @@ using HarmonyLib;
 using MelonLoader;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 // FF5 Save/Load UI types
 // Touch version (title screen): SaveListController has contentList at 0x40, SelectContent(SaveSlotData data)
@@ -92,6 +93,13 @@ namespace FFV_ScreenReader.Patches
         // KeyInput: view at 0x20 (dump.cs line 469153)
         private const int TOUCH_CONTROLLER_VIEW_OFFSET = 0x28;
         private const int KEYINPUT_CONTROLLER_VIEW_OFFSET = 0x20;
+
+        // KeyInput SaveContentController.SlotData (SaveSlotData) at 0x38; SaveSlotData.id at 0x30.
+        // The autosave and quick-save rows use the reserved ids above the numbered slots
+        // (SaveSlotManager.MaxSlotCount 20, AutoSlotId 21, SuspendedSlotId 22).
+        private const int KEYINPUT_CONTROLLER_SLOT_DATA_OFFSET = 0x38;
+        private const int SLOT_DATA_ID_OFFSET = 0x30;
+        private const int MAX_NUMBERED_SLOT_ID = 20;
 
         // SaveListController field offsets
         // Touch: contentList at 0x40 (dump.cs line 434801)
@@ -628,7 +636,8 @@ namespace FFV_ScreenReader.Patches
                 if (viewPtr == IntPtr.Zero)
                     return null;
 
-                return ReadSaveContentView(viewPtr, isKeyInput);
+                bool isNumberedSlot = !isKeyInput || IsNumberedSlot(contentControllerPtr);
+                return ReadSaveContentView(viewPtr, isKeyInput, isNumberedSlot);
             }
             catch (Exception ex)
             {
@@ -640,7 +649,26 @@ namespace FFV_ScreenReader.Patches
         /// <summary>
         /// Reads all fields from SaveContentView and formats the announcement.
         /// </summary>
-        private static string ReadSaveContentView(IntPtr viewPtr, bool isKeyInput)
+        /// <summary>
+        /// False for the autosave and quick-save rows, which take no slot number. Decided from the
+        /// row's SaveSlotData id rather than its displayed name, which is localized. An unreadable
+        /// id counts as numbered, so the number is still read.
+        /// </summary>
+        private static bool IsNumberedSlot(IntPtr contentControllerPtr)
+        {
+            try
+            {
+                IntPtr slotDataPtr = Marshal.ReadIntPtr(contentControllerPtr + KEYINPUT_CONTROLLER_SLOT_DATA_OFFSET);
+                if (slotDataPtr == IntPtr.Zero) return true;
+                return Marshal.ReadInt32(slotDataPtr + SLOT_DATA_ID_OFFSET) <= MAX_NUMBERED_SLOT_ID;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private static string ReadSaveContentView(IntPtr viewPtr, bool isKeyInput, bool isNumberedSlot)
         {
             try
             {
@@ -663,9 +691,7 @@ namespace FFV_ScreenReader.Patches
 
                 // Build slot identifier (e.g., "File 2" or "Quick Save")
                 string slotId = slotName ?? "";
-                if (!string.IsNullOrEmpty(slotNum) &&
-                    slotName != "Autosave" && slotName != "Quick Save" &&
-                    !slotName?.Contains("Auto") == true && !slotName?.Contains("Quick") == true)
+                if (!string.IsNullOrEmpty(slotNum) && isNumberedSlot)
                 {
                     slotId = $"{slotName} {slotNum}".Trim();
                 }
@@ -722,14 +748,14 @@ namespace FFV_ScreenReader.Patches
                 if (!string.IsNullOrEmpty(charaName))
                 {
                     if (!string.IsNullOrEmpty(level))
-                        parts.Add($"{charaName} Level {level}");
+                        parts.Add($"{charaName} {T("Level")} {level}");
                     else
                         parts.Add(charaName);
                 }
 
                 // Play time
                 if (!string.IsNullOrEmpty(hours) && !string.IsNullOrEmpty(minutes))
-                    parts.Add($"Time {hours}:{minutes}");
+                    parts.Add(string.Format(T("Time {0}"), $"{hours}:{minutes}"));
 
                 return string.Join(", ", parts);
             }

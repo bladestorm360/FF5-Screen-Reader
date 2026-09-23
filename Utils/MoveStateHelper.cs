@@ -166,23 +166,23 @@ namespace FFV_ScreenReader.Utils
 
             if (newState == MOVE_STATE_SHIP)
             {
-                announcement = "On ship";
+                announcement = string.Format(T("On {0}"), T("ship"));
                 cachedMoveState = MOVE_STATE_SHIP;
             }
             else if (newState == MOVE_STATE_CHOCOBO)
             {
-                announcement = "On chocobo";
+                announcement = string.Format(T("On {0}"), T("chocobo"));
                 cachedMoveState = MOVE_STATE_CHOCOBO;
             }
             else if (newState == MOVE_STATE_AIRSHIP || newState == MOVE_STATE_LOWFLYING)
             {
-                announcement = "On airship";
+                announcement = string.Format(T("On {0}"), T("airship"));
                 cachedMoveState = newState;
             }
             else if (IsVehicleState(previousState) &&
                      (newState == MOVE_STATE_WALK || newState == MOVE_STATE_DUSH))
             {
-                announcement = "On foot";
+                announcement = T("On foot");
                 cachedMoveState = newState;
                 cachedTransportType = TRANSPORT_NONE;
             }
@@ -304,15 +304,15 @@ namespace FFV_ScreenReader.Utils
         {
             switch (moveState)
             {
-                case MOVE_STATE_WALK: return "Walking";
-                case MOVE_STATE_DUSH: return "Dashing";
-                case MOVE_STATE_SHIP: return "Ship";
-                case MOVE_STATE_AIRSHIP: return "Airship";
-                case MOVE_STATE_LOWFLYING: return "Low Flying";
-                case MOVE_STATE_CHOCOBO: return "Chocobo";
-                case MOVE_STATE_GIMMICK: return "Gimmick";
-                case MOVE_STATE_UNIQUE: return "Unique";
-                default: return "Unknown";
+                case MOVE_STATE_WALK: return T("Walking");
+                case MOVE_STATE_DUSH: return T("Running");
+                case MOVE_STATE_SHIP: return T("ship");
+                case MOVE_STATE_AIRSHIP: return T("airship");
+                case MOVE_STATE_LOWFLYING: return T("Low flying");
+                case MOVE_STATE_CHOCOBO: return T("chocobo");
+                case MOVE_STATE_GIMMICK:
+                case MOVE_STATE_UNIQUE: return T("Special movement");
+                default: return T("Unknown");
             }
         }
 

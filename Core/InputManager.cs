@@ -52,6 +52,12 @@ namespace FFV_ScreenReader.Core
             registry.Register(KeyCode.UpArrow, KeyModifier.Shift, KeyContext.Bestiary, BestiaryNavigationReader.JumpToPreviousGroup, "Jump to previous bestiary group");
             registry.Register(KeyCode.UpArrow, KeyModifier.None, KeyContext.Bestiary, BestiaryNavigationReader.NavigatePrevious, "Previous bestiary stat");
 
+            // --- Config Gamepad/Keyboard Controls list: arrow navigation (flat list, no groups) ---
+            registry.Register(KeyCode.DownArrow, KeyModifier.Ctrl, KeyContext.KeyHelp, KeyHelpReader.JumpToBottom, "Jump to last control");
+            registry.Register(KeyCode.DownArrow, KeyModifier.None, KeyContext.KeyHelp, KeyHelpReader.NavigateNext, "Next control");
+            registry.Register(KeyCode.UpArrow, KeyModifier.Ctrl, KeyContext.KeyHelp, KeyHelpReader.JumpToTop, "Jump to first control");
+            registry.Register(KeyCode.UpArrow, KeyModifier.None, KeyContext.KeyHelp, KeyHelpReader.NavigatePrevious, "Previous control");
+
             // --- Field: entity navigation (brackets + backslash) — with battle feedback ---
             RegisterFieldWithBattleFeedback(KeyCode.LeftBracket, KeyModifier.Shift, mod.CyclePreviousCategory, "Previous entity category");
             RegisterFieldWithBattleFeedback(KeyCode.LeftBracket, KeyModifier.None, mod.CyclePrevious, "Previous entity");
@@ -59,17 +65,21 @@ namespace FFV_ScreenReader.Core
             RegisterFieldWithBattleFeedback(KeyCode.RightBracket, KeyModifier.None, mod.CycleNext, "Next entity");
             RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.Ctrl, mod.ToggleToLayerFilter, "Toggle layer filter");
             RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.Shift, mod.TogglePathfindingFilter, "Toggle pathfinding filter");
-            RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity");
+            RegisterFieldWithBattleFeedback(KeyCode.Backslash, KeyModifier.None, mod.AnnounceOrRestartBeacon, "Announce current entity / restart beacon");
+
+            // --- Field: manual entity rescan (backtick) ---
+            RegisterFieldWithBattleFeedback(KeyCode.BackQuote, KeyModifier.None, mod.ManualEntityRescan, "Force entity rescan");
 
             // --- Field: pathfinding alternate keys (J/K/L/P) — with battle feedback ---
             RegisterFieldWithBattleFeedback(KeyCode.J, KeyModifier.Shift, mod.CyclePreviousCategory, "Previous entity category (alt)");
             RegisterFieldWithBattleFeedback(KeyCode.J, KeyModifier.None, mod.CyclePrevious, "Previous entity (alt)");
-            RegisterFieldWithBattleFeedback(KeyCode.K, KeyModifier.Shift, mod.AnnounceCurrentEntity, "Announce current entity (alt shift)");
-            RegisterFieldWithBattleFeedback(KeyCode.K, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.K, KeyModifier.Shift, mod.ResetToAllCategory, "Reset to All category");
+            RegisterFieldWithBattleFeedback(KeyCode.K, KeyModifier.None, mod.AnnounceEntityOnly, "Announce entity name (alt)");
             RegisterFieldWithBattleFeedback(KeyCode.L, KeyModifier.Shift, mod.CycleNextCategory, "Next entity category (alt)");
             RegisterFieldWithBattleFeedback(KeyCode.L, KeyModifier.None, mod.CycleNext, "Next entity (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.Ctrl, mod.ToggleToLayerFilter, "Toggle layer filter (alt)");
             RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.Shift, mod.TogglePathfindingFilter, "Toggle pathfinding filter (alt)");
-            RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.None, mod.AnnounceCurrentEntity, "Announce current entity (alt)");
+            RegisterFieldWithBattleFeedback(KeyCode.P, KeyModifier.None, mod.AnnounceOrRestartBeacon, "Announce current entity / restart beacon (alt)");
 
             // --- Field: waypoint keys (field-only; silent no-op off-field) ---
             registry.Register(KeyCode.Comma, KeyModifier.Shift, KeyContext.Field, mod.CyclePreviousWaypointCategory, "Previous waypoint category");
@@ -114,8 +124,8 @@ namespace FFV_ScreenReader.Core
             RegisterFieldWithBattleFeedback(KeyCode.Quote, KeyModifier.None, mod.ToggleFootsteps, "Toggle footsteps");
             RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.Shift, mod.ToggleLandingPings, "Toggle landing pings");
             RegisterFieldWithBattleFeedback(KeyCode.Semicolon, KeyModifier.None, mod.ToggleWallTones, "Toggle wall tones");
-            RegisterFieldWithBattleFeedback(KeyCode.Alpha9, KeyModifier.None, mod.ToggleAudioBeacons, "Toggle audio beacons");
-            RegisterFieldWithBattleFeedback(KeyCode.Alpha0, KeyModifier.None, EntityTranslator.EntityDump.DumpCurrentMap, "Dump entity names");
+            RegisterFieldWithBattleFeedback(KeyCode.F6, KeyModifier.None, mod.ToggleAudioBeacons, "Toggle audio beacons");
+            RegisterFieldWithBattleFeedback(KeyCode.Alpha9, KeyModifier.None, mod.ToggleAudioBeacons, "Toggle audio beacons (alt)");
             RegisterFieldWithBattleFeedback(KeyCode.Equals, KeyModifier.None, mod.CycleNextCategory, "Next entity category (global)");
             RegisterFieldWithBattleFeedback(KeyCode.Minus, KeyModifier.None, mod.CyclePreviousCategory, "Previous entity category (global)");
 
@@ -188,7 +198,7 @@ namespace FFV_ScreenReader.Core
                 return;
             }
 
-            // Handle function keys (F1/F3/F5 — special coroutine/battle logic) — bare keypress only
+            // Handle function keys (F5/F7) — bare keypress only
             if (!anyModifierHeld)
                 HandleFunctionKeyInput();
 
@@ -232,6 +242,10 @@ namespace FFV_ScreenReader.Core
             if (Patches.GameStatePatches.IsInEventState)
                 return KeyContext.Global;
 
+            // The config Gamepad/Keyboard Controls list takes the arrows while it is shown.
+            if (KeyHelpReader.IsScreenActive)
+                return KeyContext.KeyHelp;
+
             if (IsBestiaryDetailActive())
                 return KeyContext.Bestiary;
 
@@ -251,7 +265,9 @@ namespace FFV_ScreenReader.Core
             // Field keys only fire while actively on a field map with no menu open.
             // Otherwise fall through to Global so field/entity/waypoint/toggle hotkeys
             // are silent no-ops off-field, while Global info keys still work everywhere.
-            if (IsOnValidMap() && !MenuStateRegistry.AnyActive())
+            // Cache-only read: this runs every frame, and a self-healing refresh would be a
+            // FindObjectOfType per frame wherever no field exists (title screen).
+            if (IsOnValidMap(refreshIfMissing: false) && !MenuStateRegistry.AnyActive())
                 return KeyContext.Field;
 
             // Fallback: neither field nor battle (e.g., menus, fading)
@@ -280,6 +296,16 @@ namespace FFV_ScreenReader.Core
                 if (GamepadManager.IsKeyCodePressed(key))
                     registry.TryExecute(key, currentModifiers, activeContext);
             }
+
+            // W/S as alternative Up/Down arrows — ONLY in the navigation-buffer contexts, so game
+            // WASD movement and letter hotkeys elsewhere are untouched. Reuses the arrow bindings,
+            // so modifiers carry (Shift+W = Shift+Up = previous group).
+            if (activeContext == KeyContext.Status || activeContext == KeyContext.Bestiary
+                || activeContext == KeyContext.KeyHelp)
+            {
+                if (GamepadManager.IsKeyCodePressed(KeyCode.W)) registry.TryExecute(KeyCode.UpArrow, currentModifiers, activeContext);
+                if (GamepadManager.IsKeyCodePressed(KeyCode.S)) registry.TryExecute(KeyCode.DownArrow, currentModifiers, activeContext);
+            }
         }
 
         private static void OpenBattleResultNavigator()
@@ -290,7 +316,11 @@ namespace FFV_ScreenReader.Core
                 FFV_ScreenReaderMod.SpeakText(LocalizationHelper.GetModString("no_data"), interrupt: true);
         }
 
-        private void HandleMovementStateKey()
+        /// <summary>
+        /// Walk/run or vehicle state. Bound to V and to mod mode + A on the field
+        /// (ControllerRouter.HandleModModeState), so both stay in sync.
+        /// </summary>
+        internal static void HandleMovementStateKey()
         {
             if (!IsOnValidMap())
             {
@@ -347,6 +377,12 @@ namespace FFV_ScreenReader.Core
             {
                 Patches.AbilityDetailsAnnouncer.AnnounceCurrentAbilityDetails();
             }
+            // Battle item/ability lists — the only way to reach their descriptions with Auto
+            // Detail off. Silent in battle when no list is open.
+            else if (ControllerRouter.IsInBattle)
+            {
+                Patches.BattleListDetails.TryAnnounce();
+            }
             else
             {
                 Patches.JobAbilityTrackerHelper.ClearAllTrackers();
@@ -357,32 +393,11 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
-        /// Handle function key input for game state announcements.
+        /// Handle the mod-owned function keys. The game's own F1 (walk/run) and F3 (encounters)
+        /// are narrated by GameTogglePatches from the game's setters, whatever the input source.
         /// </summary>
         private void HandleFunctionKeyInput()
         {
-            if (GamepadManager.IsKeyCodePressed(KeyCode.F1))
-            {
-                if (!IsOnValidMap())
-                {
-                    FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
-                    return;
-                }
-                CoroutineManager.StartUntracked(AnnounceWalkRunState());
-                return;
-            }
-
-            if (GamepadManager.IsKeyCodePressed(KeyCode.F3))
-            {
-                if (!IsOnValidMap())
-                {
-                    FFV_ScreenReaderMod.SpeakText(T("Not on map"), interrupt: true);
-                    return;
-                }
-                CoroutineManager.StartUntracked(AnnounceEncounterState());
-                return;
-            }
-
             // Auto Detail is context-free (field, menus, battle) — unlike F5, which is
             // restricted to where mod configuration applies.
             if (GamepadManager.IsKeyCodePressed(KeyCode.F7))
@@ -432,11 +447,26 @@ namespace FFV_ScreenReader.Core
             }
         }
 
-        internal static bool IsOnValidMap()
+        /// <summary>
+        /// True on a live field map (field menus included). On-demand callers self-heal a cleared
+        /// or stale cache entry, like every other FieldPlayerController reader, so a lost entry can
+        /// never leave G/V/F5/F8/Start reporting "Not on map". DetermineContext, which runs every
+        /// frame, passes refreshIfMissing: false.
+        /// </summary>
+        internal static bool IsOnValidMap(bool refreshIfMissing = true)
         {
             if (Patches.GameStatePatches.IsScreenFading) return false;
-            var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-            return playerController?.fieldPlayer != null;
+            try
+            {
+                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+                if (playerController == null && refreshIfMissing)
+                    playerController = GameObjectCache.Refresh<Il2CppLast.Map.FieldPlayerController>();
+                return playerController?.fieldPlayer != null;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -451,10 +481,8 @@ namespace FFV_ScreenReader.Core
         /// Back-button branch. Before input ran during events these were unreachable anyway;
         /// now that OnUpdate no longer early-returns, the gate has to be explicit.
         ///
-        /// Does not apply to F1/F3: those are the game's own hotkeys that the mod polls without
-        /// consuming and merely narrates, so their gate must mirror the game's own availability
-        /// (IsOnValidMap alone) and must never be tightened, or the mod goes silent while the
-        /// game still acts.
+        /// Does not apply to F1/F3: those are the game's own hotkeys, narrated from the game's
+        /// setters by GameTogglePatches — the game decides when they act, not a mod gate.
         /// </summary>
         internal static bool IsFieldOrFieldMenuActive()
         {
@@ -538,33 +566,6 @@ namespace FFV_ScreenReader.Core
                 MelonLogger.Warning($"Error accessing description text: {ex.Message}");
             }
             return null;
-        }
-
-        private static System.Collections.IEnumerator AnnounceWalkRunState()
-        {
-            yield return null;
-            yield return null;
-            yield return null;
-            bool isDashing = MoveStateHelper.GetDashFlag();
-            FFV_ScreenReaderMod.SpeakText(isDashing ? T("Run") : T("Walk"), interrupt: true);
-        }
-
-        private static System.Collections.IEnumerator AnnounceEncounterState()
-        {
-            yield return null;
-            try
-            {
-                var userData = Il2CppLast.Management.UserDataManager.Instance();
-                if (userData?.CheatSettingsData != null)
-                {
-                    bool enabled = userData.CheatSettingsData.IsEnableEncount;
-                    FFV_ScreenReaderMod.SpeakText(enabled ? T("Encounters on") : T("Encounters off"), interrupt: true);
-                }
-            }
-            catch (System.Exception ex)
-            {
-                MelonLogger.Warning($"Error reading encounter state: {ex.Message}");
-            }
         }
     }
 }

@@ -294,16 +294,6 @@
     "de": "{1} {2}", "es": "{1} {2}", "ko": "{1} {2}", "zht": "{1} {2}",
     "zhc": "{1} {2}", "ru": "{1} {2}", "th": "{1} {2}", "pt": "{1} {2}"
   },
-  "entity": {
-    "en": "entity", "ja": "エンティティ", "fr": "entité", "it": "entità",
-    "de": "Objekt", "es": "entidad", "ko": "개체", "zht": "實體",
-    "zhc": "实体", "ru": "объект", "th": "วัตถุ", "pt": "entidade"
-  },
-  "entities": {
-    "en": "entities", "ja": "エンティティ", "fr": "entités", "it": "entità",
-    "de": "Objekte", "es": "entidades", "ko": "개체", "zht": "實體",
-    "zhc": "实体", "ru": "объекты", "th": "วัตถุ", "pt": "entidades"
-  },
   "{0} of {1}": {
     "en": "{0} of {1}", "ja": "{1}中{0}", "fr": "{0} sur {1}", "it": "{0} di {1}",
     "de": "{0} von {1}", "es": "{0} de {1}", "ko": "{1} 중 {0}", "zht": "{0}/{1}",
@@ -693,16 +683,6 @@
     "en": "No formations available", "ja": "利用可能なフォーメーションはありません", "fr": "Aucune formation disponible", "it": "Nessuna formazione disponibile",
     "de": "Keine Formationen verfügbar", "es": "No hay formaciones disponibles", "ko": "사용 가능한 대형이 없습니다", "zht": "沒有可用的陣形",
     "zhc": "没有可用的阵形", "ru": "Нет доступных формаций", "th": "ไม่มีรูปแบบที่ใช้ได้", "pt": "Nenhuma formação disponível"
-  },
-  "{0}. Details": {
-    "en": "{0}. Details", "ja": "{0}。詳細", "fr": "{0}. Détails", "it": "{0}. Dettagli",
-    "de": "{0}. Details", "es": "{0}. Detalles", "ko": "{0}. 상세 정보", "zht": "{0}。詳細資訊",
-    "zhc": "{0}。详细信息", "ru": "{0}. Подробности", "th": "{0} รายละเอียด", "pt": "{0}. Detalhes"
-  },
-  "{0}. Page changed": {
-    "en": "{0}. Page changed", "ja": "{0}。ページ変更", "fr": "{0}. Page changée", "it": "{0}. Pagina cambiata",
-    "de": "{0}. Seite gewechselt", "es": "{0}. Página cambiada", "ko": "{0}. 페이지 변경됨", "zht": "{0}。頁面已變更",
-    "zhc": "{0}。页面已变更", "ru": "{0}. Страница изменена", "th": "{0} เปลี่ยนหน้าแล้ว", "pt": "{0}. Página alterada"
   },
   "Minimap open": {
     "en": "Minimap open", "ja": "ミニマップを開きました", "fr": "Minicarte ouverte", "it": "Minimappa aperta",
@@ -1154,11 +1134,6 @@
     "de": "von", "es": "de", "ko": "/", "zht": "/",
     "zhc": "/", "ru": "из", "th": "จาก", "pt": "de"
   },
-  "Category: {0}, {1} {2}": {
-    "en": "Category: {0}, {1} {2}", "ja": "カテゴリ: {0}, {1} {2}", "fr": "Catégorie : {0}, {1} {2}", "it": "Categoria: {0}, {1} {2}",
-    "de": "Kategorie: {0}, {1} {2}", "es": "Categoría: {0}, {1} {2}", "ko": "카테고리: {0}, {1} {2}", "zht": "分類：{0}, {1} {2}",
-    "zhc": "分类：{0}, {1} {2}", "ru": "Категория: {0}, {1} {2}", "th": "หมวดหมู่: {0}, {1} {2}", "pt": "Categoria: {0}, {1} {2}"
-  },
   "No target selected": {
     "en": "No target selected", "ja": "目標が選択されていません", "fr": "Aucune cible sélectionnée", "it": "Nessun bersaglio selezionato",
     "de": "Kein Ziel ausgewählt", "es": "Ningún objetivo seleccionado", "ko": "선택된 목표가 없습니다", "zht": "未選擇目標",
@@ -1379,14 +1354,574 @@
     "de": "{0} für Gruppen-HP. {1} zum Abbrechen.", "es": "{0} para HP del grupo. {1} para cancelar.", "ko": "{0}: 파티 HP. {1}: 취소.", "zht": "{0} 查看隊伍HP。{1} 取消。",
     "zhc": "{0} 查看队伍HP。{1} 取消。", "ru": "{0} — HP отряда. {1} — отмена.", "th": "{0} ดู HP ของทีม {1} ยกเลิก", "pt": "{0} para HP do grupo. {1} para cancelar."
   },
-  "{0} for Gil. {1} for location. Right stick to teleport. {2} to cancel.": {
-    "en": "{0} for Gil. {1} for location. Right stick to teleport. {2} to cancel.", "ja": "{0} でギル。{1} で現在地。右スティックでテレポート。{2} でキャンセル。", "fr": "{0} pour les gils. {1} pour la position. Stick droit pour se téléporter. {2} pour annuler.", "it": "{0} per i Gil. {1} per la posizione. Levetta destra per teletrasportarti. {2} per annullare.",
-    "de": "{0} für Gil. {1} für Position. Rechter Stick zum Teleportieren. {2} zum Abbrechen.", "es": "{0} para guiles. {1} para ubicación. Stick derecho para teletransportarte. {2} para cancelar.", "ko": "{0}: 길. {1}: 현재 위치. 오른쪽 스틱: 텔레포트. {2}: 취소.", "zht": "{0} 查看基爾。{1} 查看位置。右搖桿傳送。{2} 取消。",
-    "zhc": "{0} 查看基尔。{1} 查看位置。右摇杆传送。{2} 取消。", "ru": "{0} — гилы. {1} — местоположение. Правый стик — телепорт. {2} — отмена.", "th": "{0} ดูกิล {1} ดูตำแหน่ง สติ๊กขวาเพื่อวาร์ป {2} ยกเลิก", "pt": "{0} para gil. {1} para localização. Analógico direito para teleportar. {2} para cancelar."
+  "{0} for Gil. {1} for location. {2} for vehicle. Right stick to teleport. {3} to cancel.": {
+    "en": "{0} for Gil. {1} for location. {2} for vehicle. Right stick to teleport. {3} to cancel.", "ja": "{0} でギル。{1} で現在地。{2} で乗り物。右スティックでテレポート。{3} でキャンセル。", "fr": "{0} pour les gils. {1} pour la position. {2} pour le véhicule. Stick droit pour se téléporter. {3} pour annuler.", "it": "{0} per i Gil. {1} per la posizione. {2} per il veicolo. Levetta destra per teletrasportarti. {3} per annullare.",
+    "de": "{0} für Gil. {1} für Position. {2} für Fahrzeug. Rechter Stick zum Teleportieren. {3} zum Abbrechen.", "es": "{0} para guiles. {1} para ubicación. {2} para vehículo. Stick derecho para teletransportarte. {3} para cancelar.", "ko": "{0}: 길. {1}: 현재 위치. {2}: 탈것. 오른쪽 스틱: 텔레포트. {3}: 취소.", "zht": "{0} 查看基爾。{1} 查看位置。{2} 查看載具。右搖桿傳送。{3} 取消。",
+    "zhc": "{0} 查看基尔。{1} 查看位置。{2} 查看载具。右摇杆传送。{3} 取消。", "ru": "{0} — гилы. {1} — местоположение. {2} — транспорт. Правый стик — телепорт. {3} — отмена.", "th": "{0} ดูกิล {1} ดูตำแหน่ง {2} ดูยานพาหนะ สติ๊กขวาเพื่อวาร์ป {3} ยกเลิก", "pt": "{0} para gil. {1} para localização. {2} para veículo. Analógico direito para teleportar. {3} para cancelar."
   },
   "D-pad or Left Stick Up, Down to navigate. Left, Right to adjust values. {0} to toggle. {1} or {2} to close.": {
     "en": "D-pad or Left Stick Up, Down to navigate. Left, Right to adjust values. {0} to toggle. {1} or {2} to close.", "ja": "十字キーまたは左スティックの上下で移動。左右で値を調整。{0} で切り替え。{1} または {2} で閉じる。", "fr": "Croix directionnelle ou stick gauche haut/bas pour naviguer. Gauche/droite pour ajuster les valeurs. {0} pour activer. {1} ou {2} pour fermer.", "it": "Croce direzionale o levetta sinistra su/giù per navigare. Sinistra/destra per regolare i valori. {0} per attivare. {1} o {2} per chiudere.",
     "de": "Steuerkreuz oder linker Stick hoch/runter zum Navigieren. Links/rechts zum Anpassen. {0} zum Umschalten. {1} oder {2} zum Schließen.", "es": "Cruceta o stick izquierdo arriba/abajo para navegar. Izquierda/derecha para ajustar valores. {0} para alternar. {1} o {2} para cerrar.", "ko": "십자키 또는 왼쪽 스틱 위아래로 이동. 좌우로 값 조정. {0}: 전환. {1} 또는 {2}: 닫기.", "zht": "方向鍵或左搖桿上下移動。左右調整數值。{0} 切換。{1} 或 {2} 關閉。",
     "zhc": "方向键或左摇杆上下移动。左右调整数值。{0} 切换。{1} 或 {2} 关闭。", "ru": "Крестовина или левый стик вверх/вниз — навигация. Влево/вправо — изменение значений. {0} — переключить. {1} или {2} — закрыть.", "th": "ปุ่มทิศทางหรือสติ๊กซ้าย ขึ้น-ลง เพื่อเลื่อน ซ้าย-ขวา เพื่อปรับค่า {0} เพื่อสลับ {1} หรือ {2} เพื่อปิด", "pt": "Direcional ou analógico esquerdo para cima/baixo para navegar. Esquerda/direita para ajustar valores. {0} para alternar. {1} ou {2} para fechar."
+  },
+  "Entity scan complete": {
+    "en": "Entity scan complete", "ja": "エンティティのスキャン完了", "fr": "Analyse des entités terminée", "it": "Scansione entità completata",
+    "de": "Objektsuche abgeschlossen", "es": "Escaneo de entidades completado", "ko": "개체 검색 완료", "zht": "實體掃描完成",
+    "zhc": "实体扫描完成", "ru": "Поиск объектов завершён", "th": "สแกนวัตถุเสร็จสิ้น", "pt": "Varredura de entidades concluída"
+  },
+  "Teleport failed": {
+    "en": "Teleport failed", "ja": "テレポートに失敗しました", "fr": "Échec de la téléportation", "it": "Teletrasporto non riuscito",
+    "de": "Teleportation fehlgeschlagen", "es": "Teletransporte fallido", "ko": "순간이동 실패", "zht": "傳送失敗",
+    "zhc": "传送失败", "ru": "Телепортация не удалась", "th": "เทเลพอร์ตล้มเหลว", "pt": "Falha no teletransporte"
+  },
+  "Low flying": {
+    "en": "Low flying", "ja": "低空飛行", "fr": "Vol à basse altitude", "it": "Volo a bassa quota",
+    "de": "Tiefflug", "es": "Vuelo bajo", "ko": "저공비행", "zht": "低空飛行",
+    "zhc": "低空飞行", "ru": "Низкий полёт", "th": "บินต่ำ", "pt": "Voo baixo"
+  },
+  "Special movement": {
+    "en": "Special movement", "ja": "特殊移動", "fr": "Déplacement spécial", "it": "Movimento speciale",
+    "de": "Spezielle Fortbewegung", "es": "Movimiento especial", "ko": "특수 이동", "zht": "特殊移動",
+    "zhc": "特殊移动", "ru": "Особое передвижение", "th": "การเคลื่อนที่พิเศษ", "pt": "Movimento especial"
+  },
+  "{0} step": {
+    "en": "{0} step", "ja": "{0}歩", "fr": "{0} pas", "it": "{0} passo",
+    "de": "{0} Schritt", "es": "{0} paso", "ko": "{0}걸음", "zht": "{0}步",
+    "zhc": "{0}步", "ru": "{0} шаг", "th": "{0} ก้าว", "pt": "{0} passo"
+  },
+  "{0} steps": {
+    "en": "{0} steps", "ja": "{0}歩", "fr": "{0} pas", "it": "{0} passi",
+    "de": "{0} Schritte", "es": "{0} pasos", "ko": "{0}걸음", "zht": "{0}步",
+    "zhc": "{0}步", "ru": "{0} шага", "th": "{0} ก้าว", "pt": "{0} passos"
+  },
+  "Opened Treasure Chest": {
+    "en": "Opened Treasure Chest", "ja": "開いた宝箱", "fr": "Coffre ouvert", "it": "Forziere aperto",
+    "de": "Geöffnete Truhe", "es": "Cofre abierto", "ko": "열린 보물상자", "zht": "已開啟的寶箱",
+    "zhc": "已开启的宝箱", "ru": "Открытый сундук", "th": "หีบสมบัติที่เปิดแล้ว", "pt": "Baú aberto"
+  },
+  "Unopened Treasure Chest": {
+    "en": "Unopened Treasure Chest", "ja": "未開封の宝箱", "fr": "Coffre non ouvert", "it": "Forziere chiuso",
+    "de": "Ungeöffnete Truhe", "es": "Cofre sin abrir", "ko": "열지 않은 보물상자", "zht": "未開啟的寶箱",
+    "zhc": "未开启的宝箱", "ru": "Неоткрытый сундук", "th": "หีบสมบัติที่ยังไม่เปิด", "pt": "Baú fechado"
+  },
+  "Treasure Chest": {
+    "en": "Treasure Chest", "ja": "宝箱", "fr": "Coffre", "it": "Forziere",
+    "de": "Truhe", "es": "Cofre", "ko": "보물상자", "zht": "寶箱",
+    "zhc": "宝箱", "ru": "Сундук", "th": "หีบสมบัติ", "pt": "Baú"
+  },
+  "shop": {
+    "en": "shop", "ja": "店", "fr": "boutique", "it": "negozio",
+    "de": "Laden", "es": "tienda", "ko": "상점", "zht": "商店",
+    "zhc": "商店", "ru": "магазин", "th": "ร้านค้า", "pt": "loja"
+  },
+  "stationary": {
+    "en": "stationary", "ja": "静止", "fr": "immobile", "it": "fermo",
+    "de": "stehend", "es": "inmóvil", "ko": "정지", "zht": "靜止",
+    "zhc": "静止", "ru": "неподвижен", "th": "อยู่กับที่", "pt": "parado"
+  },
+  "wandering": {
+    "en": "wandering", "ja": "歩き回る", "fr": "se promène", "it": "vaga",
+    "de": "wandert umher", "es": "deambula", "ko": "배회", "zht": "四處走動",
+    "zhc": "四处走动", "ru": "бродит", "th": "เดินไปมา", "pt": "vagando"
+  },
+  "patrolling": {
+    "en": "patrolling", "ja": "巡回", "fr": "patrouille", "it": "pattuglia",
+    "de": "patrouilliert", "es": "patrulla", "ko": "순찰", "zht": "巡邏",
+    "zhc": "巡逻", "ru": "патрулирует", "th": "ลาดตระเวน", "pt": "patrulhando"
+  },
+  "NPC": {
+    "en": "NPC", "ja": "NPC", "fr": "PNJ", "it": "PNG",
+    "de": "NPC", "es": "PNJ", "ko": "NPC", "zht": "NPC",
+    "zhc": "NPC", "ru": "NPC", "th": "NPC", "pt": "NPC"
+  },
+  "Map Exit": {
+    "en": "Map Exit", "ja": "マップ出口", "fr": "Sortie de carte", "it": "Uscita mappa",
+    "de": "Kartenausgang", "es": "Salida de mapa", "ko": "맵 출구", "zht": "地圖出口",
+    "zhc": "地图出口", "ru": "Выход с карты", "th": "ทางออกแผนที่", "pt": "Saída do mapa"
+  },
+  "Save Point": {
+    "en": "Save Point", "ja": "セーブポイント", "fr": "Point de sauvegarde", "it": "Punto di salvataggio",
+    "de": "Speicherpunkt", "es": "Punto de guardado", "ko": "세이브 포인트", "zht": "存檔點",
+    "zhc": "存档点", "ru": "Точка сохранения", "th": "จุดบันทึก", "pt": "Ponto de salvamento"
+  },
+  "Door/Trigger": {
+    "en": "Door/Trigger", "ja": "扉・トリガー", "fr": "Porte/déclencheur", "it": "Porta/attivatore",
+    "de": "Tür/Auslöser", "es": "Puerta/activador", "ko": "문/트리거", "zht": "門／觸發點",
+    "zhc": "门／触发点", "ru": "Дверь/триггер", "th": "ประตู/จุดกระตุ้น", "pt": "Porta/gatilho"
+  },
+  "Teleport": {
+    "en": "Teleport", "ja": "テレポート", "fr": "Téléporteur", "it": "Teletrasporto",
+    "de": "Teleporter", "es": "Teletransporte", "ko": "텔레포트", "zht": "傳送點",
+    "zhc": "传送点", "ru": "Телепорт", "th": "จุดเทเลพอร์ต", "pt": "Teletransporte"
+  },
+  "Event": {
+    "en": "Event", "ja": "イベント", "fr": "Événement", "it": "Evento",
+    "de": "Ereignis", "es": "Evento", "ko": "이벤트", "zht": "事件",
+    "zhc": "事件", "ru": "Событие", "th": "เหตุการณ์", "pt": "Evento"
+  },
+  "Vehicle": {
+    "en": "Vehicle", "ja": "乗り物", "fr": "Véhicule", "it": "Veicolo",
+    "de": "Fahrzeug", "es": "Vehículo", "ko": "탈것", "zht": "載具",
+    "zhc": "载具", "ru": "Транспорт", "th": "ยานพาหนะ", "pt": "Veículo"
+  },
+  "Group": {
+    "en": "Group", "ja": "グループ", "fr": "Groupe", "it": "Gruppo",
+    "de": "Gruppe", "es": "Grupo", "ko": "그룹", "zht": "群組",
+    "zhc": "群组", "ru": "Группа", "th": "กลุ่ม", "pt": "Grupo"
+  },
+  "{0} exits": {
+    "en": "{0} exits", "ja": "出口{0}か所", "fr": "{0} sorties", "it": "{0} uscite",
+    "de": "{0} Ausgänge", "es": "{0} salidas", "ko": "출구 {0}개", "zht": "{0}個出口",
+    "zhc": "{0}个出口", "ru": "выходов: {0}", "th": "{0} ทางออก", "pt": "{0} saídas"
+  },
+  "Dock": {
+    "en": "Dock", "ja": "船着き場", "fr": "Quai", "it": "Molo",
+    "de": "Anlegestelle", "es": "Muelle", "ko": "선착장", "zht": "碼頭",
+    "zhc": "码头", "ru": "Причал", "th": "ท่าเรือ", "pt": "Cais"
+  },
+  "Landmark": {
+    "en": "Landmark", "ja": "目印", "fr": "Point d'intérêt", "it": "Punto di interesse",
+    "de": "Wahrzeichen", "es": "Punto de interés", "ko": "랜드마크", "zht": "地標",
+    "zhc": "地标", "ru": "Ориентир", "th": "จุดสังเกต", "pt": "Ponto de interesse"
+  },
+  "Airship Landing": {
+    "en": "Airship Landing", "ja": "飛空艇の着陸地点", "fr": "Aire d'atterrissage", "it": "Atterraggio aeronave",
+    "de": "Luftschiff-Landeplatz", "es": "Aterrizaje de aeronave", "ko": "비공정 착륙 지점", "zht": "飛空艇降落點",
+    "zhc": "飞空艇降落点", "ru": "Посадка дирижабля", "th": "จุดลงจอดเรือเหาะ", "pt": "Pouso da aeronave"
+  },
+  "Waypoint": {
+    "en": "Waypoint", "ja": "ウェイポイント", "fr": "Point de repère", "it": "Punto di riferimento",
+    "de": "Wegpunkt", "es": "Punto de referencia", "ko": "경유지", "zht": "路標點",
+    "zhc": "路标点", "ru": "Путевая точка", "th": "จุดอ้างอิง", "pt": "Ponto de referência"
+  },
+  "Docks": {
+    "en": "Docks", "ja": "船着き場", "fr": "Quais", "it": "Moli",
+    "de": "Anlegestellen", "es": "Muelles", "ko": "선착장", "zht": "碼頭",
+    "zhc": "码头", "ru": "Причалы", "th": "ท่าเรือ", "pt": "Cais"
+  },
+  "Landmarks": {
+    "en": "Landmarks", "ja": "目印", "fr": "Points d'intérêt", "it": "Punti di interesse",
+    "de": "Wahrzeichen", "es": "Puntos de interés", "ko": "랜드마크", "zht": "地標",
+    "zhc": "地标", "ru": "Ориентиры", "th": "จุดสังเกต", "pt": "Pontos de interesse"
+  },
+  "Airship Landings": {
+    "en": "Airship Landings", "ja": "飛空艇の着陸地点", "fr": "Aires d'atterrissage", "it": "Atterraggi aeronave",
+    "de": "Luftschiff-Landeplätze", "es": "Aterrizajes de aeronave", "ko": "비공정 착륙 지점", "zht": "飛空艇降落點",
+    "zhc": "飞空艇降落点", "ru": "Места посадки дирижабля", "th": "จุดลงจอดเรือเหาะ", "pt": "Pousos da aeronave"
+  },
+  "Miscellaneous": {
+    "en": "Miscellaneous", "ja": "その他", "fr": "Divers", "it": "Varie",
+    "de": "Sonstiges", "es": "Varios", "ko": "기타", "zht": "其他",
+    "zhc": "其他", "ru": "Разное", "th": "เบ็ดเตล็ด", "pt": "Diversos"
+  },
+  "Level": {
+    "en": "Level", "ja": "レベル", "fr": "Niveau", "it": "Livello",
+    "de": "Stufe", "es": "Nivel", "ko": "레벨", "zht": "等級",
+    "zhc": "等级", "ru": "Уровень", "th": "เลเวล", "pt": "Nível"
+  },
+  "HP": {
+    "en": "HP", "ja": "HP", "fr": "PV", "it": "HP",
+    "de": "HP", "es": "HP", "ko": "HP", "zht": "HP",
+    "zhc": "HP", "ru": "HP", "th": "HP", "pt": "HP"
+  },
+  "MP": {
+    "en": "MP", "ja": "MP", "fr": "PM", "it": "MP",
+    "de": "MP", "es": "MP", "ko": "MP", "zht": "MP",
+    "zhc": "MP", "ru": "MP", "th": "MP", "pt": "MP"
+  },
+  "EXP": {
+    "en": "EXP", "ja": "経験値", "fr": "EXP", "it": "EXP",
+    "de": "EXP", "es": "EXP", "ko": "경험치", "zht": "經驗值",
+    "zhc": "经验值", "ru": "Опыт", "th": "ค่าประสบการณ์", "pt": "EXP"
+  },
+  "Next": {
+    "en": "Next", "ja": "次のレベルまで", "fr": "Niveau suivant", "it": "Prossimo livello",
+    "de": "Nächste Stufe", "es": "Siguiente nivel", "ko": "다음 레벨까지", "zht": "距下一級",
+    "zhc": "距下一级", "ru": "До следующего уровня", "th": "ถึงเลเวลถัดไป", "pt": "Próximo nível"
+  },
+  "Job": {
+    "en": "Job", "ja": "ジョブ", "fr": "Job", "it": "Mestiere",
+    "de": "Job", "es": "Oficio", "ko": "잡", "zht": "職業",
+    "zhc": "职业", "ru": "Профессия", "th": "อาชีพ", "pt": "Profissão"
+  },
+  "Job Level": {
+    "en": "Job Level", "ja": "ジョブレベル", "fr": "Niveau de job", "it": "Livello mestiere",
+    "de": "Job-Stufe", "es": "Nivel de oficio", "ko": "잡 레벨", "zht": "職業等級",
+    "zhc": "职业等级", "ru": "Уровень профессии", "th": "เลเวลอาชีพ", "pt": "Nível de profissão"
+  },
+  "ABP": {
+    "en": "ABP", "ja": "ABP", "fr": "ABP", "it": "ABP",
+    "de": "ABP", "es": "ABP", "ko": "ABP", "zht": "ABP",
+    "zhc": "ABP", "ru": "ABP", "th": "ABP", "pt": "ABP"
+  },
+  "Abilities": {
+    "en": "Abilities", "ja": "アビリティ", "fr": "Aptitudes", "it": "Abilità",
+    "de": "Fähigkeiten", "es": "Habilidades", "ko": "어빌리티", "zht": "能力",
+    "zhc": "能力", "ru": "Способности", "th": "ความสามารถ", "pt": "Habilidades"
+  },
+  "Jobs": {
+    "en": "Jobs", "ja": "ジョブ", "fr": "Jobs", "it": "Mestieri",
+    "de": "Jobs", "es": "Oficios", "ko": "잡", "zht": "職業",
+    "zhc": "职业", "ru": "Профессии", "th": "อาชีพ", "pt": "Profissões"
+  },
+  "Attack": {
+    "en": "Attack", "ja": "攻撃力", "fr": "Attaque", "it": "Attacco",
+    "de": "Angriff", "es": "Ataque", "ko": "공격력", "zht": "攻擊力",
+    "zhc": "攻击力", "ru": "Атака", "th": "พลังโจมตี", "pt": "Ataque"
+  },
+  "Magic": {
+    "en": "Magic", "ja": "魔力", "fr": "Magie", "it": "Magia",
+    "de": "Magie", "es": "Magia", "ko": "마력", "zht": "魔力",
+    "zhc": "魔力", "ru": "Магия", "th": "พลังเวทมนตร์", "pt": "Magia"
+  },
+  "Defense": {
+    "en": "Defense", "ja": "防御力", "fr": "Défense", "it": "Difesa",
+    "de": "Verteidigung", "es": "Defensa", "ko": "방어력", "zht": "防禦力",
+    "zhc": "防御力", "ru": "Защита", "th": "พลังป้องกัน", "pt": "Defesa"
+  },
+  "Magic Defense": {
+    "en": "Magic Defense", "ja": "魔法防御力", "fr": "Défense magique", "it": "Difesa magica",
+    "de": "Magieabwehr", "es": "Defensa mágica", "ko": "마법 방어력", "zht": "魔法防禦力",
+    "zhc": "魔法防御力", "ru": "Магическая защита", "th": "พลังป้องกันเวทมนตร์", "pt": "Defesa mágica"
+  },
+  "Evasion": {
+    "en": "Evasion", "ja": "回避", "fr": "Esquive", "it": "Evasione",
+    "de": "Ausweichen", "es": "Evasión", "ko": "회피", "zht": "迴避",
+    "zhc": "回避", "ru": "Уклонение", "th": "การหลบหลีก", "pt": "Evasão"
+  },
+  "Strength": {
+    "en": "Strength", "ja": "力", "fr": "Force", "it": "Forza",
+    "de": "Stärke", "es": "Fuerza", "ko": "힘", "zht": "力量",
+    "zhc": "力量", "ru": "Сила", "th": "พละกำลัง", "pt": "Força"
+  },
+  "Agility": {
+    "en": "Agility", "ja": "素早さ", "fr": "Agilité", "it": "Agilità",
+    "de": "Beweglichkeit", "es": "Agilidad", "ko": "민첩성", "zht": "敏捷",
+    "zhc": "敏捷", "ru": "Ловкость", "th": "ความว่องไว", "pt": "Agilidade"
+  },
+  "Stamina": {
+    "en": "Stamina", "ja": "体力", "fr": "Endurance", "it": "Resistenza",
+    "de": "Ausdauer", "es": "Vigor", "ko": "체력", "zht": "體力",
+    "zhc": "体力", "ru": "Выносливость", "th": "ความอดทน", "pt": "Vigor"
+  },
+  "N/A": {
+    "en": "N/A", "ja": "なし", "fr": "N/D", "it": "N/D",
+    "de": "k. A.", "es": "N/D", "ko": "없음", "zht": "無",
+    "zhc": "无", "ru": "Н/Д", "th": "ไม่มี", "pt": "N/D"
+  },
+  "Character Info": {
+    "en": "Character Info", "ja": "キャラクター情報", "fr": "Infos du personnage", "it": "Info personaggio",
+    "de": "Charakterinfo", "es": "Info del personaje", "ko": "캐릭터 정보", "zht": "角色資訊",
+    "zhc": "角色信息", "ru": "Сведения о персонаже", "th": "ข้อมูลตัวละคร", "pt": "Info do personagem"
+  },
+  "Vitals": {
+    "en": "Vitals", "ja": "HP・MP", "fr": "PV et PM", "it": "HP e MP",
+    "de": "HP und MP", "es": "HP y MP", "ko": "HP·MP", "zht": "HP與MP",
+    "zhc": "HP与MP", "ru": "HP и MP", "th": "HP และ MP", "pt": "HP e MP"
+  },
+  "Attributes": {
+    "en": "Attributes", "ja": "能力値", "fr": "Attributs", "it": "Attributi",
+    "de": "Attribute", "es": "Atributos", "ko": "능력치", "zht": "基本能力",
+    "zhc": "基本能力", "ru": "Характеристики", "th": "ค่าสถานะ", "pt": "Atributos"
+  },
+  "Combat Stats": {
+    "en": "Combat Stats", "ja": "戦闘能力", "fr": "Stats de combat", "it": "Statistiche di combattimento",
+    "de": "Kampfwerte", "es": "Estadísticas de combate", "ko": "전투 능력치", "zht": "戰鬥能力",
+    "zhc": "战斗能力", "ru": "Боевые показатели", "th": "ค่าการต่อสู้", "pt": "Estatísticas de combate"
+  },
+  "Progression": {
+    "en": "Progression", "ja": "成長", "fr": "Progression", "it": "Progressi",
+    "de": "Fortschritt", "es": "Progreso", "ko": "성장", "zht": "成長",
+    "zhc": "成长", "ru": "Прогресс", "th": "ความก้าวหน้า", "pt": "Progresso"
+  },
+  "Commands": {
+    "en": "Commands", "ja": "コマンド", "fr": "Commandes", "it": "Comandi",
+    "de": "Befehle", "es": "Comandos", "ko": "커맨드", "zht": "指令",
+    "zhc": "指令", "ru": "Команды", "th": "คำสั่ง", "pt": "Comandos"
+  },
+  "Bestiary. Encountered: {0} of {1}": {
+    "en": "Bestiary. Encountered: {0} of {1}", "ja": "モンスター図鑑。遭遇数: {1}中{0}", "fr": "Bestiaire. Rencontrés : {0} sur {1}", "it": "Bestiario. Incontrati: {0} di {1}",
+    "de": "Monsterlexikon. Begegnet: {0} von {1}", "es": "Bestiario. Encontrados: {0} de {1}", "ko": "몬스터 도감. 조우: {1} 중 {0}", "zht": "怪物圖鑑。已遭遇：{0}/{1}",
+    "zhc": "怪物图鉴。已遭遇：{0}/{1}", "ru": "Бестиарий. Встречено: {0} из {1}", "th": "สมุดภาพมอนสเตอร์ พบแล้ว: {0} จาก {1}", "pt": "Bestiário. Encontrados: {0} de {1}"
+  },
+  "None": {
+    "en": "None", "ja": "なし", "fr": "Aucun", "it": "Nessuno",
+    "de": "Keine", "es": "Ninguno", "ko": "없음", "zht": "無",
+    "zhc": "无", "ru": "Нет", "th": "ไม่มี", "pt": "Nenhum"
+  },
+  "Formation {0}: {1}": {
+    "en": "Formation {0}: {1}", "ja": "編成{0}: {1}", "fr": "Formation {0} : {1}", "it": "Formazione {0}: {1}",
+    "de": "Formation {0}: {1}", "es": "Formación {0}: {1}", "ko": "편성 {0}: {1}", "zht": "隊形{0}：{1}",
+    "zhc": "队形{0}：{1}", "ru": "Построение {0}: {1}", "th": "รูปแบบที่ {0}: {1}", "pt": "Formação {0}: {1}"
+  },
+  "Monster {0}": {
+    "en": "Monster {0}", "ja": "モンスター{0}", "fr": "Monstre {0}", "it": "Mostro {0}",
+    "de": "Monster {0}", "es": "Monstruo {0}", "ko": "몬스터 {0}", "zht": "怪物{0}",
+    "zhc": "怪物{0}", "ru": "Монстр {0}", "th": "มอนสเตอร์ {0}", "pt": "Monstro {0}"
+  },
+  "Stealable Items": {
+    "en": "Stealable Items", "ja": "盗めるアイテム", "fr": "Objets à voler", "it": "Oggetti rubabili",
+    "de": "Stehlbare Gegenstände", "es": "Objetos robables", "ko": "훔칠 수 있는 아이템", "zht": "可偷竊道具",
+    "zhc": "可偷窃道具", "ru": "Можно украсть", "th": "ไอเทมที่ขโมยได้", "pt": "Itens para roubar"
+  },
+  "Dropped Items": {
+    "en": "Dropped Items", "ja": "ドロップアイテム", "fr": "Objets lâchés", "it": "Oggetti rilasciati",
+    "de": "Hinterlassene Gegenstände", "es": "Objetos que suelta", "ko": "드롭 아이템", "zht": "掉落道具",
+    "zhc": "掉落道具", "ru": "Добыча", "th": "ไอเทมที่ดรอป", "pt": "Itens deixados"
+  },
+  "No habitat data": {
+    "en": "No habitat data", "ja": "生息地データなし", "fr": "Aucun habitat connu", "it": "Nessun habitat noto",
+    "de": "Kein Lebensraum bekannt", "es": "Sin datos de hábitat", "ko": "서식지 정보 없음", "zht": "無棲息地資料",
+    "zhc": "无栖息地数据", "ru": "Нет данных о местах обитания", "th": "ไม่มีข้อมูลถิ่นที่อยู่", "pt": "Sem dados de habitat"
+  },
+  "Unknown location": {
+    "en": "Unknown location", "ja": "不明な場所", "fr": "Lieu inconnu", "it": "Luogo sconosciuto",
+    "de": "Unbekannter Ort", "es": "Lugar desconocido", "ko": "알 수 없는 장소", "zht": "未知地點",
+    "zhc": "未知地点", "ru": "Неизвестное место", "th": "สถานที่ไม่ทราบ", "pt": "Local desconhecido"
+  },
+  "Monster Data": {
+    "en": "Monster Data", "ja": "モンスターデータ", "fr": "Données du monstre", "it": "Dati mostro",
+    "de": "Monsterdaten", "es": "Datos del monstruo", "ko": "몬스터 데이터", "zht": "怪物資料",
+    "zhc": "怪物数据", "ru": "Данные монстра", "th": "ข้อมูลมอนสเตอร์", "pt": "Dados do monstro"
+  },
+  "Status": {
+    "en": "Status", "ja": "ステータス", "fr": "Statut", "it": "Stato",
+    "de": "Status", "es": "Estado", "ko": "스테이터스", "zht": "狀態",
+    "zhc": "状态", "ru": "Статус", "th": "สถานะ", "pt": "Status"
+  },
+  "Rewards": {
+    "en": "Rewards", "ja": "報酬", "fr": "Récompenses", "it": "Ricompense",
+    "de": "Belohnungen", "es": "Recompensas", "ko": "보상", "zht": "報酬",
+    "zhc": "奖励", "ru": "Награды", "th": "รางวัล", "pt": "Recompensas"
+  },
+  "Items": {
+    "en": "Items", "ja": "アイテム", "fr": "Objets", "it": "Oggetti",
+    "de": "Gegenstände", "es": "Objetos", "ko": "아이템", "zht": "道具",
+    "zhc": "道具", "ru": "Предметы", "th": "ไอเทม", "pt": "Itens"
+  },
+  "Properties": {
+    "en": "Properties", "ja": "特性", "fr": "Propriétés", "it": "Proprietà",
+    "de": "Eigenschaften", "es": "Propiedades", "ko": "특성", "zht": "特性",
+    "zhc": "特性", "ru": "Свойства", "th": "คุณสมบัติ", "pt": "Propriedades"
+  },
+  "Other": {
+    "en": "Other", "ja": "その他", "fr": "Autre", "it": "Altro",
+    "de": "Sonstiges", "es": "Otros", "ko": "기타", "zht": "其他",
+    "zhc": "其他", "ru": "Прочее", "th": "อื่นๆ", "pt": "Outros"
+  },
+  "Name": {
+    "en": "Name", "ja": "名前", "fr": "Nom", "it": "Nome",
+    "de": "Name", "es": "Nombre", "ko": "이름", "zht": "名稱",
+    "zhc": "名称", "ru": "Имя", "th": "ชื่อ", "pt": "Nome"
+  },
+  "Front Row": {
+    "en": "Front Row", "ja": "前列", "fr": "Rang avant", "it": "Prima fila",
+    "de": "Vordere Reihe", "es": "Fila delantera", "ko": "전열", "zht": "前排",
+    "zhc": "前排", "ru": "Передний ряд", "th": "แถวหน้า", "pt": "Fileira da frente"
+  },
+  "Back Row": {
+    "en": "Back Row", "ja": "後列", "fr": "Rang arrière", "it": "Seconda fila",
+    "de": "Hintere Reihe", "es": "Fila trasera", "ko": "후열", "zht": "後排",
+    "zhc": "后排", "ru": "Задний ряд", "th": "แถวหลัง", "pt": "Fileira de trás"
+  },
+  "Time {0}": {
+    "en": "Time {0}", "ja": "プレイ時間 {0}", "fr": "Temps {0}", "it": "Tempo {0}",
+    "de": "Zeit {0}", "es": "Tiempo {0}", "ko": "플레이 시간 {0}", "zht": "遊戲時間 {0}",
+    "zhc": "游戏时间 {0}", "ru": "Время {0}", "th": "เวลา {0}", "pt": "Tempo {0}"
+  },
+  "Timer: {0}": {
+    "en": "Timer: {0}", "ja": "タイマー: {0}", "fr": "Minuteur : {0}", "it": "Timer: {0}",
+    "de": "Timer: {0}", "es": "Temporizador: {0}", "ko": "타이머: {0}", "zht": "計時：{0}",
+    "zhc": "计时：{0}", "ru": "Таймер: {0}", "th": "ตัวจับเวลา: {0}", "pt": "Cronômetro: {0}"
+  },
+  "Choices: {0}": {
+    "en": "Choices: {0}", "ja": "選択肢: {0}", "fr": "Choix : {0}", "it": "Scelte: {0}",
+    "de": "Auswahl: {0}", "es": "Opciones: {0}", "ko": "선택지: {0}", "zht": "選項：{0}",
+    "zhc": "选项：{0}", "ru": "Варианты: {0}", "th": "ตัวเลือก: {0}", "pt": "Opções: {0}"
+  },
+  "Map {0}": {
+    "en": "Map {0}", "ja": "マップ{0}", "fr": "Carte {0}", "it": "Mappa {0}",
+    "de": "Karte {0}", "es": "Mapa {0}", "ko": "맵 {0}", "zht": "地圖{0}",
+    "zhc": "地图{0}", "ru": "Карта {0}", "th": "แผนที่ {0}", "pt": "Mapa {0}"
+  },
+  "Gil": {
+    "en": "Gil", "ja": "ギル", "fr": "gils", "it": "guil",
+    "de": "Gil", "es": "gil", "ko": "길", "zht": "基爾",
+    "zhc": "基尔", "ru": "гил", "th": "กิล", "pt": "gil"
+  },
+  ". Current: {0}": {
+    "en": ". Current: {0}", "ja": "。現在: {0}", "fr": ". Actuel : {0}", "it": ". Attuale: {0}",
+    "de": ". Aktuell: {0}", "es": ". Actual: {0}", "ko": ". 현재: {0}", "zht": "。目前：{0}",
+    "zhc": "。当前：{0}", "ru": ". Сейчас: {0}", "th": " ปัจจุบัน: {0}", "pt": ". Atual: {0}"
+  },
+  "Quantity: {0}": {
+    "en": "Quantity: {0}", "ja": "数量: {0}", "fr": "Quantité : {0}", "it": "Quantità: {0}",
+    "de": "Menge: {0}", "es": "Cantidad: {0}", "ko": "수량: {0}", "zht": "數量：{0}",
+    "zhc": "数量：{0}", "ru": "Количество: {0}", "th": "จำนวน: {0}", "pt": "Quantidade: {0}"
+  },
+  "Quantity: {0}, Total: {1}": {
+    "en": "Quantity: {0}, Total: {1}", "ja": "数量: {0}、合計: {1}", "fr": "Quantité : {0}, total : {1}", "it": "Quantità: {0}, totale: {1}",
+    "de": "Menge: {0}, gesamt: {1}", "es": "Cantidad: {0}, total: {1}", "ko": "수량: {0}, 합계: {1}", "zht": "數量：{0}，合計：{1}",
+    "zhc": "数量：{0}，合计：{1}", "ru": "Количество: {0}, итого: {1}", "th": "จำนวน: {0} รวม: {1}", "pt": "Quantidade: {0}, total: {1}"
+  },
+  "{0}: {1} MP damage": {
+    "en": "{0}: {1} MP damage", "ja": "{0}: MPに{1}のダメージ", "fr": "{0} : {1} PM perdus", "it": "{0}: {1} danni MP",
+    "de": "{0}: {1} MP-Schaden", "es": "{0}: {1} de daño a MP", "ko": "{0}: MP {1} 데미지", "zht": "{0}：{1} MP傷害",
+    "zhc": "{0}：{1} MP伤害", "ru": "{0}: {1} урона MP", "th": "{0}: ความเสียหาย MP {1}", "pt": "{0}: {1} de dano de MP"
+  },
+  "Press a button.": {
+    "en": "Press a button.", "ja": "ボタンを押してください。", "fr": "Appuyez sur un bouton.", "it": "Premi un pulsante.",
+    "de": "Drücke einen Knopf.", "es": "Pulsa un botón.", "ko": "버튼을 누르세요.", "zht": "請按下按鈕。",
+    "zhc": "请按下按钮。", "ru": "Нажмите кнопку.", "th": "กดปุ่ม", "pt": "Pressione um botão."
+  },
+  "Press a key.": {
+    "en": "Press a key.", "ja": "キーを押してください。", "fr": "Appuyez sur une touche.", "it": "Premi un tasto.",
+    "de": "Drücke eine Taste.", "es": "Pulsa una tecla.", "ko": "키를 누르세요.", "zht": "請按下按鍵。",
+    "zhc": "请按下按键。", "ru": "Нажмите клавишу.", "th": "กดแป้น", "pt": "Pressione uma tecla."
+  },
+  "used for mod menu": {
+    "en": "used for mod menu", "ja": "Modメニューで使用", "fr": "utilisé pour le menu mod", "it": "usato per il menu mod",
+    "de": "für das Mod-Menü belegt", "es": "usado para el menú de mod", "ko": "모드 메뉴에 사용", "zht": "用於Mod選單",
+    "zhc": "用于Mod菜单", "ru": "используется для меню мода", "th": "ใช้สำหรับเมนูม็อด", "pt": "usado para o menu do mod"
+  },
+  "Left Stick": {
+    "en": "Left Stick", "ja": "左スティック", "fr": "Stick gauche", "it": "Levetta sinistra",
+    "de": "Linker Stick", "es": "Stick izquierdo", "ko": "왼쪽 스틱", "zht": "左搖桿",
+    "zhc": "左摇杆", "ru": "Левый стик", "th": "สติ๊กซ้าย", "pt": "Analógico esquerdo"
+  },
+  "Mouse Wheel": {
+    "en": "Mouse Wheel", "ja": "マウスホイール", "fr": "Molette de la souris", "it": "Rotellina del mouse",
+    "de": "Mausrad", "es": "Rueda del ratón", "ko": "마우스 휠", "zht": "滑鼠滾輪",
+    "zhc": "鼠标滚轮", "ru": "Колесо мыши", "th": "ล้อเมาส์", "pt": "Roda do mouse"
+  },
+  "Left Mouse Button": {
+    "en": "Left Mouse Button", "ja": "マウス左ボタン", "fr": "Bouton gauche de la souris", "it": "Tasto sinistro del mouse",
+    "de": "Linke Maustaste", "es": "Botón izquierdo del ratón", "ko": "마우스 왼쪽 버튼", "zht": "滑鼠左鍵",
+    "zhc": "鼠标左键", "ru": "Левая кнопка мыши", "th": "ปุ่มซ้ายของเมาส์", "pt": "Botão esquerdo do mouse"
+  },
+  "Right Mouse Button": {
+    "en": "Right Mouse Button", "ja": "マウス右ボタン", "fr": "Bouton droit de la souris", "it": "Tasto destro del mouse",
+    "de": "Rechte Maustaste", "es": "Botón derecho del ratón", "ko": "마우스 오른쪽 버튼", "zht": "滑鼠右鍵",
+    "zhc": "鼠标右键", "ru": "Правая кнопка мыши", "th": "ปุ่มขวาของเมาส์", "pt": "Botão direito do mouse"
+  },
+  "Middle Mouse Button": {
+    "en": "Middle Mouse Button", "ja": "マウス中ボタン", "fr": "Bouton central de la souris", "it": "Tasto centrale del mouse",
+    "de": "Mittlere Maustaste", "es": "Botón central del ratón", "ko": "마우스 가운데 버튼", "zht": "滑鼠中鍵",
+    "zhc": "鼠标中键", "ru": "Средняя кнопка мыши", "th": "ปุ่มกลางของเมาส์", "pt": "Botão do meio do mouse"
+  },
+  "Mouse Button": {
+    "en": "Mouse Button", "ja": "マウスボタン", "fr": "Bouton de la souris", "it": "Tasto del mouse",
+    "de": "Maustaste", "es": "Botón del ratón", "ko": "마우스 버튼", "zht": "滑鼠按鍵",
+    "zhc": "鼠标按键", "ru": "Кнопка мыши", "th": "ปุ่มเมาส์", "pt": "Botão do mouse"
+  },
+  "Plays a tone toward any wall right next to you, so you can feel out corridors and doorways.": {
+    "en": "Plays a tone toward any wall right next to you, so you can feel out corridors and doorways.", "ja": "すぐ隣にある壁の方向からトーンを鳴らし、通路や出入口を把握しやすくします。", "fr": "Joue un son dans la direction de tout mur adjacent, pour repérer les couloirs et les portes.", "it": "Riproduce un tono verso ogni muro accanto a te, per orientarti tra corridoi e porte.",
+    "de": "Spielt einen Ton in Richtung jeder direkt angrenzenden Wand, damit du Gänge und Durchgänge ertasten kannst.", "es": "Reproduce un tono hacia cualquier pared contigua para que puedas orientarte en pasillos y puertas.", "ko": "바로 옆에 있는 벽 방향에서 소리를 재생해 통로와 출입구를 파악할 수 있게 합니다.", "zht": "從緊鄰牆壁的方向播放提示音，方便掌握走廊與出入口。",
+    "zhc": "从紧邻墙壁的方向播放提示音，方便掌握走廊与出入口。", "ru": "Воспроизводит тон со стороны каждой соседней стены, чтобы находить коридоры и проходы.", "th": "เล่นเสียงจากทิศทางของกำแพงที่อยู่ติดกับคุณ เพื่อให้รับรู้ทางเดินและประตูได้", "pt": "Toca um som na direção de qualquer parede ao seu lado, para você perceber corredores e passagens."
+  },
+  "Plays a click for each tile you move on foot.": {
+    "en": "Plays a click for each tile you move on foot.", "ja": "徒歩で1マス進むごとにクリック音を鳴らします。", "fr": "Joue un clic pour chaque case parcourue à pied.", "it": "Riproduce un clic per ogni casella percorsa a piedi.",
+    "de": "Spielt für jedes Feld, das du zu Fuß zurücklegst, einen Klick.", "es": "Reproduce un clic por cada casilla que avanzas a pie.", "ko": "도보로 한 칸 이동할 때마다 클릭 소리를 재생합니다.", "zht": "步行時每移動一格播放一次點擊聲。",
+    "zhc": "步行时每移动一格播放一次点击声。", "ru": "Щелчок на каждую клетку, пройденную пешком.", "th": "เล่นเสียงคลิกทุกครั้งที่เดินไปหนึ่งช่อง", "pt": "Toca um clique a cada casa que você anda a pé."
+  },
+  "Pings the selected entity or waypoint, panned toward it and faster as you get closer. A lower pitch means there is no path. While on, backslash and P restart the beacon instead of reading directions.": {
+    "en": "Pings the selected entity or waypoint, panned toward it and faster as you get closer. A lower pitch means there is no path. While on, backslash and P restart the beacon instead of reading directions.", "ja": "選択中の対象またはウェイポイントの方向から音を鳴らし、近づくほど間隔が短くなります。音が低い場合は経路がありません。オンの間は、バックスラッシュとPキーで道順を読み上げる代わりにビーコンを再開します。", "fr": "Émet un signal depuis la direction de l'entité ou du point de repère sélectionné, de plus en plus rapide à mesure que vous approchez. Un son plus grave signifie qu'il n'y a pas de chemin. Quand cette option est activée, la barre oblique inverse et P relancent la balise au lieu de lire l'itinéraire.", "it": "Emette un segnale dalla direzione dell'entità o del punto di riferimento selezionato, sempre più rapido man mano che ti avvicini. Un tono più basso indica che non c'è un percorso. Quando è attivo, la barra rovesciata e P riavviano il segnale invece di leggere le indicazioni.",
+    "de": "Sendet ein Signal aus der Richtung des gewählten Objekts oder Wegpunkts, das schneller wird, je näher du kommst. Ein tieferer Ton bedeutet, dass es keinen Weg gibt. Solange aktiv, starten Backslash und P das Signal neu, statt die Wegbeschreibung vorzulesen.", "es": "Emite un sonido desde la dirección de la entidad o punto de referencia seleccionado, más rápido a medida que te acercas. Un tono más grave indica que no hay ruta. Mientras está activado, la barra invertida y P reinician la baliza en lugar de leer las indicaciones.", "ko": "선택한 대상이나 경유지 방향에서 신호음을 재생하며, 가까워질수록 빨라집니다. 음이 낮으면 경로가 없다는 뜻입니다. 켜져 있는 동안 백슬래시와 P 키는 길 안내를 읽는 대신 비콘을 다시 시작합니다.", "zht": "從選取的目標或路標點方向發出提示音，越接近越快。音調較低表示沒有路徑。開啟時，反斜線與P鍵會重新啟動信標，而不是朗讀路線。",
+    "zhc": "从选中的目标或路标点方向发出提示音，越接近越快。音调较低表示没有路径。开启时，反斜杠与P键会重新启动信标，而不是朗读路线。", "ru": "Подаёт сигнал со стороны выбранного объекта или путевой точки, всё чаще по мере приближения. Более низкий тон означает, что пути нет. Пока включено, обратная косая черта и P перезапускают маяк вместо чтения маршрута.", "th": "ส่งเสียงจากทิศทางของวัตถุหรือจุดอ้างอิงที่เลือก และถี่ขึ้นเมื่อเข้าใกล้ เสียงต่ำหมายความว่าไม่มีเส้นทาง ขณะเปิดอยู่ ปุ่มแบ็กสแลชและ P จะเริ่มสัญญาณใหม่แทนการอ่านเส้นทาง", "pt": "Emite um sinal na direção da entidade ou ponto de referência selecionado, mais rápido conforme você se aproxima. Um tom mais grave indica que não há caminho. Enquanto ativado, a barra invertida e P reiniciam o sinal em vez de ler o trajeto."
+  },
+  "While riding a vehicle, pings the directions in which you can land or get off.": {
+    "en": "While riding a vehicle, pings the directions in which you can land or get off.", "ja": "乗り物に乗っている間、着陸や降りることができる方向を音で知らせます。", "fr": "En véhicule, signale les directions dans lesquelles vous pouvez atterrir ou descendre.", "it": "Mentre sei su un veicolo, segnala le direzioni in cui puoi atterrare o scendere.",
+    "de": "Meldet während einer Fahrt die Richtungen, in denen du landen oder aussteigen kannst.", "es": "Mientras vas en un vehículo, indica con sonidos las direcciones en las que puedes aterrizar o bajar.", "ko": "탈것에 타고 있는 동안 착륙하거나 내릴 수 있는 방향을 소리로 알려 줍니다.", "zht": "乘坐載具時，以提示音告知可以降落或下來的方向。",
+    "zhc": "乘坐载具时，以提示音告知可以降落或下来的方向。", "ru": "Во время поездки на транспорте подаёт сигналы в тех направлениях, где можно приземлиться или сойти.", "th": "ขณะขี่ยานพาหนะ จะส่งเสียงบอกทิศทางที่สามารถลงจอดหรือลงจากยานได้", "pt": "Enquanto você estiver em um veículo, sinaliza as direções em que é possível pousar ou desembarcar."
+  },
+  "When you restart the audio beacon, also reads the directions to its destination.": {
+    "en": "When you restart the audio beacon, also reads the directions to its destination.", "ja": "音声ビーコンを再開したときに、目的地までの道順も読み上げます。", "fr": "Quand vous relancez la balise audio, lit aussi l'itinéraire vers sa destination.", "it": "Quando riavvii il segnale audio, legge anche le indicazioni per la sua destinazione.",
+    "de": "Liest beim Neustart des Audio-Signals auch die Wegbeschreibung zum Ziel vor.", "es": "Al reiniciar la baliza de audio, también lee las indicaciones hasta su destino.", "ko": "오디오 비콘을 다시 시작할 때 목적지까지의 길 안내도 읽어 줍니다.", "zht": "重新啟動音訊信標時，同時朗讀前往目的地的路線。",
+    "zhc": "重新启动音频信标时，同时朗读前往目的地的路线。", "ru": "При перезапуске звукового маяка также зачитывает маршрут до цели.", "th": "เมื่อเริ่มสัญญาณเสียงใหม่ จะอ่านเส้นทางไปยังจุดหมายด้วย", "pt": "Ao reiniciar o sinal de áudio, também lê o trajeto até o destino."
+  },
+  "Adds the position in the list to menu entries, for example 3 of 12.": {
+    "en": "Adds the position in the list to menu entries, for example 3 of 12.", "ja": "メニュー項目にリスト内の位置を付け加えます。例: 12中3。", "fr": "Ajoute la position dans la liste aux entrées de menu, par exemple 3 sur 12.", "it": "Aggiunge alle voci di menu la posizione nell'elenco, ad esempio 3 di 12.",
+    "de": "Ergänzt Menüeinträge um die Position in der Liste, zum Beispiel 3 von 12.", "es": "Añade a las entradas de menú su posición en la lista, por ejemplo 3 de 12.", "ko": "메뉴 항목에 목록 내 위치를 덧붙입니다. 예: 12 중 3.", "zht": "在選單項目後加上其在清單中的位置，例如 3/12。",
+    "zhc": "在菜单项目后加上其在列表中的位置，例如 3/12。", "ru": "Добавляет к пунктам меню их позицию в списке, например 3 из 12.", "th": "เพิ่มตำแหน่งในรายการให้กับรายการเมนู เช่น 3 จาก 12", "pt": "Adiciona a posição na lista aos itens de menu, por exemplo 3 de 12."
+  },
+  "Reads descriptions automatically as you move through items, abilities, equipment and shops. When off, press I for details.": {
+    "en": "Reads descriptions automatically as you move through items, abilities, equipment and shops. When off, press I for details.", "ja": "アイテム、アビリティ、装備、ショップで項目を移動すると説明を自動で読み上げます。オフのときはIキーで詳細を確認できます。", "fr": "Lit automatiquement les descriptions lorsque vous parcourez les objets, aptitudes, équipements et boutiques. Si désactivé, appuyez sur I pour les détails.", "it": "Legge automaticamente le descrizioni mentre scorri oggetti, abilità, equipaggiamento e negozi. Se disattivato, premi I per i dettagli.",
+    "de": "Liest Beschreibungen automatisch vor, während du durch Gegenstände, Fähigkeiten, Ausrüstung und Läden navigierst. Wenn aus, drücke I für Details.", "es": "Lee las descripciones automáticamente al recorrer objetos, habilidades, equipo y tiendas. Si está desactivado, pulsa I para ver los detalles.", "ko": "아이템, 어빌리티, 장비, 상점을 탐색할 때 설명을 자동으로 읽어 줍니다. 꺼져 있으면 I 키로 상세 정보를 들을 수 있습니다.", "zht": "瀏覽道具、能力、裝備與商店時自動朗讀說明。關閉時，按I鍵查看詳細資訊。",
+    "zhc": "浏览道具、能力、装备与商店时自动朗读说明。关闭时，按I键查看详细信息。", "ru": "Автоматически зачитывает описания при перемещении по предметам, способностям, снаряжению и магазинам. Когда выключено, нажмите I для подробностей.", "th": "อ่านคำอธิบายโดยอัตโนมัติขณะเลื่อนดูไอเทม ความสามารถ อุปกรณ์ และร้านค้า เมื่อปิดอยู่ ให้กด I เพื่อฟังรายละเอียด", "pt": "Lê as descrições automaticamente ao percorrer itens, habilidades, equipamentos e lojas. Quando desativado, pressione I para ver os detalhes."
+  },
+  "Volume of the sound played when you walk into a wall.": {
+    "en": "Volume of the sound played when you walk into a wall.", "ja": "壁にぶつかったときの音の音量です。", "fr": "Volume du son joué quand vous heurtez un mur.", "it": "Volume del suono riprodotto quando urti un muro.",
+    "de": "Lautstärke des Tons, wenn du gegen eine Wand läufst.", "es": "Volumen del sonido al chocar contra una pared.", "ko": "벽에 부딪혔을 때 재생되는 소리의 음량입니다.", "zht": "撞到牆壁時播放的音效音量。",
+    "zhc": "撞到墙壁时播放的音效音量。", "ru": "Громкость звука при столкновении со стеной.", "th": "ระดับเสียงที่เล่นเมื่อเดินชนกำแพง", "pt": "Volume do som tocado quando você esbarra em uma parede."
+  },
+  "Volume of the footstep clicks.": {
+    "en": "Volume of the footstep clicks.", "ja": "足音のクリック音の音量です。", "fr": "Volume des clics de pas.", "it": "Volume dei clic dei passi.",
+    "de": "Lautstärke der Schrittklicks.", "es": "Volumen de los clics de pasos.", "ko": "발소리 클릭음의 음량입니다.", "zht": "腳步點擊聲的音量。",
+    "zhc": "脚步点击声的音量。", "ru": "Громкость щелчков шагов.", "th": "ระดับเสียงคลิกของฝีเท้า", "pt": "Volume dos cliques de passos."
+  },
+  "Volume of the wall tones.": {
+    "en": "Volume of the wall tones.", "ja": "壁トーンの音量です。", "fr": "Volume des sons de mur.", "it": "Volume dei toni muro.",
+    "de": "Lautstärke der Wandtöne.", "es": "Volumen de los tonos de pared.", "ko": "벽 소리의 음량입니다.", "zht": "牆壁音效的音量。",
+    "zhc": "墙壁音效的音量。", "ru": "Громкость звуков стен.", "th": "ระดับเสียงกำแพง", "pt": "Volume dos sons de parede."
+  },
+  "Volume of the audio beacon pings.": {
+    "en": "Volume of the audio beacon pings.", "ja": "音声ビーコンの音量です。", "fr": "Volume des signaux de la balise audio.", "it": "Volume dei segnali audio.",
+    "de": "Lautstärke der Audio-Signale.", "es": "Volumen de los sonidos de la baliza de audio.", "ko": "오디오 비콘 신호음의 음량입니다.", "zht": "音訊信標提示音的音量。",
+    "zhc": "音频信标提示音的音量。", "ru": "Громкость сигналов звукового маяка.", "th": "ระดับเสียงของสัญญาณเสียง", "pt": "Volume dos sinais de áudio."
+  },
+  "Volume of the landing pings.": {
+    "en": "Volume of the landing pings.", "ja": "着陸ピングの音量です。", "fr": "Volume des pings d'atterrissage.", "it": "Volume dei ping di atterraggio.",
+    "de": "Lautstärke der Landepings.", "es": "Volumen de los pings de aterrizaje.", "ko": "착륙 핑의 음량입니다.", "zht": "降落提示音的音量。",
+    "zhc": "降落提示音的音量。", "ru": "Громкость сигналов посадки.", "th": "ระดับเสียงลงจอด", "pt": "Volume dos pings de pouso."
+  },
+  "Entity cycling skips anything you cannot currently walk to.": {
+    "en": "Entity cycling skips anything you cannot currently walk to.", "ja": "対象の切り替え時に、現在歩いて行けないものを飛ばします。", "fr": "Le parcours des entités ignore tout ce que vous ne pouvez pas atteindre à pied pour le moment.", "it": "Lo scorrimento delle entità salta ciò che al momento non puoi raggiungere a piedi.",
+    "de": "Beim Durchschalten der Objekte wird alles übersprungen, was du gerade nicht erreichen kannst.", "es": "Al recorrer entidades se omite todo lo que no puedes alcanzar caminando en este momento.", "ko": "대상을 전환할 때 지금 걸어서 갈 수 없는 것은 건너뜁니다.", "zht": "切換目標時略過目前無法步行抵達的對象。",
+    "zhc": "切换目标时跳过当前无法步行抵达的对象。", "ru": "При переборе объектов пропускается всё, до чего сейчас нельзя дойти.", "th": "การเลื่อนดูวัตถุจะข้ามสิ่งที่ตอนนี้เดินไปไม่ถึง", "pt": "A navegação entre entidades ignora tudo o que você não consegue alcançar a pé no momento."
+  },
+  "Exits that lead to the same place are merged into the closest one.": {
+    "en": "Exits that lead to the same place are merged into the closest one.", "ja": "同じ場所へつながる出口を、最も近いひとつにまとめます。", "fr": "Les sorties menant au même endroit sont regroupées en la plus proche.", "it": "Le uscite che portano allo stesso luogo vengono unite in quella più vicina.",
+    "de": "Ausgänge zum selben Ort werden zum nächstgelegenen zusammengefasst.", "es": "Las salidas que llevan al mismo lugar se agrupan en la más cercana.", "ko": "같은 장소로 이어지는 출구를 가장 가까운 하나로 합칩니다.", "zht": "通往同一地點的出口會合併為最近的一個。",
+    "zhc": "通往同一地点的出口会合并为最近的一个。", "ru": "Выходы, ведущие в одно место, объединяются в ближайший.", "th": "ทางออกที่ไปยังที่เดียวกันจะรวมเป็นทางออกที่ใกล้ที่สุด", "pt": "Saídas que levam ao mesmo lugar são agrupadas na mais próxima."
+  },
+  "Hides layer transitions, the spots that move you between levels of the same map, from entity cycling.": {
+    "en": "Hides layer transitions, the spots that move you between levels of the same map, from entity cycling.", "ja": "同じマップ内の階層を移動する地点（レイヤー遷移）を、対象の切り替えから除外します。", "fr": "Masque les transitions de couche, ces points qui vous font passer d'un niveau à l'autre d'une même carte, lors du parcours des entités.", "it": "Nasconde dallo scorrimento delle entità le transizioni di livello, i punti che ti spostano tra i piani della stessa mappa.",
+    "de": "Blendet Ebenenübergänge, also Stellen, die dich zwischen Ebenen derselben Karte bringen, beim Durchschalten der Objekte aus.", "es": "Oculta al recorrer entidades las transiciones de capa, los puntos que te llevan entre niveles del mismo mapa.", "ko": "같은 맵 안에서 층을 이동하는 지점(레이어 전환)을 대상 전환에서 숨깁니다.", "zht": "在切換目標時隱藏圖層轉換，也就是在同一地圖不同層之間移動的地點。",
+    "zhc": "在切换目标时隐藏图层转换，也就是在同一地图不同层之间移动的地点。", "ru": "Скрывает при переборе объектов переходы между слоями — места, ведущие на другой уровень той же карты.", "th": "ซ่อนจุดเปลี่ยนชั้น ซึ่งเป็นจุดที่พาคุณไปยังอีกชั้นของแผนที่เดียวกัน ออกจากการเลื่อนดูวัตถุ", "pt": "Oculta da navegação entre entidades as transições de camada, pontos que levam a outro nível do mesmo mapa."
+  },
+  "When on, stick clicks go to the game for walk or run and encounters, and their mod functions move to mod mode. When off, the right stick click toggles the pathfinding filter and the left stick click toggles audio beacons.": {
+    "en": "When on, stick clicks go to the game for walk or run and encounters, and their mod functions move to mod mode. When off, the right stick click toggles the pathfinding filter and the left stick click toggles audio beacons.", "ja": "オンにすると、スティックの押し込みはゲーム側の歩き・ダッシュ切り替えとエンカウント切り替えに使われ、MODの機能はMODモードに移ります。オフにすると、右スティック押し込みで経路探索フィルター、左スティック押し込みで音声ビーコンを切り替えます。", "fr": "Activé, les clics de stick sont transmis au jeu (marche ou course, rencontres) et leurs fonctions du mod passent en mode mod. Désactivé, le clic du stick droit bascule le filtre de recherche de chemin et celui du stick gauche les balises audio.", "it": "Se attivo, i clic delle levette vanno al gioco (camminata o corsa e incontri) e le loro funzioni della mod passano alla modalità mod. Se disattivo, il clic della levetta destra attiva il filtro percorso e quello della levetta sinistra i segnali audio.",
+    "de": "Wenn aktiv, gehen Stick-Klicks an das Spiel (Gehen oder Rennen und Zufallskämpfe) und ihre Mod-Funktionen wandern in den Mod-Modus. Wenn aus, schaltet der rechte Stick-Klick den Pfadfindungsfilter und der linke Stick-Klick die Audio-Signale um.", "es": "Si está activado, los clics de stick van al juego (caminar o correr y encuentros) y sus funciones del mod pasan al modo mod. Si está desactivado, el clic del stick derecho alterna el filtro de búsqueda de ruta y el del izquierdo, las balizas de audio.", "ko": "켜면 스틱 누르기가 게임의 걷기·달리기 전환과 인카운트 전환에 쓰이고, 모드 기능은 모드 모드로 옮겨집니다. 끄면 오른쪽 스틱 누르기로 경로 탐색 필터를, 왼쪽 스틱 누르기로 오디오 비콘을 전환합니다.", "zht": "開啟時，按壓搖桿會交給遊戲切換步行或奔跑與遇敵，Mod功能則移至Mod模式。關閉時，按壓右搖桿切換尋路篩選器，按壓左搖桿切換音訊信標。",
+    "zhc": "开启时，按压摇杆会交给游戏切换步行或奔跑与遇敌，Mod功能则移至Mod模式。关闭时，按压右摇杆切换寻路筛选器，按压左摇杆切换音频信标。", "ru": "Когда включено, нажатия стиков передаются игре (ходьба или бег и случайные бои), а функции мода переходят в режим мода. Когда выключено, нажатие правого стика переключает фильтр поиска пути, а левого — звуковые маяки.", "th": "เมื่อเปิด การกดสติ๊กจะส่งให้เกมใช้สลับเดินหรือวิ่งและการเผชิญหน้า และฟังก์ชันของม็อดจะย้ายไปอยู่ในโหมดม็อด เมื่อปิด การกดสติ๊กขวาจะสลับตัวกรองการค้นหาเส้นทาง และการกดสติ๊กซ้ายจะสลับสัญญาณเสียง", "pt": "Quando ativado, os cliques dos analógicos vão para o jogo (andar ou correr e encontros) e suas funções do mod passam para o modo mod. Quando desativado, o clique do analógico direito alterna o filtro de busca de caminho e o do esquerdo, os sinais de áudio."
+  },
+  "Plays a ticking sound while experience counts up on the battle results screen.": {
+    "en": "Plays a ticking sound while experience counts up on the battle results screen.", "ja": "戦闘結果画面で経験値が加算されている間、カウント音を鳴らします。", "fr": "Joue un tic-tac pendant que l'expérience s'additionne sur l'écran des résultats de combat.", "it": "Riproduce un ticchettio mentre l'esperienza aumenta nella schermata dei risultati della battaglia.",
+    "de": "Spielt ein Ticken, während die Erfahrung auf dem Kampfergebnis-Bildschirm hochgezählt wird.", "es": "Reproduce un tictac mientras la experiencia se suma en la pantalla de resultados de batalla.", "ko": "전투 결과 화면에서 경험치가 올라가는 동안 카운트 소리를 재생합니다.", "zht": "戰鬥結果畫面累計經驗值時播放計數音效。",
+    "zhc": "战斗结果画面累计经验值时播放计数音效。", "ru": "Воспроизводит тиканье, пока на экране итогов боя начисляется опыт.", "th": "เล่นเสียงนับขณะค่าประสบการณ์เพิ่มขึ้นบนหน้าผลการต่อสู้", "pt": "Toca um tique-taque enquanto a experiência é somada na tela de resultados da batalha."
+  },
+  "Volume of the experience counter ticking.": {
+    "en": "Volume of the experience counter ticking.", "ja": "経験値カウント音の音量です。", "fr": "Volume du tic-tac du compteur d'expérience.", "it": "Volume del ticchettio del contatore di esperienza.",
+    "de": "Lautstärke des Tickens beim Erfahrungszähler.", "es": "Volumen del tictac del contador de experiencia.", "ko": "경험치 카운트 소리의 음량입니다.", "zht": "經驗值計數音效的音量。",
+    "zhc": "经验值计数音效的音量。", "ru": "Громкость тиканья счётчика опыта.", "th": "ระดับเสียงนับค่าประสบการณ์", "pt": "Volume do tique-taque do contador de experiência."
+  },
+  "How enemy HP is read when you target an enemy: as numbers, as a percentage, or not at all.": {
+    "en": "How enemy HP is read when you target an enemy: as numbers, as a percentage, or not at all.", "ja": "敵を選んだときのHPの読み上げ方法です。数値、パーセント、または読み上げなしから選べます。", "fr": "Façon dont les PV ennemis sont lus quand vous ciblez un ennemi : en nombres, en pourcentage ou pas du tout.", "it": "Come vengono letti gli HP del nemico quando lo prendi di mira: in numeri, in percentuale o per niente.",
+    "de": "Wie die HP eines Gegners beim Anvisieren vorgelesen werden: als Zahlen, als Prozentsatz oder gar nicht.", "es": "Cómo se leen los HP del enemigo al seleccionarlo: en números, en porcentaje o nada.", "ko": "적을 선택했을 때 HP를 읽는 방식입니다. 숫자, 퍼센트, 또는 읽지 않음 중에서 고릅니다.", "zht": "選擇敵人時朗讀其HP的方式：數值、百分比或不朗讀。",
+    "zhc": "选择敌人时朗读其HP的方式：数值、百分比或不朗读。", "ru": "Как зачитывается HP врага при выборе цели: числами, в процентах или никак.", "th": "วิธีอ่าน HP ของศัตรูเมื่อเลือกเป้าหมาย: เป็นตัวเลข เป็นเปอร์เซ็นต์ หรือไม่อ่านเลย", "pt": "Como o HP do inimigo é lido ao selecioná-lo: em números, em porcentagem ou não é lido."
+  },
+  "Adds a letter such as A or B to enemies that share a name, so you can tell them apart.": {
+    "en": "Adds a letter such as A or B to enemies that share a name, so you can tell them apart.", "ja": "同じ名前の敵にAやBなどの記号を付けて、見分けられるようにします。", "fr": "Ajoute une lettre comme A ou B aux ennemis portant le même nom, pour les distinguer.", "it": "Aggiunge una lettera come A o B ai nemici con lo stesso nome, per distinguerli.",
+    "de": "Hängt Gegnern mit gleichem Namen einen Buchstaben wie A oder B an, damit du sie unterscheiden kannst.", "es": "Añade una letra como A o B a los enemigos que comparten nombre para distinguirlos.", "ko": "이름이 같은 적에게 A, B 같은 문자를 붙여 구별할 수 있게 합니다.", "zht": "為同名的敵人加上A或B等字母，方便區分。",
+    "zhc": "为同名的敌人加上A或B等字母，方便区分。", "ru": "Добавляет букву, например A или B, врагам с одинаковыми именами, чтобы их различать.", "th": "เพิ่มตัวอักษร เช่น A หรือ B ให้ศัตรูที่มีชื่อเดียวกัน เพื่อให้แยกแยะได้", "pt": "Adiciona uma letra como A ou B a inimigos com o mesmo nome, para diferenciá-los."
+  },
+  "For attacks that hit several times, reads the total damage alone or together with the number of hits.": {
+    "en": "For attacks that hit several times, reads the total damage alone or together with the number of hits.", "ja": "複数回ヒットする攻撃で、合計ダメージのみを読み上げるか、ヒット数も合わせて読み上げるかを選びます。", "fr": "Pour les attaques à plusieurs coups, lit le total des dégâts seul ou accompagné du nombre de coups.", "it": "Per gli attacchi a più colpi, legge solo il danno totale o insieme al numero di colpi.",
+    "de": "Liest bei Mehrfachtreffern nur den Gesamtschaden oder zusammen mit der Trefferzahl vor.", "es": "En ataques de varios golpes, lee solo el daño total o junto con el número de golpes.", "ko": "여러 번 맞히는 공격에서 합계 대미지만 읽을지, 히트 수와 함께 읽을지 정합니다.", "zht": "對多段攻擊，只朗讀總傷害，或連同命中次數一起朗讀。",
+    "zhc": "对多段攻击，只朗读总伤害，或连同命中次数一起朗读。", "ru": "Для многоударных атак зачитывает только общий урон или вместе с числом ударов.", "th": "สำหรับการโจมตีหลายครั้ง จะอ่านเฉพาะความเสียหายรวม หรืออ่านพร้อมจำนวนครั้งที่โจมตี", "pt": "Em ataques de vários golpes, lê apenas o dano total ou junto com o número de golpes."
+  },
+  "Closes the mod menu and returns to the game.": {
+    "en": "Closes the mod menu and returns to the game.", "ja": "Modメニューを閉じてゲームに戻ります。", "fr": "Ferme le menu mod et revient au jeu.", "it": "Chiude il menu mod e torna al gioco.",
+    "de": "Schließt das Mod-Menü und kehrt zum Spiel zurück.", "es": "Cierra el menú de mod y vuelve al juego.", "ko": "모드 메뉴를 닫고 게임으로 돌아갑니다.", "zht": "關閉Mod選單並返回遊戲。",
+    "zhc": "关闭Mod菜单并返回游戏。", "ru": "Закрывает меню мода и возвращает в игру.", "th": "ปิดเมนูม็อดและกลับไปที่เกม", "pt": "Fecha o menu do mod e volta ao jogo."
   }
 }

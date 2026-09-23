@@ -147,6 +147,9 @@ namespace FFV_ScreenReader.Core
             // Config menu: title-screen Language dropdown focus + keyboard/gamepad remap assign-flow.
             ConfigMenuPatches.ApplyPatches(harmony);
 
+            // The game's own F1 walk/run and F3 encounter toggles, from any input source.
+            GameTogglePatches.ApplyPatches(harmony);
+
             TryPatchEntityInteractions(harmony);
 
             // SDL controller passthrough — postfix InputSystemManager.GetKeyDown/GetKey/...
@@ -220,6 +223,13 @@ namespace FFV_ScreenReader.Core
         public void ForceEntityRescan()
         {
             entityCache?.ForceScan();
+        }
+
+        /// <summary>Backtick: the player-requested rescan, with spoken confirmation.</summary>
+        internal void ManualEntityRescan()
+        {
+            ForceEntityRescan();
+            SpeakText(T("Entity scan complete"));
         }
 
         /// <summary>
@@ -419,41 +429,62 @@ namespace FFV_ScreenReader.Core
             }
         }
 
+        /// <summary>
+        /// Backslash / P (and controller LT): re-target the beacon when beacons are on, otherwise
+        /// speak the path to the current entity.
+        /// </summary>
+        internal void AnnounceOrRestartBeacon()
+        {
+            NavigationTargetTracker.MarkEntity();
+            if (PreferencesManager.AudioBeaconsEnabled) RestartEntityBeacon();
+            else AnnounceCurrentEntity();
+        }
+
         internal void AnnounceEntityOnly()
         {
             try
             {
-                if (!TryGetEntityContext(out var entity, out var pathInfo, out var playerController))
-                    return;
-
-                Vector3 playerPos = playerController.fieldPlayer.transform.position;
-                string formatted = entity.FormatDescription(playerPos);
-
-                // If player is on the entity's tile, replace distance/direction with "here"
-                float distance = Vector3.Distance(playerPos, entity.Position);
-                if (distance / 16f < 0.1f)
-                {
-                    int parenEnd = formatted.LastIndexOf(')');
-                    int parenStart = parenEnd >= 0 ? formatted.LastIndexOf('(', parenEnd) : -1;
-                    if (parenStart >= 0 && parenEnd > parenStart)
-                    {
-                        formatted = formatted.Substring(0, parenStart + 1) + T("here") + formatted.Substring(parenEnd);
-                    }
-                }
-
-                // Count what the player can actually cycle to, not what exists. With the
-                // pathfinding filter on, a 20-entity map with 4 reachable reads "1 of 4" and
-                // the index tracks the cycling order. With no cycle-time filter enabled these
-                // are the plain list values, so the unfiltered wording is unchanged.
-                string countSuffix = $", {entityNavigator.FilteredIndex + 1} {T("of")} {entityNavigator.FilteredCount}";
-
-                string announcement = pathInfo.Success ? $"{formatted}{countSuffix}" : $"{formatted}, {T("no path")}{countSuffix}";
-                SpeakText(announcement);
+                string announcement = FormatCurrentEntity();
+                if (announcement != null)
+                    SpeakText(announcement);
             }
             catch (System.Exception ex)
             {
                 LoggerInstance.Warning($"Error in AnnounceEntityOnly: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// "Name (distance direction), N of M" for the selected entity — the cycling announcement.
+        /// Returns null when there is nothing to announce (TryGetEntityContext has spoken why).
+        /// </summary>
+        private string FormatCurrentEntity()
+        {
+            if (!TryGetEntityContext(out var entity, out var pathInfo, out var playerController))
+                return null;
+
+            Vector3 playerPos = playerController.fieldPlayer.transform.position;
+            string formatted = entity.FormatDescription(playerPos);
+
+            // If player is on the entity's tile, replace distance/direction with "here"
+            float distance = Vector3.Distance(playerPos, entity.Position);
+            if (distance / 16f < 0.1f)
+            {
+                int parenEnd = formatted.LastIndexOf(')');
+                int parenStart = parenEnd >= 0 ? formatted.LastIndexOf('(', parenEnd) : -1;
+                if (parenStart >= 0 && parenEnd > parenStart)
+                {
+                    formatted = formatted.Substring(0, parenStart + 1) + T("here") + formatted.Substring(parenEnd);
+                }
+            }
+
+            // Count what the player can actually cycle to, not what exists. With the
+            // pathfinding filter on, a 20-entity map with 4 reachable reads "1 of 4" and
+            // the index tracks the cycling order. With no cycle-time filter enabled these
+            // are the plain list values, so the unfiltered wording is unchanged.
+            string countSuffix = $", {entityNavigator.FilteredIndex + 1} {T("of")} {entityNavigator.FilteredCount}";
+
+            return pathInfo.Success ? $"{formatted}{countSuffix}" : $"{formatted}, {T("no path")}{countSuffix}";
         }
 
         internal void CycleNextCategory()
@@ -531,43 +562,87 @@ namespace FFV_ScreenReader.Core
             SpeakText(string.Format(T("Layer transition filter {0}"), status));
         }
 
+        /// <summary>
+        /// Shift+K: jump back to the All category.
+        /// </summary>
+        internal void ResetToAllCategory()
+        {
+            if (entityNavigator.Category == EntityCategory.All)
+            {
+                SpeakText(T("Already in All category"));
+                return;
+            }
+
+            entityNavigator.SetCategory(EntityCategory.All);
+            NavigationTargetTracker.MarkEntity();
+            AnnounceCategoryChange();
+        }
+
+        /// <summary>
+        /// "Category: X, first entity" — lands on the nearest entity the player can cycle to and
+        /// announces it exactly as cycling would, with the same filtered "N of M". A category with
+        /// nothing reachable announces its name alone.
+        /// </summary>
         private void AnnounceCategoryChange()
         {
-            string categoryName = EntityNavigator.GetCategoryName(entityNavigator.Category);
-            int entityCount = entityNavigator.EntityCount;
+            string categoryText = string.Format(T("Category: {0}"), EntityNavigator.GetCategoryName(entityNavigator.Category));
 
-            string announcement = string.Format(T("Category: {0}, {1} {2}"), categoryName, entityCount, entityCount == 1 ? T("entity") : T("entities"));
-            SpeakText(announcement);
+            try
+            {
+                if (entityNavigator.SelectFirst())
+                {
+                    string entityText = FormatCurrentEntity();
+                    if (entityText != null)
+                    {
+                        SpeakText($"{categoryText}, {entityText}");
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerInstance.Warning($"Error announcing category entity: {ex.Message}");
+            }
+
+            SpeakText(categoryText);
         }
 
         internal void TeleportInDirection(Vector2 offset)
         {
-            var entity = entityNavigator.CurrentEntity;
-            if (entity == null)
+            try
             {
-                SpeakText(T("No entity selected"));
-                return;
-            }
+                var entity = entityNavigator.CurrentEntity;
+                if (entity == null)
+                {
+                    SpeakText(T("No entity selected"));
+                    return;
+                }
 
-            var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
-            if (playerController?.fieldPlayer == null)
+                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+                if (playerController?.fieldPlayer == null)
+                {
+                    SpeakText(T("Player not available"));
+                    return;
+                }
+
+                var player = playerController.fieldPlayer;
+
+                Vector3 targetPos = entity.Position;
+                Vector3 newPos = new Vector3(targetPos.x + offset.x, targetPos.y + offset.y, targetPos.z);
+
+                player.transform.localPosition = newPos;
+
+                string direction = GetDirectionName(offset);
+                string name = (entity is MapExitEntity || entity is TreasureChestEntity || entity is GroupEntity)
+                    ? entity.DisplayName : entity.Name;
+                SpeakText(string.Format(T("Teleported {0} of {1}"), direction, name));
+                LoggerInstance.Msg($"Teleported {direction} of {name} to position {newPos}");
+            }
+            catch (Exception ex)
             {
-                SpeakText(T("Player not available"));
-                return;
+                LoggerInstance.Warning($"Error teleporting: {ex.Message}");
+                SpeakText(T("Teleport failed"));
             }
-
-            var player = playerController.fieldPlayer;
-
-            Vector3 targetPos = entity.Position;
-            Vector3 newPos = new Vector3(targetPos.x + offset.x, targetPos.y + offset.y, targetPos.z);
-
-            player.transform.localPosition = newPos;
-
-            string direction = GetDirectionName(offset);
-            string name = (entity is MapExitEntity || entity is TreasureChestEntity || entity is GroupEntity)
-                ? entity.DisplayName : entity.Name;
-            SpeakText(string.Format(T("Teleported {0} of {1}"), direction, name));
-            LoggerInstance.Msg($"Teleported {direction} of {name} to position {newPos}");
         }
 
         private string GetDirectionName(Vector2 offset)
@@ -669,12 +744,13 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
-        /// Speak text through the screen reader.
+        /// Speak text through the screen reader. Rich-text tags (color, size, icon markup) are
+        /// stripped centrally so no reader can leak "&lt;color=...&gt;" into speech.
         /// Thread-safe: TolkWrapper uses locking to prevent concurrent native calls.
         /// </summary>
         public static void SpeakText(string text, bool interrupt = true)
         {
-            tolk?.Speak(text, interrupt);
+            tolk?.Speak(TextUtils.StripRichTextTags(text), interrupt);
         }
 
         /// <summary>

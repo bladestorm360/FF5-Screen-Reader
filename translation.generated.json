@@ -8193,43 +8193,43 @@
     "de": "Adamantit",
     "en": "Adamantite",
     "es": "Adamantita",
-    "fr": "Adamantite",
+    "fr": "Adamantine",
     "it": "Adamantite",
     "ja": "アダマンタイト",
     "ko": "아다만타이트",
     "pt": "Adamantita",
     "ru": "Адамантит",
-    "th": "อดาแมนไทต์",
+    "th": "อะดาแมนไทท์",
     "zhc": "精金",
-    "zht": "精金"
+    "zht": "堅鋼石"
   },
   "アパンダ": {
     "de": "Apanda",
     "en": "Apanda",
-    "es": "Apanda",
+    "es": "Appanda",
     "fr": "Apanda",
     "it": "Apanda",
     "ja": "アパンダ",
     "ko": "아판다",
     "pt": "Apanda",
     "ru": "Апанда",
-    "th": "อาแพนด้า",
-    "zhc": "阿庞达",
-    "zht": "阿龐達"
+    "th": "อะพันด้า",
+    "zhc": "阿班达",
+    "zht": "阿班達"
   },
   "アポカリョープス": {
-    "de": "Azulmagia",
+    "de": "Apokalyp",
     "en": "Azulmagia",
-    "es": "Azulmagia",
+    "es": "Apocalipso",
     "fr": "Azulmagia",
     "it": "Azulmagia",
     "ja": "アポカリョープス",
-    "ko": "아줄마지아",
-    "pt": "Azulmagia",
-    "ru": "Азульмагия",
-    "th": "อาซูลมาเจีย",
-    "zhc": "阿祖玛吉亚",
-    "zht": "阿祖瑪吉亞"
+    "ko": "아포칼리옵스",
+    "pt": "Apocalipse",
+    "ru": "Азулмагий",
+    "th": "อาซุลมาเกีย",
+    "zhc": "启示者",
+    "zht": "啟示者"
   },
   "アポロンのハープ（絵）": {
     "de": "Apollos Harfe (Bild)",
@@ -8246,18 +8246,18 @@
     "zht": "阿波羅之豎琴（圖）"
   },
   "アルケオエイビス": {
-    "de": "Archeoavis",
-    "en": "Archeoavis",
-    "es": "Archeoavis",
-    "fr": "Archeoavis",
-    "it": "Archeoavis",
+    "de": "Archaeo-Avis",
+    "en": "Archeoaevis",
+    "es": "Arqueoevis",
+    "fr": "Archéoeibis",
+    "it": "Archeoaevis",
     "ja": "アルケオエイビス",
-    "ko": "아케오에이비스",
-    "pt": "Archeoavis",
+    "ko": "아르키오 에이비스",
+    "pt": "Arqueoavis",
     "ru": "Археоавис",
-    "th": "อาร์เคียวเอวิส",
-    "zhc": "始祖鸟",
-    "zht": "始祖鳥"
+    "th": "อาคิโอแอวีส",
+    "zhc": "太古怪鸟",
+    "zht": "太古怪鳥"
   },
   "アントリオン右": {
     "de": "Ameisenlöwe (rechts)",
@@ -8462,40 +8462,40 @@
     "fr": "Loup-garou",
     "it": "Lupo mannaro",
     "ja": "ウェアウルフ",
-    "ko": "늑대인간",
+    "ko": "웨어 울프",
     "pt": "Lobisomem",
-    "ru": "Оборотень",
+    "ru": "Волк-оборотень",
     "th": "มนุษย์หมาป่า",
-    "zhc": "狼人",
-    "zht": "狼人"
+    "zhc": "人狼",
+    "zht": "人狼"
   },
   "ウォルスの塔": {
-    "de": "Walse-Turm",
-    "en": "Walse Tower",
+    "de": "Turm von Walse",
+    "en": "Tower of Walse",
     "es": "Torre de Walse",
-    "fr": "Tour de Walse",
-    "it": "Torre di Walse",
+    "fr": "Tour de Wolse",
+    "it": "Torre di Walz",
     "ja": "ウォルスの塔",
-    "ko": "월스의 탑",
+    "ko": "월스 탑",
     "pt": "Torre de Walse",
-    "ru": "Башня Уолса",
+    "ru": "Башня Вольса",
     "th": "หอคอยวอลส์",
-    "zhc": "沃尔斯之塔",
-    "zht": "沃爾斯之塔"
+    "zhc": "沃尔斯塔",
+    "zht": "沃爾斯塔"
   },
   "ウォルスの隕石": {
     "de": "Walse-Meteorit",
     "en": "Walse Meteorite",
     "es": "Meteorito de Walse",
-    "fr": "Météorite de Walse",
-    "it": "Meteorite di Walse",
+    "fr": "Aérolithe de Wolse",
+    "it": "Meteorite di Walz",
     "ja": "ウォルスの隕石",
-    "ko": "월스의 운석",
+    "ko": "월스 운석",
     "pt": "Meteorito de Walse",
-    "ru": "Метеорит Уолса",
-    "th": "อุกกาบาตวอลส์",
-    "zhc": "沃尔斯的陨石",
-    "zht": "沃爾斯的隕石"
+    "ru": "Вольский метеорит",
+    "th": "อุกกาบาตของวอลส์",
+    "zhc": "沃尔斯陨石地",
+    "zht": "沃爾斯隕石地"
   },
   "ウォルスの隕石にワープ": {
     "de": "Teleportieren zum Walse-Meteorit",
@@ -8513,14 +8513,14 @@
   },
   "ウォルス城": {
     "de": "Schloss Walse",
-    "en": "Walse Castle",
+    "en": "Castle Walse",
     "es": "Castillo de Walse",
-    "fr": "Château de Walse",
-    "it": "Castello di Walse",
+    "fr": "Château Wolse",
+    "it": "Castello di Walz",
     "ja": "ウォルス城",
-    "ko": "월스 성",
-    "pt": "Castelo de Walse",
-    "ru": "Замок Уолс",
+    "ko": "월스성",
+    "pt": "Castelo Walse",
+    "ru": "Замок Вольс",
     "th": "ปราสาทวอลส์",
     "zhc": "沃尔斯城",
     "zht": "沃爾斯城"
@@ -8540,18 +8540,18 @@
     "zht": "移動到沃爾斯城外"
   },
   "ウォルス王": {
-    "de": "König von Walse",
-    "en": "King of Walse",
-    "es": "Rey de Walse",
-    "fr": "Roi de Walse",
-    "it": "Re di Walse",
+    "de": "König Walse",
+    "en": "King Walse",
+    "es": "Rey Walse",
+    "fr": "Roi de Wolse",
+    "it": "Re Walz",
     "ja": "ウォルス王",
     "ko": "월스 왕",
-    "pt": "Rei de Walse",
-    "ru": "Король Уолса",
-    "th": "กษัตริย์วอลส์",
-    "zhc": "沃尔斯国王",
-    "zht": "沃爾斯國王"
+    "pt": "Rei Walse",
+    "ru": "Король Вольс",
+    "th": "พระราชาวอลส์",
+    "zhc": "沃尔斯王",
+    "zht": "沃爾斯王"
   },
   "エクスカリバー（絵）": {
     "de": "Excalibur (Bild)",
@@ -8576,9 +8576,9 @@
     "ja": "エクスデス",
     "ko": "엑스데스",
     "pt": "Exdeath",
-    "ru": "Иксдэт",
+    "ru": "Эксодес",
     "th": "เอ็กซ์เดธ",
-    "zhc": "艾克斯迪斯",
+    "zhc": "艾克斯迪司",
     "zht": "艾克斯迪司"
   },
   "エクスデス1": {
@@ -8708,17 +8708,17 @@
     "zht": "艾克斯迪司的臉"
   },
   "エクスデス城": {
-    "de": "Exdeaths Schloss",
-    "en": "Exdeath's Castle",
+    "de": "Schloss Exdeath",
+    "en": "Castle Exdeath",
     "es": "Castillo de Exdeath",
-    "fr": "Château d'Exdeath",
+    "fr": "Château Exdeath",
     "it": "Castello di Exdeath",
     "ja": "エクスデス城",
-    "ko": "엑스데스 성",
-    "pt": "Castelo de Exdeath",
-    "ru": "Замок Иксдэта",
+    "ko": "엑스데스성",
+    "pt": "Castelo do Exdeath",
+    "ru": "Замок Эксодеса",
     "th": "ปราสาทเอ็กซ์เดธ",
-    "zhc": "艾克斯迪斯城",
+    "zhc": "艾克斯迪司城",
     "zht": "艾克斯迪司城"
   },
   "エクスデス城を守るバリア": {
@@ -8988,7 +8988,7 @@
     "zht": "上鎖了"
   },
   "カタストロフィー": {
-    "de": "Katastrophe",
+    "de": "Katastroph",
     "en": "Catastrophe",
     "es": "Catástrofe",
     "fr": "Catastrophe",
@@ -8997,9 +8997,9 @@
     "ko": "카타스트로피",
     "pt": "Catástrofe",
     "ru": "Катастрофа",
-    "th": "มหันตภัย",
-    "zhc": "大灾变",
-    "zht": "大災變"
+    "th": "คาทัสโตรฟี่",
+    "zhc": "灾变者",
+    "zht": "災變者"
   },
   "カタパルトObject": {
     "de": "Katapult-Objekt",
@@ -9103,29 +9103,29 @@
     "de": "Karnak-Meteorit",
     "en": "Karnak Meteorite",
     "es": "Meteorito de Karnak",
-    "fr": "Météorite de Karnak",
+    "fr": "Aérolithe de Karnak",
     "it": "Meteorite di Karnak",
     "ja": "カルナックの隕石",
-    "ko": "카르나크의 운석",
+    "ko": "카르낙 운석",
     "pt": "Meteorito de Karnak",
-    "ru": "Метеорит Карнака",
-    "th": "อุกกาบาตคาร์แนก",
-    "zhc": "卡尔纳克的陨石",
-    "zht": "卡爾納克的隕石"
+    "ru": "Карнакский метеорит",
+    "th": "อุกกาบาตของคาร์นัก",
+    "zhc": "卡纳克陨石地",
+    "zht": "卡納克隕石地"
   },
   "カルナック城": {
     "de": "Schloss Karnak",
     "en": "Karnak Castle",
     "es": "Castillo de Karnak",
-    "fr": "Château de Karnak",
+    "fr": "Château Karnak",
     "it": "Castello di Karnak",
     "ja": "カルナック城",
-    "ko": "카르나크 성",
-    "pt": "Castelo de Karnak",
+    "ko": "카르낙성",
+    "pt": "Castelo Karnak",
     "ru": "Замок Карнак",
-    "th": "ปราสาทคาร์แนก",
-    "zhc": "卡尔纳克城",
-    "zht": "卡爾納克城"
+    "th": "ปราสาทคาร์นัก",
+    "zhc": "卡纳克城",
+    "zht": "卡納克城"
   },
   "カルナック城跡": {
     "de": "Ruinen von Schloss Karnak",
@@ -9165,23 +9165,23 @@
     "ko": "칼로피스테리",
     "pt": "Calofisteri",
     "ru": "Калофистери",
-    "th": "คาโลฟิสเตอรี",
-    "zhc": "卡洛菲斯特里",
-    "zht": "卡洛菲斯特里"
+    "th": "คาโลฟิสเทรี่",
+    "zhc": "卡洛菲斯提莉",
+    "zht": "卡洛菲斯提莉"
   },
   "カーバンクル": {
     "de": "Karfunkel",
     "en": "Carbuncle",
-    "es": "Carbunclo",
+    "es": "Rubí",
     "fr": "Carbuncle",
-    "it": "Carbonchio",
+    "it": "Carbuncle",
     "ja": "カーバンクル",
     "ko": "카벙클",
-    "pt": "Carbúnculo",
-    "ru": "Карбункл",
+    "pt": "Carbuncle",
+    "ru": "Карбункул",
     "th": "คาร์บังเคิล",
-    "zhc": "卡邦克尔",
-    "zht": "卡邦克爾"
+    "zhc": "红宝石兽",
+    "zht": "卡邦庫爾"
   },
   "カーラボスと戦闘": {
     "de": "Kampf gegen Karlabos",
@@ -9207,7 +9207,7 @@
     "ko": "가라프",
     "pt": "Galuf",
     "ru": "Галуф",
-    "th": "กาลุฟ",
+    "th": "กาลัฟ",
     "zhc": "加拉夫",
     "zht": "加拉夫"
   },
@@ -9249,9 +9249,9 @@
     "ko": "가루라",
     "pt": "Garula",
     "ru": "Гарула",
-    "th": "การูล่า",
-    "zhc": "加尔拉",
-    "zht": "加爾拉"
+    "th": "การูลา",
+    "zhc": "加鲁拉",
+    "zht": "加魯拉"
   },
   "ガーゴイル像": {
     "de": "Wasserspeierstatue",
@@ -9540,12 +9540,12 @@
     "fr": "Gilgamesh",
     "it": "Gilgamesh",
     "ja": "ギルガメッシュ",
-    "ko": "길가메쉬",
+    "ko": "길가메시",
     "pt": "Gilgamesh",
     "ru": "Гильгамеш",
     "th": "กิลกาเมช",
     "zhc": "吉尔伽美什",
-    "zht": "吉爾伽美修"
+    "zht": "吉爾伽美什"
   },
   "ギード": {
     "de": "Ghido",
@@ -9557,9 +9557,9 @@
     "ko": "기드",
     "pt": "Ghido",
     "ru": "Гидо",
-    "th": "กิโด",
-    "zhc": "基德",
-    "zht": "基德"
+    "th": "กิโด้",
+    "zhc": "吉多",
+    "zht": "吉多"
   },
   "ギード1": {
     "de": "Ghido 1",
@@ -9652,7 +9652,7 @@
     "fr": "Cristal",
     "it": "Cristallo",
     "ja": "クリスタル",
-    "ko": "크리스탈",
+    "ko": "크리스털",
     "pt": "Cristal",
     "ru": "Кристалл",
     "th": "คริสตัล",
@@ -10055,15 +10055,15 @@
     "de": "Kristallraum",
     "en": "Crystal Room",
     "es": "Sala del cristal",
-    "fr": "Salle de cristal",
+    "fr": "salle du cristal",
     "it": "Sala del cristallo",
     "ja": "クリスタルルーム",
-    "ko": "크리스탈 방",
+    "ko": "크리스털 룸",
     "pt": "Sala do Cristal",
     "ru": "Зал кристалла",
     "th": "ห้องคริสตัล",
-    "zhc": "水晶室",
-    "zht": "水晶室"
+    "zhc": "水晶之间",
+    "zht": "水晶之間"
   },
   "クルル": {
     "de": "Krile",
@@ -10072,12 +10072,12 @@
     "fr": "Krile",
     "it": "Krile",
     "ja": "クルル",
-    "ko": "크루루",
+    "ko": "쿠루루",
     "pt": "Krile",
-    "ru": "Крайл",
-    "th": "ไครล์",
-    "zhc": "库露露",
-    "zht": "庫露露"
+    "ru": "Крил",
+    "th": "คริล",
+    "zhc": "可露儿",
+    "zht": "可露兒"
   },
   "クルル:ev_e_0121": {
     "de": "Krile: ev_e_0121",
@@ -10192,32 +10192,32 @@
     "zht": "庫露露: ev_e_0096"
   },
   "クレセントの町": {
-    "de": "Stadt Crescent",
-    "en": "Crescent Town",
-    "es": "Ciudad de Crescent",
-    "fr": "Ville de Crescent",
-    "it": "Città di Crescent",
+    "de": "Crescent",
+    "en": "Crescent",
+    "es": "Creciente",
+    "fr": "Lunule",
+    "it": "Crescente",
     "ja": "クレセントの町",
-    "ko": "크레센트 마을",
-    "pt": "Cidade de Crescent",
-    "ru": "Город Кресент",
-    "th": "เมืองเครสเซนต์",
-    "zhc": "克雷森特镇",
-    "zht": "克雷森特鎮"
+    "ko": "크레센트",
+    "pt": "Crescente",
+    "ru": "Деревня Полумесяца",
+    "th": "จันทร์เสี้ยว",
+    "zhc": "新月镇",
+    "zht": "新月鎮"
   },
   "ケルガー": {
     "de": "Kelger",
     "en": "Kelger",
     "es": "Kelger",
-    "fr": "Kelger",
+    "fr": "Kelgar",
     "it": "Kelger",
     "ja": "ケルガー",
-    "ko": "켈가",
+    "ko": "켈거",
     "pt": "Kelger",
     "ru": "Келгер",
     "th": "เคลเกอร์",
-    "zhc": "凯尔格",
-    "zht": "凱爾格"
+    "zhc": "凯尔加",
+    "zht": "凱爾加"
   },
   "ケルガーと一対一": {
     "de": "Eins gegen eins mit Kelger",
@@ -10257,7 +10257,7 @@
     "ko": "코코",
     "pt": "Koko",
     "ru": "Коко",
-    "th": "โคโค่",
+    "th": "โคโคะ",
     "zhc": "可可",
     "zht": "可可"
   },
@@ -11091,15 +11091,15 @@
     "de": "Sarisa",
     "en": "Sarisa",
     "es": "Sarisa",
-    "fr": "Sarisa",
+    "fr": "Sarissa",
     "it": "Sarisa",
     "ja": "サリサ",
     "ko": "사리사",
     "pt": "Sarisa",
     "ru": "Сариса",
-    "th": "ซาริซา",
-    "zhc": "莎丽莎",
-    "zht": "莎麗莎"
+    "th": "ซาริซ่า",
+    "zhc": "莎莉萨",
+    "zht": "莎莉薩"
   },
   "サンドウォームと戦闘": {
     "de": "Kampf gegen den Sandwurm",
@@ -11203,15 +11203,15 @@
     "de": "Schloss Surgate",
     "en": "Surgate Castle",
     "es": "Castillo de Surgate",
-    "fr": "Château de Surgate",
+    "fr": "Château Surgate",
     "it": "Castello di Surgate",
     "ja": "サーゲイト城",
-    "ko": "서게이트 성",
+    "ko": "서게이트성",
     "pt": "Castelo de Surgate",
     "ru": "Замок Сургейт",
     "th": "ปราสาทเซอร์เกต",
-    "zhc": "瑟盖特城",
-    "zht": "瑟蓋特城"
+    "zhc": "萨盖特城",
+    "zht": "薩蓋特城"
   },
   "サ行": {
     "de": "Abschnitt „S“",
@@ -11238,7 +11238,7 @@
     "pt": "Cid",
     "ru": "Сид",
     "th": "ซิด",
-    "zhc": "希德",
+    "zhc": "西德",
     "zht": "希德"
   },
   "シド1": {
@@ -11335,9 +11335,9 @@
     "ko": "실드라",
     "pt": "Syldra",
     "ru": "Сильдра",
-    "th": "ซิลดรา",
-    "zhc": "希尔多拉",
-    "zht": "希爾多拉"
+    "th": "ซิลดร้า",
+    "zhc": "希尔德拉",
+    "zht": "希爾德拉"
   },
   "シルドラ（体）": {
     "de": "Syldra (Körper)",
@@ -11357,7 +11357,7 @@
     "de": "Jenica",
     "en": "Jenica",
     "es": "Jenica",
-    "fr": "Jenica",
+    "fr": "Jénica",
     "it": "Jenica",
     "ja": "ジェニカ",
     "ko": "제니카",
@@ -11419,37 +11419,37 @@
     "ko": "스텔라",
     "pt": "Stella",
     "ru": "Стелла",
-    "th": "สเตลล่า",
+    "th": "สเตลลา",
     "zhc": "史黛拉",
     "zht": "史黛拉"
   },
   "ストーカー": {
-    "de": "Verfolger",
-    "en": "Stalker",
-    "es": "Acosador",
-    "fr": "Rôdeur",
-    "it": "Pedinatore",
+    "de": "Wendigo",
+    "en": "Wendigo",
+    "es": "Wendigo",
+    "fr": "Wendigo",
+    "it": "Wendigo",
     "ja": "ストーカー",
     "ko": "스토커",
-    "pt": "Perseguidor",
-    "ru": "Преследователь",
-    "th": "ผู้สะกดรอย",
-    "zhc": "跟踪者",
-    "zht": "跟蹤者"
+    "pt": "Wendigo",
+    "ru": "Вендиго",
+    "th": "เว็นดิโก้",
+    "zhc": "追踪怪",
+    "zht": "追蹤怪"
   },
   "セイレーン": {
     "de": "Sirene",
     "en": "Siren",
     "es": "Sirena",
     "fr": "Sirène",
-    "it": "Sirena",
+    "it": "Siren",
     "ja": "セイレーン",
     "ko": "세이렌",
-    "pt": "Sereia",
+    "pt": "Siren",
     "ru": "Сирена",
     "th": "ไซเรน",
     "zhc": "塞壬",
-    "zht": "賽蓮"
+    "zht": "塞壬"
   },
   "ゼザ": {
     "de": "Xezat",
@@ -11458,12 +11458,12 @@
     "fr": "Xezat",
     "it": "Xezat",
     "ja": "ゼザ",
-    "ko": "제자트",
+    "ko": "제자",
     "pt": "Xezat",
     "ru": "Зезат",
     "th": "เซซัต",
-    "zhc": "杰扎特",
-    "zht": "傑扎特"
+    "zhc": "泽扎",
+    "zht": "澤扎"
   },
   "ゼザ『sc_e_0109:敵襲撃2』": {
     "de": "Xezat [sc_e_0109: Feindangriff 2]",
@@ -11559,7 +11559,7 @@
     "ko": "조크",
     "pt": "Zok",
     "ru": "Зок",
-    "th": "โซค",
+    "th": "ซ็อค",
     "zhc": "佐克",
     "zht": "佐克"
   },
@@ -11592,32 +11592,32 @@
     "zht": "佐克不在"
   },
   "タイクーンの隕石": {
-    "de": "Tycoon-Meteor",
-    "en": "Tycoon's Meteor",
+    "de": "Tycoon-Meteorit",
+    "en": "Tycoon Meteorite",
     "es": "Meteorito de Tycoon",
-    "fr": "Météore de Tycoon",
+    "fr": "Aérolithe de Tycoon",
     "it": "Meteorite di Tycoon",
     "ja": "タイクーンの隕石",
-    "ko": "타이쿤의 운석",
-    "pt": "Meteoro de Tycoon",
-    "ru": "Метеорит Тайкуна",
-    "th": "อุกกาบาตทิคูน",
-    "zhc": "泰坎的陨石",
-    "zht": "泰坎的隕石"
+    "ko": "타이쿤 운석",
+    "pt": "Meteorito de Tycoon",
+    "ru": "Тайкунский метеорит",
+    "th": "อุกกาบาตของไทคูน",
+    "zhc": "泰空陨石地",
+    "zht": "泰空隕石地"
   },
   "タイクーン城": {
     "de": "Schloss Tycoon",
-    "en": "Tycoon Castle",
+    "en": "Castle Tycoon",
     "es": "Castillo de Tycoon",
-    "fr": "Château de Tycoon",
+    "fr": "Château Tycoon",
     "it": "Castello di Tycoon",
     "ja": "タイクーン城",
-    "ko": "타이쿤 성",
-    "pt": "Castelo de Tycoon",
+    "ko": "타이쿤성",
+    "pt": "Castelo Tycoon",
     "ru": "Замок Тайкун",
-    "th": "ปราสาททิคูน",
-    "zhc": "泰坎城",
-    "zht": "泰坎城"
+    "th": "ปราสาทไทคูน",
+    "zhc": "泰空城",
+    "zht": "泰空城"
   },
   "タイクーン城の飛竜(体)": {
     "de": "Wyvern von Schloss Tycoon (Körper)",
@@ -11651,15 +11651,15 @@
     "de": "König Tycoon",
     "en": "King Tycoon",
     "es": "Rey Tycoon",
-    "fr": "Roi Tycoon",
+    "fr": "Roi de Tycoon",
     "it": "Re Tycoon",
     "ja": "タイクーン王",
     "ko": "타이쿤 왕",
     "pt": "Rei Tycoon",
     "ru": "Король Тайкун",
-    "th": "กษัตริย์ทิคูน",
-    "zhc": "泰坎王",
-    "zht": "泰坎王"
+    "th": "พระราชาไทคูน",
+    "zhc": "泰空王",
+    "zht": "泰空王"
   },
   "タイクーン王の兜\n": {
     "de": "Helm von König Tycoon",
@@ -11853,7 +11853,7 @@
     "ko": "초코보",
     "pt": "Chocobo",
     "ru": "Чокобо",
-    "th": "โจโกโบ้",
+    "th": "โชโคโบะ",
     "zhc": "陆行鸟",
     "zht": "陸行鳥"
   },
@@ -11942,18 +11942,18 @@
     "zht": "騎著陸行鳥前往海盜巢穴"
   },
   "ツインタニア": {
-    "de": "Twintania",
+    "de": "Duotania",
     "en": "Twintania",
-    "es": "Twintania",
-    "fr": "Twintania",
-    "it": "Twintania",
+    "es": "Geminitán",
+    "fr": "Gémellia",
+    "it": "Geminitania",
     "ja": "ツインタニア",
     "ko": "트윈타니아",
     "pt": "Twintania",
-    "ru": "Твинтания",
+    "ru": "Двоетания",
     "th": "ทวินทาเนีย",
-    "zhc": "特温塔尼亚",
-    "zht": "特溫塔尼亞"
+    "zhc": "双塔尼亚",
+    "zht": "雙塔尼亞"
   },
   "ツタのぼり①": {
     "de": "Ranke hochklettern 1",
@@ -12057,15 +12057,15 @@
     "de": "Triton",
     "en": "Triton",
     "es": "Tritón",
-    "fr": "Triton",
+    "fr": "Tritonien",
     "it": "Tritone",
     "ja": "トライトン",
     "ko": "트리톤",
     "pt": "Tritão",
     "ru": "Тритон",
-    "th": "ไทรทัน",
+    "th": "ตริตอน",
     "zhc": "特里同",
-    "zht": "特里同"
+    "zht": "特裡同"
   },
   "トルナ運河の開錠_右扉": {
     "de": "Torna-Kanal Öffnen - Rechte Tür",
@@ -12118,10 +12118,10 @@
     "ja": "ドルガン",
     "ko": "도르간",
     "pt": "Dorgann",
-    "ru": "Дорган",
-    "th": "ดอร์แกน",
-    "zhc": "多尔根",
-    "zht": "多爾根"
+    "ru": "Дорганн",
+    "th": "ดอร์กันน์",
+    "zhc": "多尔伽恩",
+    "zht": "多爾伽恩"
   },
   "ドワーフ（青）": {
     "de": "Zwerg (Blau)",
@@ -12166,7 +12166,7 @@
     "zht": "內克洛法比亞"
   },
   "ネクロフォビア": {
-    "de": "Necrophobe",
+    "de": "Nekrophobia",
     "en": "Necrophobe",
     "es": "Necrófobo",
     "fr": "Nécrophobe",
@@ -12174,24 +12174,24 @@
     "ja": "ネクロフォビア",
     "ko": "네크로포비아",
     "pt": "Necrófobo",
-    "ru": "Некрофобия",
-    "th": "เนโครโฟเบีย",
-    "zhc": "内克洛佛比亚",
-    "zht": "內克洛佛比亞"
+    "ru": "Некрофоб",
+    "th": "เนโครโพรบ",
+    "zhc": "惧死者",
+    "zht": "懼死者"
   },
   "ネレゲイド": {
-    "de": "Neregeido",
-    "en": "Neregeido",
-    "es": "Neregeido",
-    "fr": "Neregeido",
-    "it": "Neregeido",
+    "de": "Nereid",
+    "en": "Nereid",
+    "es": "Nereida",
+    "fr": "Néregat",
+    "it": "Nereid",
     "ja": "ネレゲイド",
     "ko": "네레게이드",
-    "pt": "Neregeido",
-    "ru": "Нерегейдо",
-    "th": "เนเรเกอิโด",
-    "zhc": "内雷盖德",
-    "zht": "內雷蓋德"
+    "pt": "Nereide",
+    "ru": "Нереида",
+    "th": "เนเรด",
+    "zhc": "涅瑞伊得",
+    "zht": "涅瑞伊得"
   },
   "ハテナ": {
     "de": "Fragezeichen",
@@ -12217,9 +12217,9 @@
     "ko": "할리카르나소스",
     "pt": "Halicarnasso",
     "ru": "Галикарнас",
-    "th": "ฮาลิคาร์นัสซัส",
-    "zhc": "哈利卡纳索斯",
-    "zht": "哈利卡納索斯"
+    "th": "ฮาลิคานาสซัส",
+    "zhc": "哈利卡纳苏斯",
+    "zht": "哈利卡納蘇斯"
   },
   "ハート": {
     "de": "Herz",
@@ -12354,11 +12354,11 @@
     "fr": "Bartz",
     "it": "Bartz",
     "ja": "バッツ",
-    "ko": "바르츠",
+    "ko": "바츠",
     "pt": "Bartz",
-    "ru": "Барц",
-    "th": "บาร์ทซ์",
-    "zhc": "巴茨",
+    "ru": "Бартс",
+    "th": "บัทซ์",
+    "zhc": "巴兹",
     "zht": "巴茲"
   },
   "バッツを救出": {
@@ -12460,30 +12460,30 @@
     "zht": "被屏障彈開"
   },
   "バリアの塔": {
-    "de": "Barriereturm",
+    "de": "Barrierenturm",
     "en": "Barrier Tower",
-    "es": "Torre de la Barrera",
-    "fr": "Tour de la Barrière",
+    "es": "Torre barrera",
+    "fr": "Tour protectrice",
     "it": "Torre della Barriera",
     "ja": "バリアの塔",
-    "ko": "배리어 타워",
+    "ko": "배리어 탑",
     "pt": "Torre da Barreira",
-    "ru": "Башня Барьера",
+    "ru": "Барьерная башня",
     "th": "หอคอยบาเรีย",
     "zhc": "屏障之塔",
     "zht": "屏障之塔"
   },
   "バル城": {
     "de": "Schloss Bal",
-    "en": "Castle Bal",
-    "es": "Castillo Bal",
-    "fr": "Château Bal",
+    "en": "Castle of Bal",
+    "es": "Castillo de Bal",
+    "fr": "Citadelle de Bal",
     "it": "Castello di Bal",
     "ja": "バル城",
-    "ko": "발 성",
-    "pt": "Castelo Bal",
+    "ko": "바르성",
+    "pt": "Castelo de Bal",
     "ru": "Замок Бал",
-    "th": "ปราสาทบัล",
+    "th": "ปราสาทบาล",
     "zhc": "巴尔城",
     "zht": "巴爾城"
   },
@@ -12680,8 +12680,8 @@
     "pt": "Faris",
     "ru": "Фарис",
     "th": "ฟาริส",
-    "zhc": "法里斯",
-    "zht": "法里斯"
+    "zhc": "法利斯",
+    "zht": "法利斯"
   },
   "ファリス(ドレス)": {
     "de": "Faris (Kleid)",
@@ -12806,36 +12806,36 @@
     "pt": "Fênix",
     "ru": "Феникс",
     "th": "ฟีนิกซ์",
-    "zhc": "凤凰",
+    "zhc": "不死鸟",
     "zht": "鳳凰"
   },
   "フェニックスの塔": {
-    "de": "Phönixturm",
+    "de": "Phönix-Turm",
     "en": "Phoenix Tower",
     "es": "Torre del Fénix",
     "fr": "Tour du Phénix",
     "it": "Torre della Fenice",
     "ja": "フェニックスの塔",
-    "ko": "피닉스 타워",
+    "ko": "피닉스 탑",
     "pt": "Torre da Fênix",
     "ru": "Башня Феникса",
     "th": "หอคอยฟีนิกซ์",
-    "zhc": "凤凰塔",
-    "zht": "鳳凰塔"
+    "zhc": "不死鸟之塔",
+    "zht": "鳳凰之塔"
   },
   "フォークタワー": {
     "de": "Fork-Turm",
     "en": "Fork Tower",
-    "es": "Torre Fork",
-    "fr": "Tour Fork",
-    "it": "Torre Fork",
+    "es": "Torre Horca",
+    "fr": "Tour fourchue",
+    "it": "Torre forca",
     "ja": "フォークタワー",
     "ko": "포크 타워",
-    "pt": "Torre Fork",
-    "ru": "Башня Форк",
+    "pt": "Torre Forquilhada",
+    "ru": "Раздвоенная башня",
     "th": "หอคอยฟอร์ก",
-    "zhc": "福克塔",
-    "zht": "福克塔"
+    "zhc": "两歧塔",
+    "zht": "兩歧塔"
   },
   "フォーボス": {
     "de": "Phobos",
@@ -12848,8 +12848,8 @@
     "pt": "Fobos",
     "ru": "Фобос",
     "th": "โฟบอส",
-    "zhc": "佛波斯",
-    "zht": "佛波斯"
+    "zhc": "福博斯",
+    "zht": "福博斯"
   },
   "ベッド頭": {
     "de": "Bettkopfteil",
@@ -12974,8 +12974,8 @@
     "pt": "Pingente",
     "ru": "Кулон",
     "th": "จี้",
-    "zhc": "吊坠",
-    "zht": "吊墜"
+    "zhc": "坠饰",
+    "zht": "墜飾"
   },
   "ページ": {
     "de": "Seite",
@@ -13043,9 +13043,9 @@
     "ko": "마기사",
     "pt": "Magissa",
     "ru": "Магисса",
-    "th": "มากิสสา",
-    "zhc": "玛吉莎",
-    "zht": "瑪吉莎"
+    "th": "มากิสซ่า",
+    "zhc": "玛基莎",
+    "zht": "瑪基莎"
   },
   "マサムネ（絵）": {
     "de": "Masamune (Illustration)",
@@ -13162,16 +13162,16 @@
   "メリュジーヌ": {
     "de": "Melusine",
     "en": "Melusine",
-    "es": "Melusina",
+    "es": "Melusine",
     "fr": "Mélusine",
-    "it": "Melusina",
+    "it": "Melusine",
     "ja": "メリュジーヌ",
-    "ko": "멜루신",
+    "ko": "멜뤼진",
     "pt": "Melusina",
     "ru": "Мелюзина",
     "th": "เมลูซีน",
-    "zhc": "梅露辛",
-    "zht": "梅露莘"
+    "zhc": "美瑠姬奴",
+    "zht": "美瑠姬奴"
   },
   "モンスター": {
     "de": "Monster",
@@ -13258,18 +13258,18 @@
     "zht": "怪物6"
   },
   "モーグリ": {
-    "de": "Moogle",
+    "de": "Mogry",
     "en": "Moogle",
-    "es": "Moogle",
-    "fr": "Moogle",
-    "it": "Moogle",
+    "es": "Moguri",
+    "fr": "Mog",
+    "it": "Moguri",
     "ja": "モーグリ",
     "ko": "모그리",
     "pt": "Moogle",
-    "ru": "Мог",
-    "th": "โมโกล",
+    "ru": "Мугл",
+    "th": "มูเกิ้ล",
     "zhc": "莫古力",
-    "zht": "莫古力"
+    "zht": "莫古利"
   },
   "モーグリ:ev_e_0103": {
     "de": "Moogle (ev_e_0103)",
@@ -13393,8 +13393,8 @@
     "ko": "리바이어던",
     "pt": "Leviatã",
     "ru": "Левиафан",
-    "th": "เลไวอาธาน",
-    "zhc": "利维坦",
+    "th": "เลวีอาธาน",
+    "zhc": "利维亚桑",
     "zht": "利維坦"
   },
   "ルーンアクス（絵）": {
@@ -13421,7 +13421,7 @@
     "ko": "레나",
     "pt": "Lenna",
     "ru": "Ленна",
-    "th": "เลนน่า",
+    "th": "เลนนา",
     "zhc": "蕾娜",
     "zht": "蕾娜"
   },
@@ -13505,7 +13505,7 @@
     "ko": "론카 유적",
     "pt": "Ruínas de Ronka",
     "ru": "Руины Ронка",
-    "th": "ซากปรักหักพังรอนกา",
+    "th": "ซากแห่งรอนก้า",
     "zhc": "隆卡遗迹",
     "zht": "隆卡遺跡"
   },
@@ -13692,14 +13692,14 @@
     "zht": "傳送標記"
   },
   "ワールドマップ": {
-    "de": "Weltkarte",
+    "de": "Oberwelt",
     "en": "World Map",
     "es": "Mapa del mundo",
-    "fr": "Carte du monde",
-    "it": "Mappa del mondo",
+    "fr": "Mappemonde",
+    "it": "Mappamondo",
     "ja": "ワールドマップ",
-    "ko": "월드맵",
-    "pt": "Mapa-múndi",
+    "ko": "월드 맵",
+    "pt": "Mapa do Mundo",
     "ru": "Карта мира",
     "th": "แผนที่โลก",
     "zhc": "世界地图",
@@ -13822,10 +13822,10 @@
     "en": "World Map",
     "es": "Mapa del mundo",
     "fr": "Carte du monde",
-    "it": "Mappa del mondo",
+    "it": "Mappamondo",
     "ja": "世界地図",
     "ko": "세계지도",
-    "pt": "Mapa-múndi",
+    "pt": "Mapa do Mundo",
     "ru": "Карта мира",
     "th": "แผนที่โลก",
     "zhc": "世界地图",
@@ -14443,7 +14443,7 @@
     "ko": "음유시인",
     "pt": "Bardo",
     "ru": "Бард",
-    "th": "บาร์ด",
+    "th": "กวี",
     "zhc": "吟游诗人",
     "zht": "吟遊詩人"
   },
@@ -14770,16 +14770,16 @@
     "zht": "大森林火災後要消除的山碰撞"
   },
   "大臣": {
-    "de": "Minister",
-    "en": "Minister",
-    "es": "Ministro",
-    "fr": "Ministre",
-    "it": "Ministro",
+    "de": "Kanzler",
+    "en": "Chancellor",
+    "es": "Canciller",
+    "fr": "Chancelier",
+    "it": "Cancelliere",
     "ja": "大臣",
     "ko": "대신",
-    "pt": "Ministro",
-    "ru": "Министр",
-    "th": "ขุนนาง",
+    "pt": "Chanceler",
+    "ru": "Канцлер",
+    "th": "เสนาบดี",
     "zhc": "大臣",
     "zht": "大臣"
   },
@@ -14910,18 +14910,18 @@
     "zht": "女性（綠髮）"
   },
   "女王の間": {
-    "de": "Gemach der Königin",
+    "de": "Gemächer der Königin",
     "en": "Queen's Chamber",
     "es": "Cámara de la reina",
-    "fr": "Chambre de la reine",
+    "fr": "salle du trône",
     "it": "Camera della regina",
     "ja": "女王の間",
-    "ko": "여왕의 방",
-    "pt": "Câmara da rainha",
+    "ko": "알현실",
+    "pt": "Aposentos da Rainha",
     "ru": "Покои королевы",
-    "th": "ห้องราชินี",
-    "zhc": "女王之间",
-    "zht": "女王之間"
+    "th": "ห้องของราชินี",
+    "zhc": "大殿",
+    "zht": "大殿"
   },
   "学者1（橙服）": {
     "de": "Gelehrter 1 (orangefarbenes Gewand)",
@@ -15204,18 +15204,18 @@
     "zht": "睡著的海盜"
   },
   "封印城クーザー": {
-    "de": "Versiegeltes Schloss Kuzar",
-    "en": "Sealed Castle Kuzar",
-    "es": "Castillo sellado de Kuzar",
-    "fr": "Château scellé de Kuzar",
-    "it": "Castello sigillato di Kuzar",
+    "de": "Siegelschloss Kuza",
+    "en": "Kuza, the Sealed Castle",
+    "es": "Castillo sellado de Kuza",
+    "fr": "Kuza, le château des sceaux",
+    "it": "Kuza, il castello dei sigilli",
     "ja": "封印城クーザー",
     "ko": "봉인성 쿠자",
-    "pt": "Castelo Selado de Kuzar",
-    "ru": "Запечатанный замок Кузар",
-    "th": "ปราสาทผนึกคูซาร์",
-    "zhc": "封印城 库扎",
-    "zht": "封印城 庫札"
+    "pt": "Castelo de Kuza",
+    "ru": "Запечатанный замок Куза",
+    "th": "คูซ่า ปราสาทที่ถูกผนึก",
+    "zhc": "封印之城 库扎",
+    "zht": "封印之城 庫扎"
   },
   "小さいキラキラ": {
     "de": "Kleines Funkeln",
@@ -15963,13 +15963,13 @@
     "de": "Hangar",
     "en": "Hangar",
     "es": "Hangar",
-    "fr": "Hangar",
+    "fr": "entrepôt",
     "it": "Hangar",
     "ja": "格納庫",
     "ko": "격납고",
     "pt": "Hangar",
     "ru": "Ангар",
-    "th": "โรงเก็บเครื่องบิน",
+    "th": "โรงเก็บรถ",
     "zhc": "机库",
     "zht": "機庫"
   },
@@ -16341,8 +16341,8 @@
     "de": "Piratenschiff",
     "en": "Pirate Ship",
     "es": "Barco pirata",
-    "fr": "Navire pirate",
-    "it": "Nave dei pirati",
+    "fr": "Bateau pirate",
+    "it": "Nave pirata",
     "ja": "海賊船",
     "ko": "해적선",
     "pt": "Navio pirata",
@@ -16758,16 +16758,16 @@
     "zht": "狼3"
   },
   "甲板": {
-    "de": "Deck",
-    "en": "Deck",
+    "de": "An Deck",
+    "en": "Above Deck",
     "es": "Cubierta",
-    "fr": "Pont",
-    "it": "Ponte",
+    "fr": "Pont supérieur",
+    "it": "Coperta",
     "ja": "甲板",
     "ko": "갑판",
     "pt": "Convés",
-    "ru": "Палуба",
-    "th": "ดาดฟ้าเรือ",
+    "ru": "Верхняя палуба",
+    "th": "เหนือดาดฟ้า",
     "zhc": "甲板",
     "zht": "甲板"
   },
@@ -18396,18 +18396,18 @@
     "zht": "鎖上關閉（無訊息）"
   },
   "長老の枝": {
-    "de": "Ast des Ältesten",
-    "en": "Elder's Branch",
-    "es": "Rama del anciano",
-    "fr": "Branche de l'ancien",
-    "it": "Ramo dell'anziano",
+    "de": "Wächterzweig",
+    "en": "Guardian Branch",
+    "es": "Rama guardiana",
+    "fr": "Rameau du gardien",
+    "it": "Ramo guardiano",
     "ja": "長老の枝",
-    "ko": "장로의 나뭇가지",
-    "pt": "Galho do ancião",
-    "ru": "Ветка старейшины",
-    "th": "กิ่งไม้ของผู้อาวุโส",
-    "zhc": "长老的树枝",
-    "zht": "長老的樹枝"
+    "ko": "장로 나무의 가지",
+    "pt": "Galho do Guardião",
+    "ru": "Ветвь Хранителя",
+    "th": "กิ่งไม้ผู้พิทักษ์",
+    "zhc": "长老树的树枝",
+    "zht": "長老樹的樹枝"
   },
   "門のコリジョン": {
     "de": "Torkollision",
@@ -18706,13 +18706,13 @@
   "飛空艇": {
     "de": "Luftschiff",
     "en": "Airship",
-    "es": "Aeronave",
-    "fr": "Aéronef",
+    "es": "Barco volador",
+    "fr": "Vaisseau",
     "it": "Aeronave",
     "ja": "飛空艇",
     "ko": "비공정",
-    "pt": "Aeronave",
-    "ru": "Летающий корабль",
+    "pt": "Navio Voador",
+    "ru": "Воздушный корабль",
     "th": "เรือเหาะ",
     "zhc": "飞空艇",
     "zht": "飛空艇"
@@ -18732,16 +18732,16 @@
     "zht": "飛空艇的影子"
   },
   "飛竜": {
-    "de": "Wyvern",
-    "en": "Wyvern",
-    "es": "Viverna",
-    "fr": "Wyverne",
-    "it": "Viverna",
+    "de": "Winddrache",
+    "en": "Wind Drake",
+    "es": "Dragón",
+    "fr": "Dragon",
+    "it": "Drago del vento",
     "ja": "飛竜",
-    "ko": "와이번",
-    "pt": "Wyvern",
-    "ru": "Виверна",
-    "th": "ไวเวิร์น",
+    "ko": "비룡",
+    "pt": "Dragonete do Vento",
+    "ru": "Ветряной дракон",
+    "th": "มังกรลม",
     "zhc": "飞龙",
     "zht": "飛龍"
   },
@@ -18830,16 +18830,16 @@
     "zht": "飛龍3"
   },
   "飛竜草": {
-    "de": "Wyvern-Gras",
-    "en": "Wyvern Grass",
-    "es": "Hierba de viverna",
-    "fr": "Herbe de la wyverne",
-    "it": "Erba della viverna",
+    "de": "Drachengras",
+    "en": "Dragon Grass",
+    "es": "Hierba de dragón",
+    "fr": "Herbe aux dragons",
+    "it": "Dragonina",
     "ja": "飛竜草",
-    "ko": "와이번풀",
-    "pt": "Erva de wyvern",
-    "ru": "Трава виверны",
-    "th": "หญ้าไวเวิร์น",
+    "ko": "비룡 풀",
+    "pt": "Erva-de-Dragão",
+    "ru": "Драконья трава",
+    "th": "หญ้ามังกร",
     "zhc": "飞龙草",
     "zht": "飛龍草"
   },
@@ -19040,7 +19040,7 @@
     "zht": "黑霧"
   },
   "黒チョコボ": {
-    "de": "Schwarzes Chocobo",
+    "de": "Schwarzer Chocobo",
     "en": "Black Chocobo",
     "es": "Chocobo negro",
     "fr": "Chocobo noir",
@@ -19048,8 +19048,8 @@
     "ja": "黒チョコボ",
     "ko": "검은 초코보",
     "pt": "Chocobo preto",
-    "ru": "Чёрный чокобо",
-    "th": "โจโกโบ้สีดำ",
+    "ru": "Черный чокобо",
+    "th": "โชโคโบะดำ",
     "zhc": "黑陆行鸟",
     "zht": "黑陸行鳥"
   },

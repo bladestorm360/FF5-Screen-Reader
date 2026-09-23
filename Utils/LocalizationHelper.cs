@@ -17,7 +17,7 @@ namespace FFV_ScreenReader.Utils
                 ["earned"] = "\u7372\u5F97",          // 獲得
                 ["to"] = "\u2192",                     // →
                 ["received"] = "\u5165\u624B",         // 入手
-                ["learned"] = "\u4E60\u5F97",          // 习得
+                ["learned"] = "\u7FD2\u5F97",          // 習得
                 ["level"] = "Lv",
                 ["default_name_hint"] = "Enter\u30AD\u30FC\u3067\u30C7\u30D5\u30A9\u30EB\u30C8\u540D\u3092\u4F7F\u7528", // Enterキーでデフォルト名を使用
                 ["before"] = "\u524D",                 // 前

@@ -440,7 +440,7 @@ namespace FFV_ScreenReader.Patches
                     if (index == _lastIndex) return false;
                     _lastIndex = index;
 
-                    FFV_ScreenReaderMod.SpeakText("Empty");
+                    FFV_ScreenReaderMod.SpeakText(T("Empty"));
                     return true;
                 }
 
@@ -473,7 +473,7 @@ namespace FFV_ScreenReader.Patches
                     if (index == _lastIndex) return false;
                     _lastIndex = index;
 
-                    FFV_ScreenReaderMod.SpeakText("Empty");
+                    FFV_ScreenReaderMod.SpeakText(T("Empty"));
                     return true;
                 }
 
@@ -484,7 +484,7 @@ namespace FFV_ScreenReader.Patches
                     if (index == _lastIndex) return false;
                     _lastIndex = index;
 
-                    FFV_ScreenReaderMod.SpeakText("Empty");
+                    FFV_ScreenReaderMod.SpeakText(T("Empty"));
                     return true;
                 }
 
@@ -771,7 +771,7 @@ namespace FFV_ScreenReader.Patches
                     if (index == _lastIndex) return false;
                     _lastIndex = index;
 
-                    FFV_ScreenReaderMod.SpeakText(MenuPosition.Format("Empty", index, spellCount));
+                    FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(T("Empty"), index, spellCount));
                     return true;
                 }
 

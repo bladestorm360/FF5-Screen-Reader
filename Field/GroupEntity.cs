@@ -6,6 +6,7 @@ using Il2CppLast.Entity.Field;
 using Il2CppLast.Map;
 using UnityEngine;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Field
 {
@@ -66,7 +67,7 @@ namespace FFV_ScreenReader.Field
         
         public override Vector3 Position => GetRepresentative()?.Position ?? Vector3.zero;
         
-        public override string Name => GetRepresentative()?.DisplayName ?? "Unknown Group";
+        public override string Name => GetRepresentative()?.DisplayName ?? T("Unknown");
         
         public override EntityCategory Category => cachedCategory ?? EntityCategory.All;
 
@@ -84,13 +85,13 @@ namespace FFV_ScreenReader.Field
         {
             var rep = GetRepresentative();
             if (rep == null)
-                return "Empty Group";
+                return T("Unknown");
             
             string baseName = rep.DisplayName;
 
             if (members.Count > 1)
             {
-                return $"{baseName} ({members.Count} exits)";
+                return $"{baseName} ({string.Format(T("{0} exits"), members.Count)})";
             }
 
             return baseName;
@@ -100,20 +101,20 @@ namespace FFV_ScreenReader.Field
         {
             var rep = GetRepresentative();
             if (rep == null)
-                return "Group";
+                return T("Group");
             
             if (rep is MapExitEntity)
-                return "Map Exit";
+                return T("Map Exit");
             else if (rep is NPCEntity)
-                return "NPC";
+                return T("NPC");
             else if (rep is TreasureChestEntity)
-                return "Treasure Chest";
+                return T("Treasure Chest");
             else if (rep is SavePointEntity)
-                return "Save Point";
+                return T("Save Point");
             else if (rep is EventEntity)
-                return "Event";
+                return T("Event");
             else
-                return "Group";
+                return T("Group");
         }
     }
 }

@@ -26,6 +26,42 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
+    /// The focused row's description in the battle item/ability lists, for the on-demand details
+    /// key (I / right stick up). Focus reads append it only when Auto Detail is on, so this is how
+    /// descriptions stay reachable with Auto Detail off.
+    /// </summary>
+    public static class BattleListDetails
+    {
+        private static UnityEngine.Component _owner;
+        private static string _description;
+
+        public static void SetFocused(UnityEngine.Component owner, string description)
+        {
+            _owner = owner;
+            _description = description;
+        }
+
+        /// <summary>Speaks the description if a battle item/ability list is open; false otherwise.</summary>
+        public static bool TryAnnounce()
+        {
+            try
+            {
+                if (_owner == null || _owner.gameObject == null || !_owner.gameObject.activeInHierarchy)
+                    return false;
+            }
+            catch
+            {
+                return false;
+            }
+
+            FFV_ScreenReaderMod.SpeakText(
+                string.IsNullOrWhiteSpace(_description) ? T("No description available") : _description,
+                interrupt: true);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Patch for SetCommandData - announces when a character's turn becomes active.
     /// </summary>
     [HarmonyPatch(typeof(BattleCommandSelectController), nameof(BattleCommandSelectController.SetCommandData))]
@@ -61,9 +97,15 @@ namespace FFV_ScreenReader.Patches
 
                 // The game re-invokes SetCommandData for the SAME character whenever the command
                 // window is rebuilt — notably after cancelling out of target selection — so
-                // announce the turn only when the character actually changes.
+                // announce the turn only when the character actually changes. A rebuild instead
+                // re-reads the focused command: the cursor re-lands on the command it left, which
+                // SetCursor's index guard would otherwise swallow, leaving the back-out silent.
                 int characterId = data.Id;
-                if (characterId == _lastCharacterId) return;
+                if (characterId == _lastCharacterId)
+                {
+                    BattleCommandSelectController_SetCursor_Patch.RequestFocusedRead(__instance);
+                    return;
+                }
                 _lastCharacterId = characterId;
 
                 string characterName = data.Name;
@@ -92,6 +134,30 @@ namespace FFV_ScreenReader.Patches
 
         /// <summary>Clears the guard so a (re)entered state announces its focused command.</summary>
         public static void ClearLast() => _lastIndex = -1;
+
+        /// <summary>
+        /// Clears the guard and reads the focused command once the window settles. If the game's own
+        /// SetCursor already spoke that position, Announce's index guard makes the read a no-op, so
+        /// the two can never double. Shared by sub-menu state entry and the command-window rebuild.
+        /// </summary>
+        public static void RequestFocusedRead(BattleCommandSelectController instance)
+        {
+            if (instance == null) return;
+
+            ClearLast();
+            MenuFocusAnnouncer.Request("BattleCommand", () =>
+            {
+                if (!MenuFocusAnnouncer.IsAlive(instance)) return false;
+
+                var cursor = instance.selectCursor;       // Cursor @ 0x68
+                if (cursor == null) return false;
+
+                // Keep settling while targeting / item use is still latched from the sub-menu just
+                // left; otherwise a silent Announce is final (SetCursor already spoke this row).
+                return Announce(instance, cursor.Index)
+                    || !(BattleTargetPatches.IsTargetSelectionActive || ItemUseTracker.IsItemUseActive);
+            });
+        }
 
         [HarmonyPostfix]
         public static void Postfix(BattleCommandSelectController __instance, int index)
@@ -224,6 +290,7 @@ namespace FFV_ScreenReader.Patches
                 if (string.IsNullOrWhiteSpace(itemName)) return;
 
                 string announcement = itemName;
+                string description = null;
 
                 if (contentData != null)
                 {
@@ -236,15 +303,14 @@ namespace FFV_ScreenReader.Patches
 
                     try
                     {
-                        string description = contentData.Description;
-                        if (!string.IsNullOrWhiteSpace(description))
-                        {
-                            description = StripIconMarkup(description);
-                            if (!string.IsNullOrWhiteSpace(description)) announcement += $", {description}";
-                        }
+                        description = StripIconMarkup(contentData.Description);
                     }
                     catch {}
                 }
+
+                BattleListDetails.SetFocused(__instance, description);
+                if (PreferencesManager.AutoDetailEnabled && !string.IsNullOrWhiteSpace(description))
+                    announcement += $", {description}";
 
                 // Append list position last (after quantity / description).
                 announcement = MenuPosition.Format(announcement, index, activeList != null ? activeList.Count : 0);
@@ -307,11 +373,12 @@ namespace FFV_ScreenReader.Patches
 
                 string announcement = abilityName;
 
-                if (!string.IsNullOrWhiteSpace(mesIdDescription))
-                {
-                    string description = StripIconMarkup(messageManager.GetMessage(mesIdDescription));
-                    if (!string.IsNullOrWhiteSpace(description)) announcement += $", {description}";
-                }
+                string description = string.IsNullOrWhiteSpace(mesIdDescription)
+                    ? null
+                    : StripIconMarkup(messageManager.GetMessage(mesIdDescription));
+                BattleListDetails.SetFocused(__instance, description);
+                if (PreferencesManager.AutoDetailEnabled && !string.IsNullOrWhiteSpace(description))
+                    announcement += $", {description}";
 
                 // Append list position last (after description).
                 announcement = MenuPosition.Format(announcement, index, __instance.contentList != null ? __instance.contentList.Count : 0);
@@ -390,20 +457,7 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                if (__instance == null) return;
-
-                BattleCommandSelectController_SetCursor_Patch.ClearLast();
-
-                MenuFocusAnnouncer.Request("BattleCommand", () =>
-                {
-                    if (!MenuFocusAnnouncer.IsAlive(__instance)) return false;
-
-                    var cursor = __instance.selectCursor;       // Cursor @ 0x68
-                    if (cursor == null) return false;
-
-                    BattleCommandSelectController_SetCursor_Patch.Announce(__instance, cursor.Index);
-                    return true;
-                });
+                BattleCommandSelectController_SetCursor_Patch.RequestFocusedRead(__instance);
             }
             catch (Exception ex)
             {

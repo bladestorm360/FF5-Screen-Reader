@@ -176,6 +176,30 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
+        /// Labels for CLICKING (pressing in) the analog sticks. "L3"/"R3" reads unambiguously as a
+        /// click, unlike "LS"/"RS", which sounds like moving the stick. Nintendo has no L3/R3
+        /// convention, so it gets an explicit "Click". Distinct from GetButtonLabel(LEFT_STICK /
+        /// RIGHT_STICK) so its other callers keep their existing labels.
+        /// </summary>
+        public static string GetLeftStickClickLabel()
+        {
+            return GetFamily() switch
+            {
+                ControllerFamily.Nintendo => "L Stick Click",
+                _ => "L3"
+            };
+        }
+
+        public static string GetRightStickClickLabel()
+        {
+            return GetFamily() switch
+            {
+                ControllerFamily.Nintendo => "R Stick Click",
+                _ => "R3"
+            };
+        }
+
+        /// <summary>
         /// Gets a human-readable name for an SDL gamepad type constant.
         /// </summary>
         public static string GetControllerTypeName(int type)

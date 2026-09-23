@@ -197,54 +197,14 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                var command = SelectContentHelper.TryGetItem(
-                    contentList.TryCast<Il2CppSystem.Collections.Generic.List<Il2CppLast.UI.KeyInput.ConfigControllCommandController>>(),
-                    index);
-                if (command == null) return;
+                var listCast = contentList.TryCast<Il2CppSystem.Collections.Generic.List<Il2CppLast.UI.KeyInput.ConfigControllCommandController>>();
+                var command = SelectContentHelper.TryGetItem(listCast, index);
 
-                var textParts = new System.Collections.Generic.List<string>();
-
-                // Read action name from the view's nameTexts
-                if (command.view != null && command.view.nameTexts != null && command.view.nameTexts.Count > 0)
-                {
-                    foreach (var textComp in command.view.nameTexts)
-                    {
-                        if (textComp != null && !string.IsNullOrWhiteSpace(textComp.text))
-                        {
-                            string text = textComp.text.Trim();
-                            if (!text.StartsWith("MENU_") && !textParts.Contains(text))
-                            {
-                                textParts.Add(text);
-                            }
-                        }
-                    }
-                }
-
-                // Keyboard binding — already readable key names.
-                AppendIconTexts(textParts, command.keyboardIconController);
-
-                // Gamepad binding — the icon is a sprite glyph carrying NO readable text (iconTextList is
-                // empty), so reading it never worked. The keyboard and gamepad remap sections are mutually
-                // exclusive per row: keyboard rows carry a key name, gamepad rows don't. So when the keyboard
-                // icon is empty we're on the gamepad section — translate the LIVE bound button via
-                // ControllerLabels (the keyboard binding above already handled keyboard-section rows).
-                if (ResolveGamepadButtonText(__instance, command) is string btn && !string.IsNullOrEmpty(btn)
-                    && !IconHasContent(command.keyboardIconController))
-                {
-                    textParts.Add($"({btn})");
-                }
-
-                if (textParts.Count == 0)
-                {
-                    return;
-                }
-
-                string announcement = string.Join(" ", textParts);
+                string announcement = BuildCommandAnnouncement(__instance, command);
+                if (string.IsNullOrWhiteSpace(announcement)) return;
 
                 // Append list position last (index within the remappable-action list).
-                var listCast = contentList.TryCast<Il2CppSystem.Collections.Generic.List<Il2CppLast.UI.KeyInput.ConfigControllCommandController>>();
-                int count = listCast != null ? listCast.Count : 0;
-                announcement = MenuPosition.Format(announcement, index, count);
+                announcement = MenuPosition.Format(announcement, index, listCast != null ? listCast.Count : 0);
 
                 if (announcement == _lastRow) return;
                 _lastRow = announcement;
@@ -257,8 +217,116 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
+        /// <summary>
+        /// Builds the controls-screen announcement for one row: action name + binding. Shared by the
+        /// navigation read (SelectContent), the rebind read (ChangeKeySetting) and the read-only
+        /// Gamepad/Keyboard Controls list (isHelpList), so all three say the same thing.
+        /// </summary>
+        internal static string BuildCommandAnnouncement(
+            Il2CppLast.UI.KeyInput.ConfigKeysSettingController owner,
+            Il2CppLast.UI.KeyInput.ConfigControllCommandController command,
+            bool isHelpList = false)
+        {
+            if (command == null) return null;
+
+            var textParts = new System.Collections.Generic.List<string>();
+
+            AppendCommandName(textParts, command, isHelpList);
+
+            // Binding text. Mouse rows render their button as a glyph with no readable text, so
+            // translate the bound mouse button/wheel. Keyboard rows already carry readable key names
+            // in the keyboard icon controller's iconTextList (empty on the gamepad section).
+            if (command.IsMouseKey)
+            {
+                string mouse = ResolveMouseButtonText(command);
+                if (!string.IsNullOrEmpty(mouse))
+                    textParts.Add($"({mouse})");
+            }
+            else
+            {
+                AppendIconTexts(textParts, command.keyboardIconController);
+            }
+
+            // Gamepad binding — ONLY when the row actually shows a gamepad binding icon
+            // (view.gamePadIconsRoot active). That excludes keyboard-section rows and non-binding rows
+            // like "Reset to Defaults" / "Gamepad Controls", whose key defaults to Action and would
+            // otherwise read the Confirm button.
+            var gpRoot = command.view != null ? command.view.gamePadIconsRoot : null;
+            if (gpRoot != null && gpRoot.activeSelf)
+            {
+                // Face buttons are remappable → the LIVE binding (remap- and controller-aware). The
+                // fixed buttons (shoulders, triggers, sticks, Start, movement) are not in the remap
+                // dictionary, so fall back to the rendered glyph sprite.
+                string btn = ResolveGamepadButtonText(owner, command);
+                if (string.IsNullOrEmpty(btn))
+                    btn = GetGamepadGlyphLabel(command);
+                if (!string.IsNullOrEmpty(btn))
+                    textParts.Add($"({btn})");
+            }
+
+            return textParts.Count == 0 ? null : string.Join(" ", textParts);
+        }
+
+        /// <summary>
+        /// Appends a row's action name. Remap rows carry the localized name in view.nameTexts. HELP
+        /// rows (the read-only Controls list) leave nameTexts as a "New Text" placeholder and render
+        /// the real name into the controller's own messageTexts, so read those, falling back to
+        /// resolving MessageId through the game's localization.
+        /// </summary>
+        private static void AppendCommandName(
+            System.Collections.Generic.List<string> textParts,
+            Il2CppLast.UI.KeyInput.ConfigControllCommandController command,
+            bool isHelpList)
+        {
+            if (isHelpList)
+            {
+                var msgTexts = command.messageTexts;
+                if (msgTexts != null)
+                {
+                    for (int i = 0; i < msgTexts.Count; i++)
+                    {
+                        var t = msgTexts[i];
+                        if (t != null && IsRealName(t.text))
+                        {
+                            string s = t.text.Trim();
+                            if (!textParts.Contains(s)) textParts.Add(s);
+                        }
+                    }
+                }
+
+                // The rendered text wasn't ready — resolve the message id directly.
+                if (textParts.Count == 0)
+                {
+                    string loc = TextUtils.StripIconMarkup(LocalizationHelper.GetGameMessage(command.MessageId));
+                    if (IsRealName(loc)) textParts.Add(loc);
+                }
+                return;
+            }
+
+            if (command.view != null && command.view.nameTexts != null && command.view.nameTexts.Count > 0)
+            {
+                foreach (var textComp in command.view.nameTexts)
+                {
+                    if (textComp != null && !string.IsNullOrWhiteSpace(textComp.text))
+                    {
+                        string text = textComp.text.Trim();
+                        if (!text.StartsWith("MENU_") && !textParts.Contains(text))
+                            textParts.Add(text);
+                    }
+                }
+            }
+        }
+
+        /// <summary>True if the text is a usable name (not blank or an editor placeholder).</summary>
+        private static bool IsRealName(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            string t = s.Trim();
+            return t != "New Text" && t != "NewText" && t != "Text" && t != "Name" && t != "Label";
+        }
+
         /// <summary>Appends an icon controller's binding labels (iconTextList) to textParts, deduped.</summary>
-        internal static void AppendIconTexts(System.Collections.Generic.List<string> textParts, ConfigKeyIconController icon)
+        private static void AppendIconTexts(System.Collections.Generic.List<string> textParts, ConfigKeyIconController icon)
         {
             var iconView = icon?.view;
             if (iconView == null || iconView.iconTextList == null) return;
@@ -268,23 +336,107 @@ namespace FFV_ScreenReader.Patches
                 if (iconText != null && !string.IsNullOrWhiteSpace(iconText.text))
                 {
                     string text = iconText.text.Trim();
-                    if (!textParts.Contains(text))
+                    // Gamepad help rows leave the keyboard icon text as a "New Text" placeholder.
+                    if (IsRealName(text) && !textParts.Contains(text))
                         textParts.Add(text);
                 }
             }
         }
 
-        /// <summary>True if an icon controller is currently showing readable binding text.</summary>
-        internal static bool IconHasContent(ConfigKeyIconController icon)
+        /// <summary>
+        /// Reads a row's rendered gamepad glyph sprite (under view.gamePadIconsRoot) and maps it to a
+        /// controller-aware label. Only for the FIXED buttons, which the live remap read can't resolve.
+        /// </summary>
+        private static string GetGamepadGlyphLabel(Il2CppLast.UI.KeyInput.ConfigControllCommandController command)
         {
-            var iconView = icon?.view;
-            if (iconView == null || iconView.iconTextList == null) return false;
-            for (int i = 0; i < iconView.iconTextList.Count; i++)
+            try
             {
-                var t = iconView.iconTextList[i];
-                if (t != null && !string.IsNullOrWhiteSpace(t.text)) return true;
+                var gpRoot = command?.view != null ? command.view.gamePadIconsRoot : null;
+                if (gpRoot == null || !gpRoot.activeSelf) return null;
+                var images = gpRoot.GetComponentsInChildren<UnityEngine.UI.Image>(true);
+                if (images == null) return null;
+                for (int i = 0; i < images.Length; i++)
+                {
+                    var img = images[i];
+                    if (img == null || !img.gameObject.activeInHierarchy || img.sprite == null) continue;
+                    string label = GamepadGlyphSpriteToLabel(img.sprite.name);
+                    if (!string.IsNullOrEmpty(label)) return label;
+                }
             }
-            return false;
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Maps a controls-screen glyph sprite name ("UI_Common_&lt;Button&gt;button01") to a
+        /// controller-aware label. Covers ONLY the fixed buttons; the remappable face buttons and
+        /// unknowns return null so they are left to the live remap read and never locked in.
+        /// </summary>
+        private static string GamepadGlyphSpriteToLabel(string spriteName)
+        {
+            if (string.IsNullOrEmpty(spriteName)) return null;
+
+            if (Has(spriteName, "LBbutton")) return ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+            if (Has(spriteName, "RBbutton")) return ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+            if (Has(spriteName, "LTbutton")) return ControllerLabels.GetLeftTriggerLabel();
+            if (Has(spriteName, "RTbutton")) return ControllerLabels.GetRightTriggerLabel();
+            // Stick clicks are phrased as a CLICK ("L3"), not "LS", which reads like moving the stick.
+            if (Has(spriteName, "L3button")) return ControllerLabels.GetLeftStickClickLabel();
+            if (Has(spriteName, "R3button")) return ControllerLabels.GetRightStickClickLabel();
+            // The mod repurposes the Menu (Start) button for the mod menu, and it can't be remapped.
+            if (Has(spriteName, "Menubutton")) return ModTextTranslator.T("used for mod menu");
+            if (Has(spriteName, "Backbutton") || Has(spriteName, "Selectbutton") || Has(spriteName, "Viewbutton"))
+                return ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_BACK);
+            // The movement glyph. The mod repurposes the D-pad and right stick for its own
+            // navigation, so only the left stick still moves the character.
+            if (Has(spriteName, "Tenkeybutton") || Has(spriteName, "Dpadbutton")
+                || Has(spriteName, "Crossbutton") || Has(spriteName, "Directionbutton"))
+                return ModTextTranslator.T("Left Stick");
+
+            return null;
+        }
+
+        private static bool Has(string s, string token)
+            => s.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        /// <summary>
+        /// Resolves a mouse row's bound button/wheel from its rendered glyph sprite
+        /// ("UI_Common_mouse_l/_r/_rad", under view.keyboardIconsRoot). The glyph tracks the LIVE
+        /// binding, so this stays right after a rebind. Null on failure (no binding spoken).
+        /// </summary>
+        private static string ResolveMouseButtonText(Il2CppLast.UI.KeyInput.ConfigControllCommandController command)
+        {
+            try
+            {
+                var root = command.view != null ? command.view.keyboardIconsRoot : null;
+                UnityEngine.UI.Image[] imgs = root != null
+                    ? root.GetComponentsInChildren<UnityEngine.UI.Image>(true)
+                    : (command.gameObject != null ? command.gameObject.GetComponentsInChildren<UnityEngine.UI.Image>(true) : null);
+                if (imgs == null) return null;
+                for (int i = 0; i < imgs.Length; i++)
+                {
+                    var img = imgs[i];
+                    if (img == null || !img.gameObject.activeInHierarchy || img.sprite == null) continue;
+                    string label = MouseSpriteToLabel(img.sprite.name);
+                    if (!string.IsNullOrEmpty(label)) return label;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Maps a mouse glyph sprite name to text. "mouse_rad" (the wheel) contains "mouse_r", so the
+        /// wheel is checked before the right button.
+        /// </summary>
+        private static string MouseSpriteToLabel(string s)
+        {
+            if (string.IsNullOrEmpty(s) || !Has(s, "mouse")) return null;
+            if (Has(s, "mouse_rad") || Has(s, "wheel") || Has(s, "scroll")) return ModTextTranslator.T("Mouse Wheel");
+            if (Has(s, "mouse_l")) return ModTextTranslator.T("Left Mouse Button");
+            if (Has(s, "mouse_r")) return ModTextTranslator.T("Right Mouse Button");
+            if (Has(s, "mouse_c") || Has(s, "mouse_m")) return ModTextTranslator.T("Middle Mouse Button");
+            return ModTextTranslator.T("Mouse Button");   // an extra (gaming-mouse) button
         }
 
         /// <summary>
@@ -293,7 +445,7 @@ namespace FFV_ScreenReader.Patches
         /// an SDL button index, and lets ControllerLabels pick the text for the connected controller.
         /// Returns null if it can't be resolved.
         /// </summary>
-        internal static string ResolveGamepadButtonText(
+        private static string ResolveGamepadButtonText(
             Il2CppLast.UI.KeyInput.ConfigKeysSettingController owner,
             Il2CppLast.UI.KeyInput.ConfigControllCommandController command)
         {
@@ -673,6 +825,17 @@ namespace FFV_ScreenReader.Patches
             PatchKeysSetting("KeyboardSettingInit", nameof(KeyboardSettingInit_Postfix));
             PatchKeysSetting("GamePadSettingInit", nameof(GamePadSettingInit_Postfix));
 
+            // Gamepad/Keyboard "Controls" list (read-only list of every control) → KeyHelpReader.
+            // Entering the GamePad/Keyboard Help state shows helpContentList/keyboardHelpContentList;
+            // render it once so arrows/WASD can step the entries. Leaving the Help state (back to the
+            // select list, or closing the controls screen) tears it down. All five are real bodies
+            // (unique RVAs) — MouseSettInit, by contrast, is the folded empty stub and must not be hooked.
+            PatchKeysSetting("GamePadHelpInit", nameof(GamePadHelpInit_Postfix));
+            PatchKeysSetting("KeyboardHelpInit", nameof(KeyboardHelpInit_Postfix));
+            PatchKeysSetting("GamePadSelectInit", nameof(ControlsHelpClose_Postfix));
+            PatchKeysSetting("KeyboardSelectInit", nameof(ControlsHelpClose_Postfix));
+            PatchKeysSetting("Close", nameof(ControlsHelpClose_Postfix));
+
             // ChangeKeySetting is overloaded — patch every overload with the same __instance-only
             // postfix (avoids AmbiguousMatchException without needing an exact Type[]).
             try
@@ -758,12 +921,65 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 if (inst == null) return;
-                FFV_ScreenReaderMod.SpeakText(gamepad ? "Press a button." : "Press a key.", interrupt: true);
+                FFV_ScreenReaderMod.SpeakText(
+                    gamepad ? ModTextTranslator.T("Press a button.") : ModTextTranslator.T("Press a key."),
+                    interrupt: true);
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"Error in assign-prompt patch: {ex.Message}");
             }
+        }
+
+        // ── Gamepad/Keyboard Controls list (read-only) → KeyHelpReader ──────────────────
+        // The list is ConfigKeysSettingController's GamePad/Keyboard Help state, not the always-present
+        // KeyHelpController hint bar. On state entry, render the list once and hand the strings over.
+
+        public static void GamePadHelpInit_Postfix(Il2CppLast.UI.KeyInput.ConfigKeysSettingController __instance)
+            => OpenControlsHelp(__instance, gamepad: true);
+
+        public static void KeyboardHelpInit_Postfix(Il2CppLast.UI.KeyInput.ConfigKeysSettingController __instance)
+            => OpenControlsHelp(__instance, gamepad: false);
+
+        /// <summary>Returning to the select list or closing the controls screen tears the list down.</summary>
+        public static void ControlsHelpClose_Postfix() => KeyHelpReader.CloseControlsHelp();
+
+        private static void OpenControlsHelp(Il2CppLast.UI.KeyInput.ConfigKeysSettingController inst, bool gamepad)
+        {
+            if (inst == null) return;
+            // One frame so each row's binding text and glyph are populated before rendering.
+            CoroutineManager.StartManaged(DelayedOpenControlsHelp(inst, gamepad));
+        }
+
+        private static IEnumerator DelayedOpenControlsHelp(Il2CppLast.UI.KeyInput.ConfigKeysSettingController inst, bool gamepad)
+        {
+            yield return null;
+
+            System.Collections.Generic.List<string> entries = null;
+            try
+            {
+                // The state machine can cycle its Help-state Init callbacks while the controls screen
+                // isn't shown (scene construction), so only build when it is genuinely on screen.
+                if (inst != null && inst.gameObject != null && inst.gameObject.activeInHierarchy)
+                {
+                    var list = gamepad ? inst.HelpContentList : inst.KeyboardHelpContentList;
+                    if (list != null)
+                    {
+                        entries = new System.Collections.Generic.List<string>();
+                        for (int i = 0; i < list.Count; i++)
+                        {
+                            string row = ConfigKeysSettingController_SelectContent_Patch.BuildCommandAnnouncement(inst, list[i], isHelpList: true);
+                            if (!string.IsNullOrWhiteSpace(row)) entries.Add(row);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error reading controls help list: {ex.Message}");
+            }
+
+            KeyHelpReader.OpenControlsHelp(inst, entries);
         }
 
         /// <summary>
@@ -775,7 +991,7 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 if (__instance == null) return;
-                string announcement = BuildCommandAnnouncement(__instance, __instance.selectedCommand);
+                string announcement = ConfigKeysSettingController_SelectContent_Patch.BuildCommandAnnouncement(__instance, __instance.selectedCommand);
                 if (string.IsNullOrWhiteSpace(announcement)) return;
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
             }
@@ -783,48 +999,6 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"Error in ChangeKeySetting patch: {ex.Message}");
             }
-        }
-
-        /// <summary>
-        /// Builds the controls-screen announcement for one command: action name + keyboard binding +
-        /// gamepad binding (translated live via ControllerLabels). Mirrors the navigation read in
-        /// ConfigKeysSettingController_SelectContent_Patch so the rebind read says the same thing.
-        /// </summary>
-        private static string BuildCommandAnnouncement(
-            Il2CppLast.UI.KeyInput.ConfigKeysSettingController owner,
-            Il2CppLast.UI.KeyInput.ConfigControllCommandController command)
-        {
-            if (command == null) return null;
-
-            var textParts = new System.Collections.Generic.List<string>();
-
-            // Action name from the view's nameTexts
-            if (command.view != null && command.view.nameTexts != null && command.view.nameTexts.Count > 0)
-            {
-                foreach (var textComp in command.view.nameTexts)
-                {
-                    if (textComp != null && !string.IsNullOrWhiteSpace(textComp.text))
-                    {
-                        string text = textComp.text.Trim();
-                        if (!text.StartsWith("MENU_") && !textParts.Contains(text))
-                            textParts.Add(text);
-                    }
-                }
-            }
-
-            // Keyboard binding — already readable key names.
-            ConfigKeysSettingController_SelectContent_Patch.AppendIconTexts(textParts, command.keyboardIconController);
-
-            // Gamepad binding — translate the LIVE bound button via ControllerLabels when the keyboard
-            // icon is empty (gamepad-section rows carry no key name).
-            if (ConfigKeysSettingController_SelectContent_Patch.ResolveGamepadButtonText(owner, command) is string btn
-                && !string.IsNullOrEmpty(btn)
-                && !ConfigKeysSettingController_SelectContent_Patch.IconHasContent(command.keyboardIconController))
-            {
-                textParts.Add($"({btn})");
-            }
-
-            return textParts.Count == 0 ? null : string.Join(" ", textParts);
         }
     }
 

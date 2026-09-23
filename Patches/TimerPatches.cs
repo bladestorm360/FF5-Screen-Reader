@@ -217,7 +217,7 @@ namespace FFV_ScreenReader.Patches
             }
 
             // If we can't parse it, just return it as-is
-            return "Timer: " + timerText;
+            return string.Format(T("Timer: {0}"), timerText);
         }
     }
 }

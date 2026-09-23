@@ -21,6 +21,7 @@ using KeyInputGameOverPopupController = Il2CppLast.UI.KeyInput.GameOverPopupCont
 using KeyInputInfomationPopup = Il2CppLast.UI.KeyInput.InfomationPopup;
 using KeyInputJobChangePopup = Il2CppLast.UI.KeyInput.JobChangePopup;
 using KeyInputChangeNamePopup = Il2CppLast.UI.KeyInput.ChangeNamePopup;
+using KeyInputInputPopup = Il2CppLast.UI.KeyInput.InputPopup;
 
 // Type aliases for IL2CPP types - Touch Popups
 using TouchCommonPopup = Il2CppLast.UI.Touch.CommonPopup;
@@ -87,6 +88,8 @@ namespace FFV_ScreenReader.Patches
         private const int JOB_CHANGE_CMDLIST_OFFSET = 0x50;
         private const int JOB_CHANGE_SELECT_CURSOR_OFFSET = 0x60;
         private const int CHANGE_NAME_DESCRIPTION_OFFSET = 0x30;
+        private const int CHANGE_NAME_INPUT_FIELD_OFFSET = 0x38;   // KeyInput ChangeNamePopup.inputField
+        private const int INPUT_POPUP_DESCRIPTION_OFFSET = 0x30;   // KeyInput InputPopup.descriptionText (dump.cs 474193)
         private const int TOUCH_COMMON_TITLE_OFFSET = 0x28;
         private const int TOUCH_COMMON_MESSAGE_OFFSET = 0x38;
 
@@ -273,9 +276,26 @@ namespace FFV_ScreenReader.Patches
             IntPtr descPtr = Marshal.ReadIntPtr(ptr + CHANGE_NAME_DESCRIPTION_OFFSET);
             string description = ReadTextFromPointer(descPtr);
             string hint = LocalizationHelper.GetModString("default_name_hint");
-            if (!string.IsNullOrEmpty(description))
-                return $"{description}. {hint}";
-            return hint;
+
+            // The field opens pre-filled with the name Enter would keep — say what it is.
+            string current = null;
+            IntPtr inputPtr = Marshal.ReadIntPtr(ptr + CHANGE_NAME_INPUT_FIELD_OFFSET);
+            if (inputPtr != IntPtr.Zero)
+                current = new UnityEngine.UI.InputField(inputPtr).text?.Trim();
+
+            string announcement = description;
+            if (!string.IsNullOrEmpty(current))
+                announcement = string.IsNullOrEmpty(description)
+                    ? current
+                    : description + string.Format(T(". Current: {0}"), current);
+            return string.IsNullOrEmpty(announcement) ? hint : $"{announcement}. {hint}";
+        }
+
+        private static string ReadInputPopup(IntPtr ptr)
+        {
+            IntPtr descPtr = Marshal.ReadIntPtr(ptr + INPUT_POPUP_DESCRIPTION_OFFSET);
+            string description = ReadTextFromPointer(descPtr);
+            return string.IsNullOrWhiteSpace(description) ? null : TextUtils.StripIconMarkup(description.Trim());
         }
 
         private static string ReadTouchCommonPopup(IntPtr ptr)
@@ -393,6 +413,14 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
+                var input = __instance.TryCast<KeyInputInputPopup>();
+                if (input != null)
+                {
+                    HandlePopupDetected("InputPopup", input.Pointer, -1,
+                        () => ReadInputPopup(input.Pointer));
+                    return;
+                }
+
                 // Touch types (fallback)
                 var touchCommon = __instance.TryCast<TouchCommonPopup>();
                 if (touchCommon != null)
@@ -406,7 +434,7 @@ namespace FFV_ScreenReader.Patches
                 if (touchGameOver != null)
                 {
                     HandlePopupDetected("TouchGameOverSelectPopup", touchGameOver.Pointer, -1,
-                        () => "Game Over");
+                        () => T("Game Over"));
                     return;
                 }
 

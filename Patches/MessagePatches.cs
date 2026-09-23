@@ -599,6 +599,11 @@ namespace FFV_ScreenReader.Patches
                 }
 
                 string cleanMessage = message.Trim();
+
+                // The location banner after a map change repeats "Entering X" — skip it.
+                if (!LocationMessageTracker.ShouldAnnounceFadeMessage(cleanMessage))
+                    return;
+
                 FFV_ScreenReaderMod.SpeakText(cleanMessage, interrupt: false);
             }
             catch (Exception ex)
@@ -609,10 +614,16 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Patch LineFadeMessageManager for scrolling credits, intro text, etc.
+    /// Line-by-line fade text: intro/ending text, credits, the game-over lines.
+    ///
+    /// Hooked at LineFadeMessageWindowController.SetData, not LineFadeMessageManager.Play. The
+    /// game's own entry point, LineFadeMessageClient.Play, goes through Manager.AsyncPlay, which
+    /// builds the Play coroutine itself and never calls Manager.Play (no direct caller in
+    /// GameAssembly.dll), so a Play hook stays silent. Both routes run that coroutine, and its
+    /// MoveNext is SetData's only caller — one hook, one announcement per message set.
     /// </summary>
-    [HarmonyPatch(typeof(LineFadeMessageManager), "Play")]
-    public static class LineFadeMessageManager_Play_Patch
+    [HarmonyPatch(typeof(Il2CppLast.UI.Message.LineFadeMessageWindowController), "SetData")]
+    public static class LineFadeMessageWindowController_SetData_Patch
     {
         [HarmonyPostfix]
         public static void Postfix(Il2CppSystem.Collections.Generic.List<string> messages)
@@ -642,7 +653,7 @@ namespace FFV_ScreenReader.Patches
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in LineFadeMessageManager.Play patch: {ex.Message}");
+                MelonLogger.Warning($"Error in LineFadeMessageWindowController.SetData patch: {ex.Message}");
             }
         }
     }
@@ -710,7 +721,7 @@ namespace FFV_ScreenReader.Patches
                     return;
                 }
 
-                var sb = new StringBuilder("Choices: ");
+                var sb = new StringBuilder();
                 for (int i = 0; i < values.Length; i++)
                 {
                     if (!string.IsNullOrWhiteSpace(values[i]))
@@ -723,7 +734,7 @@ namespace FFV_ScreenReader.Patches
                     }
                 }
 
-                string choicesText = sb.ToString();
+                string choicesText = string.Format(T("Choices: {0}"), sb.ToString());
                 FFV_ScreenReaderMod.SpeakText(choicesText, interrupt: true);
             }
             catch (Exception ex)

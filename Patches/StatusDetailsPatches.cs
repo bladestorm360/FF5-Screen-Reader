@@ -259,40 +259,7 @@ namespace FFV_ScreenReader.Patches
                     yield break;
                 }
 
-                // Read all status details
-                string statusText = StatusDetailsReader.ReadStatusDetails(controller);
-
-                if (string.IsNullOrWhiteSpace(statusText))
-                {
-                    yield break;
-                }
-
-                FFV_ScreenReaderMod.SpeakText(statusText);
-
-                // Initialize navigation state
-                try
-                {
-                    var characterData = StatusDetailsHelpers.GetCharacterDataFromController(controller);
-                    if (characterData != null)
-                    {
-                        var tracker = StatusNavigationTracker.Instance;
-                        tracker.IsNavigationActive = true;
-                        tracker.CurrentStatIndex = 0;  // Start at top
-                        tracker.ActiveController = controller;
-                        tracker.CurrentCharacterData = characterData;
-
-                        // Initialize the stat list
-                        StatusNavigationReader.InitializeStatList();
-                    }
-                    else
-                    {
-                        MelonLogger.Warning("[Status] Could not get character data for navigation");
-                    }
-                }
-                catch (Exception navEx)
-                {
-                    MelonLogger.Warning($"Error initializing navigation: {navEx.Message}");
-                }
+                StatusDetailsHelpers.ShowCharacter(controller, StatusDetailsHelpers.GetCharacterDataFromController(controller));
             }
             catch (Exception ex)
             {
@@ -301,9 +268,28 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    // NOTE: SetNextPlayer, SetPrevPlayer, and SetParameter methods do not exist in FF5's StatusDetailsController
-    // Character navigation in FF5 uses different methods (likely RB/LB button handling)
-    // Character data tracking is handled through InitDisplay patch instead
+    /// <summary>
+    /// LB/RB character switch on the status details screen. SetNextPlayer/SetPrevPlayer live on the
+    /// root base class Serial.Template.UI.StatusDetailsControllerBase (protected virtual, unique RVAs
+    /// 0x524E70 / 0x525320, not overridden by FF5's KeyInput controller). Each moves targetIndex and
+    /// raises OnChange; the view is refilled for the new character, so read it one frame later and
+    /// rebuild the stat list (the Commands group differs per character).
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppSerial.Template.UI.StatusDetailsControllerBase), nameof(Il2CppSerial.Template.UI.StatusDetailsControllerBase.SetNextPlayer))]
+    public static class StatusDetailsControllerBase_SetNextPlayer_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppSerial.Template.UI.StatusDetailsControllerBase __instance)
+            => StatusDetailsHelpers.OnPlayerSwitch(__instance);
+    }
+
+    [HarmonyPatch(typeof(Il2CppSerial.Template.UI.StatusDetailsControllerBase), nameof(Il2CppSerial.Template.UI.StatusDetailsControllerBase.SetPrevPlayer))]
+    public static class StatusDetailsControllerBase_SetPrevPlayer_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppSerial.Template.UI.StatusDetailsControllerBase __instance)
+            => StatusDetailsHelpers.OnPlayerSwitch(__instance);
+    }
 
     /// <summary>
     /// Patch ExitDisplay to clear character data when leaving status screen.
@@ -331,6 +317,73 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class StatusDetailsHelpers
     {
+        /// <summary>
+        /// Arms stat navigation for a character (index to the top, stat list rebuilt — the Commands
+        /// group is per character) and speaks the summary. Navigation is armed even when the
+        /// summary is empty, so the arrows never go dead on a screen that failed to read.
+        /// </summary>
+        public static void ShowCharacter(StatusDetailsController controller, OwnedCharacterData characterData)
+        {
+            if (characterData != null)
+            {
+                var tracker = StatusNavigationTracker.Instance;
+                tracker.IsNavigationActive = true;
+                tracker.CurrentStatIndex = 0;  // Start at top
+                tracker.ActiveController = controller;
+                tracker.CurrentCharacterData = characterData;
+
+                StatusNavigationReader.InitializeStatList();
+            }
+            else
+            {
+                MelonLogger.Warning("[Status] Could not get character data for navigation");
+            }
+
+            string statusText = StatusDetailsReader.ReadStatusDetails(controller);
+            if (!string.IsNullOrWhiteSpace(statusText))
+                FFV_ScreenReaderMod.SpeakText(statusText);
+        }
+
+        /// <summary>SetNextPlayer/SetPrevPlayer postfix: re-read the screen one frame later.</summary>
+        public static void OnPlayerSwitch(Il2CppSerial.Template.UI.StatusDetailsControllerBase instance)
+        {
+            try
+            {
+                var controller = instance?.TryCast<StatusDetailsController>();
+                if (controller == null || !StatusNavigationTracker.Instance.IsNavigationActive) return;
+                CoroutineManager.StartManaged(DelayedPlayerSwitch(controller));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Status] Error in player switch postfix: {ex.Message}");
+            }
+        }
+
+        private static IEnumerator DelayedPlayerSwitch(StatusDetailsController controller)
+        {
+            yield return null;
+
+            try
+            {
+                if (controller == null || controller.gameObject == null || !controller.gameObject.activeInHierarchy)
+                    yield break;
+
+                var characterData = GetCharacterDataFromController(controller);
+                if (characterData == null) yield break;
+
+                // A redundant switch call (or a display re-init that already read this character)
+                // leaves the same character up — nothing new to say.
+                var current = StatusNavigationTracker.Instance.CurrentCharacterData;
+                if (current != null && current.Pointer == characterData.Pointer) yield break;
+
+                ShowCharacter(controller, characterData);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Status] Error in delayed player switch: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Extract character data from the StatusDetailsController
         /// </summary>

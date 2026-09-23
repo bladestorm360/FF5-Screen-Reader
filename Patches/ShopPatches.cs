@@ -7,6 +7,7 @@ using Il2CppLast.UI;
 using Il2CppLast.UI.KeyInput;
 using FFV_ScreenReader.Core;
 using FFV_ScreenReader.Utils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -30,6 +31,40 @@ namespace FFV_ScreenReader.Patches
         public static int LastContentId { get; set; }
         public static bool EnteredEquipmentFromShop { get; set; }
         public static bool IsInShopSession { get; set; }
+
+        /// <summary>The open shop, captured by ShopController.Show for its state machine.</summary>
+        public static ShopController ActiveShopController { get; set; }
+
+        // ShopController.State (dump.cs 478566): SelectCommand = 1 is the command bar.
+        public const int STATE_SELECT_COMMAND = 1;
+
+        // ShopController.stateMachine @ 0x98 -> StateMachine<State>.current @ 0x10 -> State<T>.Tag @ 0x10.
+        // The state enum is a private nested type, so it is read by pointer, not through interop.
+        private const int OFFSET_STATE_MACHINE = 0x98;
+        private const int OFFSET_CURRENT_STATE = 0x10;
+        private const int OFFSET_STATE_TAG = 0x10;
+
+        /// <summary>The open shop's ShopController.State, or -1 when it can't be read.</summary>
+        public static unsafe int CurrentShopState()
+        {
+            try
+            {
+                var controller = ActiveShopController;
+                if (controller == null || controller.Pointer == IntPtr.Zero) return -1;
+
+                IntPtr stateMachine = *(IntPtr*)((byte*)controller.Pointer + OFFSET_STATE_MACHINE);
+                if (stateMachine == IntPtr.Zero) return -1;
+
+                IntPtr current = *(IntPtr*)((byte*)stateMachine + OFFSET_CURRENT_STATE);
+                if (current == IntPtr.Zero) return -1;
+
+                return *(int*)((byte*)current + OFFSET_STATE_TAG);
+            }
+            catch
+            {
+                return -1;
+            }
+        }
 
         /// <summary>
         /// Validates that shop menu is actually active and visible.
@@ -117,6 +152,10 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch]
     public static class ShopPatches
     {
+        // Same-frame repeat guard for the command bar (see AfterShopCommandSetCursor).
+        private static int _lastCommandIndex = -1;
+        private static int _lastCommandFrame = -10;
+
         /// <summary>
         /// Announces shop command menu options (Buy, Sell, Back).
         /// </summary>
@@ -132,6 +171,23 @@ namespace FFV_ScreenReader.Patches
                     ShopMenuTracker.EnteredEquipmentFromShop = false;
                     ShopMenuTracker.IsShopMenuActive = true;
                 }
+
+                // Only while the command bar is the active panel. SetCursor also runs from
+                // ShopInfoController.Reset on open and, through SetCommandFocus, from the
+                // InitSelectProduct / InitSelectSellItem / InitSelectEquipment state entries —
+                // which spoke "Buy" twice on entry and again on stepping into a list. Entering or
+                // backing out to the bar (InitSelectCommand) runs in SelectCommand and still speaks.
+                int state = ShopMenuTracker.CurrentShopState();
+                if (state >= 0 && state != ShopMenuTracker.STATE_SELECT_COMMAND)
+                    return;
+
+                // InitSelectCommand reaches SetCursor twice in the same frame (ShopInfoController.Reset
+                // and SetCommandFocus); speak the row once instead of a cut-off repeat.
+                int frame = UnityEngine.Time.frameCount;
+                if (index == _lastCommandIndex && frame - _lastCommandFrame <= 1)
+                    return;
+                _lastCommandIndex = index;
+                _lastCommandFrame = frame;
 
                 var content = SelectContentHelper.TryGetItem(__instance?.contentList, index);
                 if (content?.view?.nameText == null)
@@ -168,10 +224,16 @@ namespace FFV_ScreenReader.Patches
                 // Mark shop as active when items are being focused
                 ShopMenuTracker.IsShopMenuActive = true;
 
-                // Get item name from iconTextView
+                var (index, count) = GetListPosition(__instance);
+
+                // Get item name from iconTextView. An empty sell slot has none: say so, and keep the
+                // U key's target on the last real item.
                 string itemName = __instance.iconTextView?.nameText?.text;
-                if (string.IsNullOrEmpty(itemName))
+                if (string.IsNullOrEmpty(TextUtils.StripIconMarkup(itemName)))
+                {
+                    CoroutineManager.StartManaged(SpeechHelper.DelayedSpeech(MenuPosition.Format(T("Empty"), index, count)));
                     return;
+                }
 
                 // Retained for the U key / right stick left equip lookup (UsableByAnnouncer).
                 ShopMenuTracker.LastItemName = TextUtils.StripIconMarkup(itemName);
@@ -181,11 +243,40 @@ namespace FFV_ScreenReader.Patches
                 string price = __instance.shopListItemContentView?.priceText?.text;
                 string announcement = string.IsNullOrEmpty(price) ? itemName : $"{itemName}, {price}";
 
-                CoroutineManager.StartManaged(DelayedAnnounceShopItem(announcement));
+                CoroutineManager.StartManaged(DelayedAnnounceShopItem(MenuPosition.Format(announcement, index, count)));
             }
             catch (Exception ex)
             {
                 MelonLogger.Error($"Error in AfterShopItemSetFocus: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Position of a buy/sell row within its list: the row's index in the parent
+        /// ShopListMainContentController.productContentList, over the ACTIVE rows only — the list is a
+        /// fixed pool and the unused slots stay inactive. (-1, 0) when it can't be resolved, which
+        /// MenuPosition.Format turns into no suffix.
+        /// </summary>
+        private static (int index, int count) GetListPosition(ShopListItemContentController item)
+        {
+            try
+            {
+                var rows = item.GetComponentInParent<ShopListMainContentController>()?.productContentList;
+                if (rows == null) return (-1, 0);
+
+                int index = -1, count = 0;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var row = rows[i];
+                    if (row == null || row.gameObject == null || !row.gameObject.activeInHierarchy) continue;
+                    if (row.Pointer == item.Pointer) index = count;
+                    count++;
+                }
+                return (index, count);
+            }
+            catch
+            {
+                return (-1, 0);
             }
         }
 
@@ -218,6 +309,17 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
+        /// Announces the starting quantity and total when the buy/sell trade window opens.
+        /// Postfix takes __instance only: Show has string parameters.
+        /// </summary>
+        [HarmonyPatch(typeof(ShopTradeWindowController), nameof(ShopTradeWindowController.Show))]
+        [HarmonyPostfix]
+        internal static void AfterTradeWindowShow(ShopTradeWindowController __instance)
+        {
+            AnnounceTradeWindowQuantity(__instance);
+        }
+
+        /// <summary>
         /// Announces quantity changes in the buy/sell trade window.
         /// </summary>
         [HarmonyPatch(typeof(ShopTradeWindowController), nameof(ShopTradeWindowController.AddCount))]
@@ -241,18 +343,7 @@ namespace FFV_ScreenReader.Patches
                 if (controller?.view == null)
                     return;
 
-                // Get quantity and total price
-                string quantity = controller.view.selectCountText?.text;
-                string totalPrice = controller.view.totarlPriceText?.text;
-
-                if (!string.IsNullOrEmpty(quantity))
-                {
-                    string announcement = string.IsNullOrEmpty(totalPrice)
-                        ? quantity
-                        : $"{quantity}, {totalPrice}";
-
-                    CoroutineManager.StartManaged(DelayedAnnounceQuantity(announcement));
-                }
+                CoroutineManager.StartManaged(DelayedAnnounceQuantity(controller));
             }
             catch (Exception ex)
             {
@@ -327,10 +418,26 @@ namespace FFV_ScreenReader.Patches
                 ShopDetailsAnnouncer.AnnounceCurrentItemDetails(interrupt: false);
         }
 
-        internal static IEnumerator DelayedAnnounceQuantity(string quantityText)
+        /// <summary>"Quantity: 3, Total: 450" — read after one frame, once the view has refreshed.</summary>
+        private static IEnumerator DelayedAnnounceQuantity(ShopTradeWindowController controller)
         {
-            yield return null; // Wait one frame for UI to update
-            FFV_ScreenReaderMod.SpeakText($"{quantityText}");
+            yield return null;
+
+            try
+            {
+                if (controller?.view == null) yield break;
+
+                int quantity = controller.selectedCount;       // private int @ 0x3C
+                string totalPrice = controller.view.totarlPriceText?.text?.Trim();
+
+                FFV_ScreenReaderMod.SpeakText(string.IsNullOrEmpty(totalPrice)
+                    ? string.Format(T("Quantity: {0}"), quantity)
+                    : string.Format(T("Quantity: {0}, Total: {1}"), quantity, totalPrice));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error($"Error announcing trade quantity: {ex.Message}");
+            }
         }
     }
 
@@ -343,9 +450,10 @@ namespace FFV_ScreenReader.Patches
     {
         [HarmonyPatch(typeof(ShopController), nameof(ShopController.Show))]
         [HarmonyPostfix]
-        public static void AfterShopShow()
+        public static void AfterShopShow(ShopController __instance)
         {
             ShopMenuTracker.IsInShopSession = true;
+            ShopMenuTracker.ActiveShopController = __instance;
         }
 
         [HarmonyPatch(typeof(ShopController), nameof(ShopController.Close))]
@@ -353,6 +461,7 @@ namespace FFV_ScreenReader.Patches
         public static void AfterShopClose()
         {
             ShopMenuTracker.IsInShopSession = false;
+            ShopMenuTracker.ActiveShopController = null;
         }
     }
 

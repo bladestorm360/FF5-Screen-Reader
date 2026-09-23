@@ -187,9 +187,10 @@ namespace FFV_ScreenReader.Core
             {
                 string west = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_WEST);
                 string north = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_NORTH);
+                string south = ControllerLabels.GetButtonLabel(SDL3.SDL_GAMEPAD_BUTTON_SOUTH);
                 FFV_ScreenReaderMod.SpeakText(
-                    string.Format(T("{0} for Gil. {1} for location. Right stick to teleport. {2} to cancel."),
-                    west, north, back),
+                    string.Format(T("{0} for Gil. {1} for location. {2} for vehicle. Right stick to teleport. {3} to cancel."),
+                    west, north, south, back),
                     interrupt: true);
             }
         }
@@ -354,8 +355,7 @@ namespace FFV_ScreenReader.Core
                         mod.PathfindToCurrentWaypoint();
                         break;
                     case NavigationTargetTracker.Kind.Entity:
-                        if (FFV_ScreenReaderMod.AudioBeaconsEnabled) mod.RestartEntityBeacon();
-                        else mod.AnnounceCurrentEntity();
+                        mod.AnnounceOrRestartBeacon();
                         break;
                     default:
                         FFV_ScreenReaderMod.SpeakText(T("No target selected"), interrupt: true);
@@ -381,7 +381,7 @@ namespace FFV_ScreenReader.Core
             if (GamepadManager.RStickLeftPressed)
                 UsableByAnnouncer.AnnounceForCurrentContext();
 
-            // D-pad and left stick → virtual buffer navigation in Status/Bestiary
+            // D-pad and left stick → virtual buffer navigation in Status/Bestiary/Controls list
             if (context == KeyContext.Status)
             {
                 if (GamepadManager.DpadUpPressed || GamepadManager.LeftStickUpPressed)
@@ -395,6 +395,13 @@ namespace FFV_ScreenReader.Core
                 { ConsumeButton(SDL3.SDL_GAMEPAD_BUTTON_DPAD_UP); BestiaryNavigationReader.NavigatePrevious(); }
                 if (GamepadManager.DpadDownPressed || GamepadManager.LeftStickDownPressed)
                 { ConsumeButton(SDL3.SDL_GAMEPAD_BUTTON_DPAD_DOWN); BestiaryNavigationReader.NavigateNext(); }
+            }
+            else if (context == KeyContext.KeyHelp)
+            {
+                if (GamepadManager.DpadUpPressed || GamepadManager.LeftStickUpPressed)
+                { ConsumeButton(SDL3.SDL_GAMEPAD_BUTTON_DPAD_UP); KeyHelpReader.NavigatePrevious(); }
+                if (GamepadManager.DpadDownPressed || GamepadManager.LeftStickDownPressed)
+                { ConsumeButton(SDL3.SDL_GAMEPAD_BUTTON_DPAD_DOWN); KeyHelpReader.NavigateNext(); }
             }
             // Note: BattleResultNavigator handles its own input via GamepadManager polling
             // (keyboard + controller) when open; SuppressGameInput keeps the game from seeing input.
@@ -444,12 +451,15 @@ namespace FFV_ScreenReader.Core
             }
             else
             {
-                // Field mod mode: X=Gil, Y=Location
+                // Field mod mode: X=Gil, Y=Location, A=Vehicle (V key equivalent)
                 if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_WEST))
                 { mod.AnnounceGilAmount(); State = ControllerState.Normal; return; }
 
                 if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_NORTH))
                 { mod.AnnounceCurrentMap(); State = ControllerState.Normal; return; }
+
+                if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_SOUTH))
+                { InputManager.HandleMovementStateKey(); State = ControllerState.Normal; return; }
 
                 // When Stick Click Normalization is on, the stick-click mod functions move
                 // here so the player can still reach them via mod button + R3/L3.
@@ -519,6 +529,10 @@ namespace FFV_ScreenReader.Core
 
             if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_EAST))
                 CloseModMenu();
+
+            // Right stick up → what the focused setting does (I key equivalent)
+            if (GamepadManager.RStickUpPressed)
+                ModMenu.AnnounceCurrentItemDescription();
 
             // Right stick down → announce mod menu controls
             if (GamepadManager.RStickDownPressed)

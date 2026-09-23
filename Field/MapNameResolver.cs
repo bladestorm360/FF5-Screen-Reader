@@ -3,6 +3,7 @@ using Il2CppLast.Map;
 using Il2CppLast.Management;
 using Il2CppLast.Data.Master;
 using MelonLoader;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using Map = Il2CppLast.Data.Master.Map; // Disambiguate from Il2CppLast.Map namespace
 
 namespace FFV_ScreenReader.Field
@@ -24,7 +25,7 @@ namespace FFV_ScreenReader.Field
             {
                 var userDataManager = UserDataManager.Instance();
                 if (userDataManager == null)
-                    return "Unknown";
+                    return T("Unknown");
 
                 int currentMapId = userDataManager.CurrentMapId;
                 string resolvedName = TryResolveMapNameById(currentMapId);
@@ -32,12 +33,12 @@ namespace FFV_ScreenReader.Field
                 if (!string.IsNullOrEmpty(resolvedName))
                     return resolvedName;
 
-                return $"Map {currentMapId}";
+                return string.Format(T("Map {0}"), currentMapId);
             }
             catch (System.Exception ex)
             {
                 MelonLogger.Warning($"[MapNameResolver] Error getting current map name: {ex.Message}");
-                return "Unknown";
+                return T("Unknown");
             }
         }
 
@@ -49,7 +50,7 @@ namespace FFV_ScreenReader.Field
         public static string GetMapExitName(PropertyGotoMap gotoMapProperty)
         {
             if (gotoMapProperty == null)
-                return "Unknown";
+                return T("Unknown");
 
             int mapId = gotoMapProperty.MapId;
             string assetGroupName = gotoMapProperty.AssetGroupName;
@@ -61,7 +62,7 @@ namespace FFV_ScreenReader.Field
                 return resolvedName;
 
             // Fallback: Just show the map ID
-            return $"Map {mapId}";
+            return string.Format(T("Map {0}"), mapId);
         }
 
         /// <summary>

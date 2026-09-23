@@ -103,6 +103,12 @@ namespace FFV_ScreenReader.Patches
         private static int _lastSlotIndex = -1;
         private static int _lastSelectRowIndex = -1;
 
+        // Frame of the last LB/RB character switch: a slot read within QueueSlotFrames of it queues
+        // behind the character name instead of cutting it off. A frame stamp rather than a flag, so
+        // a switch whose follow-up read was superseded can't leave a later, unrelated read queued.
+        private static int _queueSlotFrame = -1000;
+        private const int QueueSlotFrames = 10;
+
         /// <summary>
         /// Clears every guard, so entering the equipment window from the command bar always
         /// announces even when the focused row is the one last spoken before leaving.
@@ -229,8 +235,43 @@ namespace FFV_ScreenReader.Patches
             if (index == _lastSlotIndex) return false;
             _lastSlotIndex = index;
 
-            FFV_ScreenReaderMod.SpeakText(announcement);
+            bool queue = UnityEngine.Time.frameCount - _queueSlotFrame <= QueueSlotFrames;
+            _queueSlotFrame = -1000;
+            FFV_ScreenReaderMod.SpeakText(announcement, interrupt: !queue);
             return true;
+        }
+
+        /// <summary>
+        /// LB/RB switch: speak the new character ("Name, Job"), then, if the slot pane has focus,
+        /// re-read the focused slot for that character. UpdateView has already refilled the view by
+        /// the time SetNextPlayer/SetPrevPlayer return. The switch also works from the command bar
+        /// (CommandUpdate), where only the name is read: the slot guard is set only while the slot
+        /// pane has focus (CommandInit and the item list both clear it). The guard is cleared because
+        /// the cursor usually stays on the same row; if the game's own SelectContent fires first it
+        /// speaks the slot and the deferred read is swallowed by the guard, so it is never read twice.
+        /// </summary>
+        public static void AnnounceCharacterSwitch(EquipmentInfoWindowController controller)
+        {
+            var view = controller?.view;                         // EquipmentInfoWindowView @ 0x40
+            if (view == null) return;
+
+            string name = view.nameText?.text?.Trim();           // @ 0x18
+            string job = view.jobNameText?.text?.Trim();         // @ 0x20
+            if (!string.IsNullOrEmpty(name))
+                FFV_ScreenReaderMod.SpeakText(string.IsNullOrEmpty(job) ? name : $"{name}, {job}");
+
+            if (_lastSlotIndex < 0) return;
+
+            _lastSlotIndex = -1;
+            _queueSlotFrame = UnityEngine.Time.frameCount;
+            MenuFocusAnnouncer.Request("EquipSwitch", () =>
+            {
+                if (!MenuFocusAnnouncer.IsAlive(controller)) return false;
+                var cursor = controller.selectCursor;            // @ 0x60
+                if (cursor == null) return false;
+                AnnounceEquipSlot(controller, cursor.Index);
+                return true;
+            });
         }
 
         /// <summary>Announces one row of the equipment item-select list.</summary>
@@ -334,6 +375,33 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"Error in EquipmentInfoWindowController.SelectContent patch: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// LB/RB character switch in the slot pane. SetNextPlayer/SetPrevPlayer (private, unique RVAs
+    /// 0x4C67C0 / 0x4C69C0) run once per switch from the page-turn coroutines. Do NOT hook
+    /// UpdateSwitchCharacter instead: CommandUpdate/InfoUpdate call it every frame.
+    /// </summary>
+    [HarmonyPatch(typeof(EquipmentInfoWindowController), "SetNextPlayer")]
+    public static class EquipmentInfoWindowController_SetNextPlayer_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(EquipmentInfoWindowController __instance)
+        {
+            try { EquipMenuState.AnnounceCharacterSwitch(__instance); }
+            catch (Exception ex) { MelonLogger.Warning($"Error in EquipmentInfoWindowController.SetNextPlayer patch: {ex.Message}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(EquipmentInfoWindowController), "SetPrevPlayer")]
+    public static class EquipmentInfoWindowController_SetPrevPlayer_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(EquipmentInfoWindowController __instance)
+        {
+            try { EquipMenuState.AnnounceCharacterSwitch(__instance); }
+            catch (Exception ex) { MelonLogger.Warning($"Error in EquipmentInfoWindowController.SetPrevPlayer patch: {ex.Message}"); }
         }
     }
 

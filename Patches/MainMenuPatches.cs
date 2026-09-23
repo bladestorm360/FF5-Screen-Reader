@@ -42,7 +42,14 @@ namespace FFV_ScreenReader.Patches
                 JobAbilityTrackerHelper.ClearAllTrackers();
                 SaveLoadMenuState.ResetState();
                 ConfigMenuState.ClearState();
+
+                // Drop cached menu controllers, but keep the field objects: the field scene stays
+                // loaded under the menu, and field-menu hotkeys (G, M, V, F5, F8, Start) read them.
+                var playerController = GameObjectCache.Get<Il2CppLast.Map.FieldPlayerController>();
+                var fieldMap = GameObjectCache.Get<FieldMap>();
                 GameObjectCache.ClearAll();
+                GameObjectCache.Register(playerController);
+                GameObjectCache.Register(fieldMap);
             }
             catch (Exception ex)
             {
@@ -64,7 +71,7 @@ namespace FFV_ScreenReader.Patches
             {
                 MenuStateRegistry.SetActive(MenuStateRegistry.MAIN_MENU, false);
 
-                // Re-populate cache entries that were wiped by ClearAll() in Show
+                // Re-resolve the field entries Show carried over, in case the menu replaced them
                 GameObjectCache.Refresh<Il2CppLast.Map.FieldPlayerController>();
                 GameObjectCache.Refresh<FieldMap>();
             }

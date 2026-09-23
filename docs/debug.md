@@ -3,8 +3,8 @@
 ## Mod Architecture
 
 ### Core (`Core/`)
-- `FFV_ScreenReaderMod` — Entry point, SpeakText(), SpeakTextDelayed(), entity refresh, scene transitions, IsAccessibilityEnabled + ToggleAccessibility() (Ctrl+F8 kill switch: disable stops all coroutines, resets all state trackers, clears audio; enable reinitializes preferences, recaches game objects, rescans entities, announces map)
-- `InputManager` — Keybinding dispatch via KeyBindingRegistry. F1/F3/F5/F8/I/V/Shift+I inline. Unity `Input.GetKeyDown`/`Input.GetKey` for game input. KeyContext-based dispatch (Global, Field, Battle, BattleResult, Status, Bestiary)
+- `FFV_ScreenReaderMod` — Entry point, SpeakText() (strips rich-text tags centrally), SpeakTextDelayed(), entity refresh, scene transitions. (There is no Ctrl+F8 kill switch any more; older notes describing one are stale.)
+- `InputManager` — Keybinding dispatch via KeyBindingRegistry. F5/F7/F8 inline; F1/F3 are narrated by `GameTogglePatches`, not polled. KeyContext-based dispatch (Global, Field, Battle, BattleResult, Status, Bestiary, KeyHelp); W/S alias Up/Down in the three buffer contexts
 - `ModMenu` — Audio-only settings menu (F8), Windows API focus control
 - `EntityCache` — Caches field entities; grouping via IGroupingStrategy
 - `EntityNavigator` — Entity cycling with timing-aware filters (OnAdd/OnCycle)
@@ -34,10 +34,11 @@
 - `MovementSpeechPatches` — Movement announcements + vehicle state transitions
 - `MovementSoundPatches` — Footstep audio
 - `ShopPatches` — Shop menus + ShopMenuTracker + equipment command bar
-- `PopupPatches` — All popup types (common, game over, info, job change, change name)
+- `PopupPatches` — All popup types (common, game over, info, job change, change name, input)
 - `GameStatePatches` — BattleState, map transitions, IsInEventState (cached via ChangeState hook), config menu bestiary detection (states 17/18)
 - `TitleMenuPatches` — Title screen
-- `DashFlagPatches` — Walk/run state for F1
+- `GameTogglePatches` — F1 walk/run and F3 encounters, from the game's own setters (any input source)
+- `BattlePausePatches` — Battle pause menu (Resume / Return to Title)
 - `MainMenuPatches` — In-game main menu + state cleanup
 - `SaveLoadPatches` — Save/load menus + confirmation popups
 - `NamingPatches` — Name entry screen
@@ -497,6 +498,8 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 
 **Status**: fully translated and shipped. All 1367 labels are translated into all 12 localization languages (`ja` identity + en/fr/it/de/es/ko/zht/zhc/ru/th/pt) and promoted into the embedded `translation.json` (674 KB, embedded via `FFV_ScreenReader.csproj:83`). `en` is the runtime fallback for any missing language (`EntityTranslator.TryLookup`). Pipeline for regenerating after a game update: `extract_entities.py full translation.generated.json` → split keys into chunks → translate chunks → `tools/apply_translations.py apply <batch>` per batch → `apply_translations.py promote` (writes `translation.json`, sets `ja` = key). Note some `Entity(5)` keys are dev-internal (collision/purpose markers) and `【汎用】`-prefixed generics slip past `EntityFactory.IsPlaceholderEntity` (only bare `汎用` is caught) — prune or tighten later if desired.
 
+**Generalised tool + official-name pass (2026-09-23).** `tools/extract_entities.py` is now the shared FF2–FF5 version (`GAME` defaults to FF5; `full` works as before). New modes: `missing <out>` runs every label through a Python mirror of this mod's 4-tier lookup and reports only true misses (currently 0 of 1367), and `gamedict <out>` builds Japanese → {lang} from the game's own message tables (`story_cha` speaker names + `system`). Using that dictionary, 75 existing entries whose key is itself a game string were aligned with the game's localisation (344 values, applied identically to `translation.json` and `translation.generated.json`, which stay byte-identical). Examples: アポカリョープス keeps "Azulmagia" in English but is "Apokalyp"/"Apocalipso"/"아포칼리옵스" in de/es/ko as in the game; ストーカー → Wendigo; ネレゲイド → Nereid; 飛竜/飛竜草 → Wind Drake/Dragon Grass; タイクーン城/ウォルスの塔 → Castle Tycoon/Tower of Walse; 大臣 → Chancellor; 長老の枝 → Guardian Branch. Left alone: shop words, カエル, 魔物, とげ, ギル (official text is a different context).
+
 **Why offline (data architecture)**: FFPR splits data into two tiers. *Global tier* (always resident): master tables (`MasterManager.GetList<T>()` — `Map`, `Area`, `Transportation`, …) and the `MessageManager` text dictionary. *Per-map tier* (only live while a map is loaded): entity placements/labels. NPC/event/interactible labels are **not** in any master table — they are literal `MapObjectProperty.name` strings authored inside each map's Addressables bundle (`StreamingAssets/aa/StandaloneWindows64/map_*.bundle`) in **Tiled-editor JSON** (`layers[].objects[]`, each object with `name` + a `properties[]` list holding `object_type`). Entity groups live as `entity_default` TextAssets plus base64 `inline` `entity[]` groups in the bundle's `package` manifest. That is why they feel "runtime only": the game only `JsonUtility.FromJson`-parses a map's package when you enter it. The `Npc` master exists but its `npc_name` is unconsumed and `GetList<Npc>` is not AOT-instantiated, so it is not a usable source. The two categories that ARE globally tabled (and need no dump): **map exit names** (`PropertyGotoMap.MapId` → `Map`/`Area` master → `MessageManager`, done in `MapNameResolver.cs`) and **vehicle tags** (`Transportation` master `message_id` → `MessageManager`). Treasure is a mod constant. An in-mod sweep was rejected because `dump.cs` is signature-only, so the addressable-key/loader-wiring conventions aren't recoverable without live reverse-engineering — offline reads the same JSON straight from the bundles. See `tools/extract_entities.py` header for the filter (mirrors `EntityFactory` object_type excludes + Japanese-char + placeholder filters).
 
 ### Battle Target Status Effects (2026-02-12)
@@ -608,7 +611,7 @@ Normal Save was never relying on `SaveWindowCompleteInit_Postfix` either. It wor
 - `ChangeState_Postfix`: removed diagnostic logging, cycle counting, NPC position dumps
 - `ResetState()`: single field reset
 
-**Also**: InputManager.cs Ctrl+K keybinding log prefix changed from `[DIAG]` to `[Input]` (kept as intentional last-resort entity rescan).
+**Also**: InputManager.cs Ctrl+K keybinding log prefix changed from `[DIAG]` to `[Input]` (kept as intentional last-resort entity rescan). *(Superseded: no Ctrl+K binding exists any more; the manual rescan is backtick, "Entity scan complete".)*
 
 ### Job Menu "Mastered!" Always Announced (2026-02-19)
 **Problem**: Every job in the job menu announced "Mastered!" regardless of actual mastery status.
@@ -1357,3 +1360,86 @@ Copy `Field/Routing/` wholesale, then:
    `target {0} {1}`, `landing spot`.
 6. Verify with: `grep -nE '\bT\(|SpeakText|LocalizationHelper|MelonLogger|GameObjectCache'`
    over `Field/Routing/` — must be clean outside `RoutingAdapter.cs`.
+
+### FF1 Parity Pass (2026-09-23)
+
+Ported the FF1 features an audit found missing (work list in plan.md, bottom of the table).
+Everything below builds clean; nothing was exercised in game.
+
+**How the hooks were chosen.** `GameAssembly.dll.c` in this folder is a type header with no
+function bodies, so it cannot answer "who calls X". The questions were settled by scanning
+`GameAssembly.dll` itself (read-only) for direct `call`/`jmp rel32` sites and mapping each site
+back to its method through dump.cs RVAs (capstone for the one-function disassembly). Virtual
+calls are indirect and do not show up, so "no caller" means "no *direct* caller". Findings:
+
+| Question | Answer |
+|---|---|
+| Who changes encounters? | `CheatSettingsClient.SetIsEnableEncount` ← `FieldMap.UpdatePlayerStatePlay` (the field toggle), `ConfigActualDetailsControllerBase.SetEnableEncount` (config), `SaveSlotManager.GotoLoadSaveData` (load) |
+| Who changes auto-dash? | `ConfigClient.SetIsAutoDash` ← `FieldMap.UpdatePlayerStatePlay`, config `SetIsAutoDash` / `SwitchArrowSelectTypeProcess`. It tail-calls `Config.set_IsAutoDash` |
+| Does the pause menu have a non-per-frame hook? | `BattlePauseController.SetCommandSelectCursor`: `SetCursorToDefault` (open), the first-show branch of `UpdateSelect`, and the cursor's move callback `<UpdateSelect>b__27_1`. **Not** `UpdateFocus` — `UpdateSelect` calls it every frame while no popup is open |
+| Does a status LB/RB switch re-run `InitDisplay`? | Not directly: `SetNextPlayer` = `GetCorpsNextIndex` + `OnChange(index)`. The switch patch dedups against the tracker's character by pointer in case `OnChange` re-enters the display state |
+| Does opening a target window read the first target? | Enemies yes (`EnemysInit` calls `SelectContent`); allies no (`PlayerInit` positions with `BattleCursorUtility.SetTargetPlayer`). Hence the `PlayerInit` postfix |
+| Where do bestiary page turns go? | `LibraryInfoManager.NextPage/PreviousPage → ShowData → LibraryInfoController.SetData`, and `changeGroupMonster → SetData`. `ExtraLibraryInfo.OnChangedMonster` only sets the background. So `SetData` is the single announcer |
+| Why was line-fade text silent? | `LineFadeMessageManager.Play` has no direct caller. The game's `LineFadeMessageClient.Play` goes through `AsyncPlay`, which builds the `<Play>d__9` coroutine itself. That coroutine's `MoveNext` is the only caller of `LineFadeMessageWindowController.SetData` — hook that |
+| Equip LB/RB | `EquipmentInfoWindowController.SetNextPlayer/SetPrevPlayer`, called from the page-turn coroutines. **Not** `UpdateSwitchCharacter` — `CommandUpdate`/`InfoUpdate` run it every frame |
+| Config row re-announce after the Library | `ConfigActualDetailsControllerBase.UpdateFocus` re-asserts `ConfigCommandController.SetFocus` every frame; clearing the SetFocus guard on bestiary exit is enough |
+
+**Folded bodies found on the way (never hook):** `CheatSettingsData.set_IsEnableEncount`
+(0x346D70, 23 methods), `ConfigSaveData.set_IsAutoDash` (0x2EB9C0, 20),
+`ConfigKeysSettingController.MouseSettInit` (0x2715A0, the shared empty stub).
+
+**Pointer reads added** (verified against dump.cs): `ShopController.stateMachine` 0x98 →
+`StateMachine<T>.current` 0x10 → `State<T>.Tag` 0x10 (same generic layout FF1 reads);
+`SaveContentController.SlotData` 0x38 → `SaveSlotData.id` 0x30 (ids 21/22 are the autosave
+and quick-save rows — `SaveSlotManager.AutoSlotId`/`SuspendedSlotId`); `ChangeNamePopup.inputField`
+0x38; `InputPopup.descriptionText` 0x30.
+
+**Localization traps fixed:**
+- `ModMenu.Initialize` ran `T()` at mod load, before `MessageManager` exists, so every mod-menu
+  label was English in every language. Labels (and the new descriptions) are now keys translated
+  when spoken. Same for `WaypointEntity.GetCategoryNames()`, cached in a static initializer. The
+  key audit regex (`T("literal")`) does not see these raw keys — check `ModMenu.Initialize` and
+  `GetCategoryNames` by hand when auditing.
+- Battle action wording matched English command names ("attack"/"defend"/"item"). Now by command
+  identity: `CommandSortData.CommandId` Fight = 1, Item = 3; `Command.CommandType` Defence = 8
+  (Defend/Flee) minus `BattleConstants.EscapeCommandId` 22. "uses item" only when no ability name
+  is available, so a named item still reads by name.
+- Autosave/quick-save rows were recognised by English slot names; now by `SaveSlotData.id`.
+- `DirectionHelper` returns translated words — it is speech-only; never compare its result to a literal.
+
+**Open question — Evasion.** The status screen fills each row via
+`ParameterUtility.GetValue(data, row.Type)` / `SetCountValue(GetValue(row.SubType))`, and
+`IsPercent(type)` decides the "%". The row's `ParameterType` is prefab data, invisible in the
+dump, so whether "Evasion" is `EvasionRate` (17, a percentage — what FF1 reads) or a count could
+not be settled offline. `ReadEvasion` still uses `ConfirmedDefenseCount()`. One log line of
+`ParameterContentController.Type`/`SubType` for the Evasion row would settle it.
+
+**Per-frame cost kept out:** `InputManager.IsOnValidMap` self-heals with `GameObjectCache.Refresh`
+only for on-demand callers; `DetermineContext` (every frame) passes `refreshIfMissing: false`,
+otherwise the title screen would run a `FindObjectOfType` per frame.
+
+**Review fixes (2026-09-23, after an independent review of this pass):**
+- Plain attack vs named ability: `isDirectAttack` was true for anything under the Fight command,
+  which would read an ability run under Fight as "X attacks". Now: first ability id 1 (the Fight
+  command's own ability — command master row 1, `ability_id` 1), or no ability and the Fight
+  command. Named abilities keep their names.
+- Battle command back-out: the settle read now keeps retrying (within the 6-frame cap) while
+  targeting / item use is still latched from the sub-menu just left, instead of giving up silently.
+- `LocationMessageTracker`: a map transition now suppresses at most one repeated banner, then is
+  forgotten — a stale "Entering X" could otherwise swallow the banner after loading a save on the
+  same map (where no "Entering" is spoken).
+- Equip LB/RB: "queue the next slot read behind the character name" is a frame stamp (10 frames)
+  instead of a flag, so a superseded follow-up read can't leave a later unrelated read queued.
+- V key: gimmick / unique movement states read "Special movement" (new key) instead of "Unknown".
+- Shop command bar: `InitSelectCommand` reaches `SetCursor` twice in one frame
+  (`ShopInfoController.Reset` and `SetCommandFocus`); a same-index same-frame guard speaks it once.
+
+**Multi-hit damage (2026-09-23).** "Target: NxTotal damage" on weapon attacks now works in FF5. It
+never could before: the game draws its ×N (`BattleBasicFunction.CreateHitCount` →
+`DamageViewUIManager.CreateHitCount`) only when `SystemConfigData.GetBattleType()` is Command, and
+FF5's returns 0 (ATB; FF1–FF3 return 1), so the `CreateHitCount` hook never fired. The
+`CreateDamageView` postfix now reads the attack's own count from
+`__instance.ICalcResultDic[target].GetHitCount()` for weapon abilities (`Ability.TypeId` 4 — the Fight
+command's ability 1; the same rule the ×N display uses). `battleActData` is protected, read at offset
+0x28. Default is now "With hit count", stored as `MultiHitDamage`. *Unverified in game:* that
+`GetHitCount` is hits landed (FF5 basic attacks are usually single-hit, so most attacks read as before).

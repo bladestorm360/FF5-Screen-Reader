@@ -9,6 +9,7 @@ using Il2CppLast.Map;
 using Il2CppLast.Management;
 using MelonLoader;
 using UnityEngine;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Core
 {
@@ -159,7 +160,7 @@ namespace FFV_ScreenReader.Core
             else
                 StopWallToneLoop();
 
-            FFV_ScreenReaderMod.SpeakText($"Wall tones {(newValue ? "on" : "off")}");
+            FFV_ScreenReaderMod.SpeakText(string.Format(T("Wall tones {0}"), newValue ? T("on") : T("off")));
         }
 
         public void ToggleFootsteps()
@@ -167,7 +168,7 @@ namespace FFV_ScreenReader.Core
             bool newValue = !PreferencesManager.FootstepsEnabled;
             PreferencesManager.SaveFootsteps(newValue);
 
-            FFV_ScreenReaderMod.SpeakText($"Footsteps {(newValue ? "on" : "off")}");
+            FFV_ScreenReaderMod.SpeakText(string.Format(T("Footsteps {0}"), newValue ? T("on") : T("off")));
         }
 
         public void ToggleAudioBeacons()
@@ -180,7 +181,7 @@ namespace FFV_ScreenReader.Core
             else
                 StopBeaconLoop();
 
-            FFV_ScreenReaderMod.SpeakText($"Audio beacons {(newValue ? "on" : "off")}");
+            FFV_ScreenReaderMod.SpeakText(string.Format(T("Audio beacons {0}"), newValue ? T("on") : T("off")));
         }
 
         public void ToggleLandingPings()
@@ -193,7 +194,7 @@ namespace FFV_ScreenReader.Core
             else
                 StopLandingPingLoop();
 
-            FFV_ScreenReaderMod.SpeakText($"Landing pings {(newValue ? "on" : "off")}");
+            FFV_ScreenReaderMod.SpeakText(string.Format(T("Landing Pings {0}"), newValue ? T("on") : T("off")));
         }
 
         #endregion

@@ -10,18 +10,107 @@ using static FFV_ScreenReader.Utils.ModTextTranslator;
 namespace FFV_ScreenReader.Menus
 {
     /// <summary>
-    /// Reads the visible key help tooltips displayed on screen (button icons + action labels).
-    /// Activated by Shift+I on any screen.
-    /// Uses GameObjectCache + transform navigation + GetComponentsInChildren&lt;Text&gt;()
-    /// to avoid IL2CPP Cast constraint errors from array-based access on game-specific types.
+    /// Reads the controls display. Two independent features:
+    ///   • Shift+I — reads the on-screen control-hint bar (the persistent KeyHelpController) at once
+    ///     via GameObjectCache + transform navigation (AnnounceKeyHelp). Works on any screen.
+    ///   • Arrows/WASD — step the config menu's "Gamepad/Keyboard Controls" list one entry at a time,
+    ///     gated to KeyContext.KeyHelp.
+    ///
+    /// The list is armed ONLY from ConfigKeysSettingController's GamePad/Keyboard Help state
+    /// (ConfigMenuPatches hands over the pre-rendered entries via <see cref="OpenControlsHelp"/>),
+    /// never from the hint bar: the title-screen Options menu hosts a hint bar too, and arming off it
+    /// would flip that menu's arrows into KeyContext.KeyHelp.
     /// </summary>
     public static class KeyHelpReader
     {
         // KeyHelpController.view (KeyHelpView) — private field, no public accessor
         private const int OFFSET_VIEW = 0x18;
 
+        // Controls-list state. helpOwner validates the screen is still up (cheap, safe per frame —
+        // no scene scan) so a missed close can never leave KeyContext.KeyHelp stuck.
+        private static List<string> entries;
+        private static int index;
+        private static ConfigKeysSettingController helpOwner;
+
         /// <summary>
-        /// Public entry point — reads all visible key help controls and speaks them.
+        /// Called by ConfigMenuPatches when the Gamepad/Keyboard Controls list opens, with each row
+        /// already rendered as "action (binding)". Announces the first entry as the initial focus.
+        /// </summary>
+        public static void OpenControlsHelp(ConfigKeysSettingController owner, List<string> rendered)
+        {
+            if (owner == null || rendered == null || rendered.Count == 0)
+            {
+                CloseControlsHelp();
+                return;
+            }
+
+            helpOwner = owner;
+            entries = rendered;
+            index = 0;
+            SpeakCurrent();
+        }
+
+        /// <summary>Called when the list closes or returns to the controls select state.</summary>
+        public static void CloseControlsHelp()
+        {
+            helpOwner = null;
+            entries = null;
+            index = 0;
+        }
+
+        /// <summary>True while the controls list is on screen — drives KeyContext.KeyHelp.</summary>
+        public static bool IsScreenActive
+        {
+            get
+            {
+                if (entries == null) return false;
+                try
+                {
+                    if (helpOwner != null && helpOwner.gameObject != null && helpOwner.gameObject.activeInHierarchy)
+                        return true;
+                }
+                catch { }
+                CloseControlsHelp();
+                return false;
+            }
+        }
+
+        // ── Navigation (arrows + WASD, gated to KeyContext.KeyHelp) ──
+        public static void NavigateNext()
+        {
+            if (entries == null) return;
+            index = (index + 1) % entries.Count;
+            SpeakCurrent();
+        }
+
+        public static void NavigatePrevious()
+        {
+            if (entries == null) return;
+            index = (index - 1 + entries.Count) % entries.Count;
+            SpeakCurrent();
+        }
+
+        public static void JumpToTop()
+        {
+            if (entries == null) return;
+            index = 0;
+            SpeakCurrent();
+        }
+
+        public static void JumpToBottom()
+        {
+            if (entries == null) return;
+            index = entries.Count - 1;
+            SpeakCurrent();
+        }
+
+        private static void SpeakCurrent()
+        {
+            FFV_ScreenReaderMod.SpeakText(MenuPosition.Format(entries[index], index, entries.Count), interrupt: true);
+        }
+
+        /// <summary>
+        /// Shift+I — reads all visible key help controls and speaks them.
         /// </summary>
         public static void AnnounceKeyHelp()
         {
@@ -69,7 +158,7 @@ namespace FFV_ScreenReader.Menus
             if (contentsTransform == null || contentsTransform.childCount == 0)
                 return T("No controls displayed");
 
-            var entries = new List<string>();
+            var visibleEntries = new List<string>();
 
             // Iterate children of ContentsParent — each is a control entry (KeyIconController).
             // The game deactivates entries on other pages, so activeInHierarchy filters to
@@ -93,13 +182,13 @@ namespace FFV_ScreenReader.Menus
                 }
 
                 if (parts.Count > 0)
-                    entries.Add(string.Join(": ", parts));
+                    visibleEntries.Add(string.Join(": ", parts));
             }
 
-            if (entries.Count == 0)
+            if (visibleEntries.Count == 0)
                 return T("No controls displayed");
 
-            return string.Join(", ", entries);
+            return string.Join(", ", visibleEntries);
         }
     }
 }

@@ -7,6 +7,7 @@ using Il2CppSerial.FF5.UI.KeyInput;
 using MelonLoader;
 using UnityEngine;
 using static FFV_ScreenReader.Utils.TextUtils;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 using UnityEngine.SceneManagement;
 
 namespace FFV_ScreenReader.Menus
@@ -256,7 +257,7 @@ namespace FFV_ScreenReader.Menus
                 // Add level
                 if (!string.IsNullOrEmpty(level))
                 {
-                    announcement += ", Level " + level;
+                    announcement += $", {T("Level")} {level}";
                 }
 
                 // Add row information (Front Row / Back Row) - useful on all character screens
@@ -274,11 +275,11 @@ namespace FFV_ScreenReader.Menus
                                 CorpsId corpsId = corps.Id;
                                 if (corpsId == CorpsId.Front)
                                 {
-                                    announcement += ", Front Row";
+                                    announcement += ", " + T("Front Row");
                                 }
                                 else if (corpsId == CorpsId.Back)
                                 {
-                                    announcement += ", Back Row";
+                                    announcement += ", " + T("Back Row");
                                 }
                             }
                         }
@@ -292,21 +293,21 @@ namespace FFV_ScreenReader.Menus
                 // Add HP
                 if (!string.IsNullOrEmpty(currentHP) && !string.IsNullOrEmpty(maxHP))
                 {
-                    announcement += $", HP {currentHP}/{maxHP}";
+                    announcement += $", {T("HP")} {currentHP}/{maxHP}";
                 }
                 else if (!string.IsNullOrEmpty(currentHP))
                 {
-                    announcement += $", HP {currentHP}";
+                    announcement += $", {T("HP")} {currentHP}";
                 }
 
                 // Add MP
                 if (!string.IsNullOrEmpty(currentMP) && !string.IsNullOrEmpty(maxMP))
                 {
-                    announcement += $", MP {currentMP}/{maxMP}";
+                    announcement += $", {T("MP")} {currentMP}/{maxMP}";
                 }
                 else if (!string.IsNullOrEmpty(currentMP))
                 {
-                    announcement += $", MP {currentMP}";
+                    announcement += $", {T("MP")} {currentMP}";
                 }
 
                 if (!string.IsNullOrEmpty(announcement))

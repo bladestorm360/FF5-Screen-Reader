@@ -69,7 +69,10 @@ namespace FFV_ScreenReader.Core
             prefExpCounterVolume = prefsCategory.CreateEntry<int>("ExpCounterVolume", 50, "EXP Counter Volume", "Volume for EXP counter beep (0-100)");
 
             prefEnemyHPDisplay = prefsCategory.CreateEntry<int>("EnemyHPDisplay", 0, "Enemy HP Display", "0=Numbers, 1=Percentage, 2=Hidden");
-            prefDamageDisplay = prefsCategory.CreateEntry<int>("DamageDisplay", 0, "Multi-hit Damage", "0=Total only, 1=With hit count (e.g. 14x1552 damage)");
+            // Stored as "MultiHitDamage" (default: with hit count) rather than the old off-by-default
+            // "DamageDisplay", which MelonPreferences had already written into every install, so the
+            // hit count is announced once after updating; choosing "Total only" afterwards sticks.
+            prefDamageDisplay = prefsCategory.CreateEntry<int>("MultiHitDamage", 1, "Multi-hit Damage", "0=Total only, 1=With hit count (e.g. 14x1552 damage)");
         }
 
         #region Toggle Getters (saved preference values — single source of truth)
@@ -99,7 +102,7 @@ namespace FFV_ScreenReader.Core
         public static int LandingPingVolume => prefLandingPingVolume?.Value ?? 50;
         public static int ExpCounterVolume => prefExpCounterVolume?.Value ?? 50;
         public static int EnemyHPDisplay => prefEnemyHPDisplay?.Value ?? 0;
-        public static int DamageDisplay => prefDamageDisplay?.Value ?? 0;
+        public static int DamageDisplay => prefDamageDisplay?.Value ?? 1;
 
         #endregion
 

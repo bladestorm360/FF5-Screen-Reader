@@ -5,6 +5,7 @@ using UnityEngine;
 using FFV_ScreenReader.Core;
 using Il2CppLast.Map;
 using Il2Cpp;
+using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 namespace FFV_ScreenReader.Field
 {
@@ -31,7 +32,7 @@ namespace FFV_ScreenReader.Field
         {
             get
             {
-                string rawName = GameEntity?.Property?.Name ?? "Unknown";
+                string rawName = GameEntity?.Property?.Name ?? T("Unknown");
                 return Utils.EntityTranslator.Translate(rawName);
             }
         }
@@ -85,8 +86,8 @@ namespace FFV_ScreenReader.Field
         protected string FormatSteps(float distance)
         {
             float steps = distance / 16f;
-            string stepLabel = Math.Abs(steps - 1f) < 0.1f ? "step" : "steps";
-            return $"{steps:F1} {stepLabel}";
+            string format = Math.Abs(steps - 1f) < 0.1f ? T("{0} step") : T("{0} steps");
+            return string.Format(format, steps.ToString("F1"));
         }
     }
     
@@ -102,23 +103,22 @@ namespace FFV_ScreenReader.Field
         
         public override bool IsInteractive => !IsOpened;
 
+        // Whole-phrase keys: the opened/unopened word sits on different sides of the noun per language.
         protected override string GetDisplayName()
         {
-            string status = IsOpened ? "Opened" : "Unopened";
-            return $"{status} {GetEntityTypeName()}";
+            return IsOpened ? T("Opened Treasure Chest") : T("Unopened Treasure Chest");
         }
 
         protected override string GetEntityTypeName()
         {
-            return "Treasure Chest";
+            return T("Treasure Chest");
         }
 
         public override string FormatDescription(Vector3 playerPos)
         {
             float distance = Vector3.Distance(playerPos, Position);
             string direction = GetDirection(playerPos, Position);
-            string status = IsOpened ? "Opened" : "Unopened";
-            return $"{status} {GetEntityTypeName()} ({FormatSteps(distance)} {direction})";
+            return $"{GetDisplayName()} ({FormatSteps(distance)} {direction})";
         }
     }
     
@@ -143,21 +143,21 @@ namespace FFV_ScreenReader.Field
             
             if (IsShop)
             {
-                details.Add("shop");
+                details.Add(T("shop"));
             }
             
             if (MovementType == FieldEntityConstants.MoveType.None)
             {
-                details.Add("stationary");
+                details.Add(T("stationary"));
             }
             else if (MovementType == FieldEntityConstants.MoveType.Stamp)
             {
-                details.Add("wandering");
+                details.Add(T("wandering"));
             }
             else if (MovementType == FieldEntityConstants.MoveType.Area ||
                      MovementType == FieldEntityConstants.MoveType.Route)
             {
-                details.Add("patrolling");
+                details.Add(T("patrolling"));
             }
 
             string detailStr = details.Count > 0 ? $" ({string.Join(", ", details)})" : "";
@@ -166,7 +166,7 @@ namespace FFV_ScreenReader.Field
 
         protected override string GetEntityTypeName()
         {
-            return "NPC";
+            return T("NPC");
         }
     }
     
@@ -195,7 +195,7 @@ namespace FFV_ScreenReader.Field
 
         protected override string GetEntityTypeName()
         {
-            return "Map Exit";
+            return T("Map Exit");
         }
     }
     
@@ -214,7 +214,7 @@ namespace FFV_ScreenReader.Field
 
         protected override string GetEntityTypeName()
         {
-            return "Save Point";
+            return T("Save Point");
         }
 
         public override string FormatDescription(Vector3 playerPos)
@@ -240,7 +240,7 @@ namespace FFV_ScreenReader.Field
 
         protected override string GetEntityTypeName()
         {
-            return "Door/Trigger";
+            return T("Door/Trigger");
         }
     }
     
@@ -272,10 +272,10 @@ namespace FFV_ScreenReader.Field
             switch (type)
             {
                 case MapConstants.ObjectType.TelepoPoint:
-                    return "Teleport";
+                    return T("Teleport");
                 case MapConstants.ObjectType.Event:
                 case MapConstants.ObjectType.RandomEvent:
-                    return "Event";
+                    return T("Event");
                 default:
                     return type.ToString();
             }
@@ -295,7 +295,7 @@ namespace FFV_ScreenReader.Field
         public override bool BlocksPathing => false;
 
         protected override string GetDisplayName() => GetVehicleName(TransportationId, MessageId);
-        protected override string GetEntityTypeName() => "Vehicle";
+        protected override string GetEntityTypeName() => T("Vehicle");
 
         /// <summary>
         /// Gets a human-readable vehicle name for the given transportation ID.
@@ -314,16 +314,17 @@ namespace FFV_ScreenReader.Field
                 catch { }
             }
 
-            // FF5-specific vehicle names based on TransportationType enum
+            // FF5-specific vehicle names based on TransportationType enum (same keys as the
+            // movement-state names in MoveStateHelper)
             switch (id)
             {
-                case 2: return "Ship";
-                case 3: return "Airship";
-                case 6: return "Submarine";
-                case 7: return "Wind Drake";
-                case 9: return "Chocobo";
-                case 10: return "Black Chocobo";
-                default: return $"Vehicle {id}";
+                case 2: return T("ship");
+                case 3: return T("airship");
+                case 6: return T("submarine");
+                case 7: return T("wind drake");
+                case 9: return T("chocobo");
+                case 10: return T("black chocobo");
+                default: return $"{T("Vehicle")} {id}";
             }
         }
     }

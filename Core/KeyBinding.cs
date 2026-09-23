@@ -25,7 +25,8 @@ namespace FFV_ScreenReader.Core
         Battle,        // Only in battle
         BattleResult,  // Only on battle results screen (EXP/stat display)
         Status,        // Only on status screen
-        Bestiary       // Only in bestiary detail view
+        Bestiary,      // Only in bestiary detail view
+        KeyHelp        // Only while the config Gamepad/Keyboard Controls list is shown
     }
 
     /// <summary>

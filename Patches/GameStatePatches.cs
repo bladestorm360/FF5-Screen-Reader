@@ -46,6 +46,18 @@ namespace FFV_ScreenReader.Patches
             ScrollMessageManager_Play_Patch.ResetLastMessage();
             ParameterActFunctionManagment_CreateActFunction_Patch.ResetLastAction();
 
+            // Same scoping for the two guards that had no battle-boundary reset at all: the
+            // condition set was only cleared per turn, so a KO or status carried over from the
+            // previous battle's last turn stayed swallowed; the system-message guard was never
+            // cleared, so a repeat "The party was defeated" / "Preemptive strike!" in a later
+            // battle stayed silent for the whole session.
+            BattleConditionController_Add_Patch.ResetLastCondition();
+            BattleCommandMessagePatches.ResetState();
+
+            // Results from an earlier battle are stale now, and while they exist they hold the
+            // input context on BattleResult (see Reset below).
+            BattleResultDataStore.Clear();
+
             var mod = FFV_ScreenReader.Core.FFV_ScreenReaderMod.Instance;
             if (mod == null) return;
 
@@ -64,6 +76,11 @@ namespace FFV_ScreenReader.Patches
             _isInBattle = false;
 
             ActiveBattleCharacterTracker.CurrentActiveCharacter = null;
+
+            // Results are normally dropped by ResultMenuController.EndWaitInit. If that state is
+            // skipped, HasData would pin InputManager's context on BattleResult — ahead of
+            // Field — and every field hotkey would stay dead back on the map.
+            BattleResultDataStore.Clear();
 
             var mod = FFV_ScreenReader.Core.FFV_ScreenReaderMod.Instance;
             if (mod == null) return;
@@ -224,11 +241,11 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        // Map id of the last transition handled. -1 means "never ran", which suppresses the very
-        // first announcement on game load. NOT just a speech guard: one door transition invokes
-        // CheckMapTransition 3-4 times (three ChangeState values plus the FieldReady backup), and
-        // the side effects below — MoveStateHelper, ResetVehicleTypeMap, ScheduleDeferredEntityScan
-        // — must run exactly once per map.
+        // Map id of the last transition handled. -1 means "never ran": the first load after boot is
+        // announced but skips the transition side effects below, which the field-ready path covers.
+        // NOT just a speech guard: one door transition invokes CheckMapTransition 3-4 times (three
+        // ChangeState values plus the FieldReady backup), and the side effects — MoveStateHelper,
+        // ResetVehicleTypeMap, ScheduleDeferredEntityScan — must run exactly once per map.
         private static int _lastAnnouncedMapId = -1;
 
         /// <summary>
@@ -249,11 +266,16 @@ namespace FFV_ScreenReader.Patches
                 bool mapChanged = (currentMapId != _lastAnnouncedMapId);
                 _lastAnnouncedMapId = currentMapId;
 
+                if (mapChanged)
+                {
+                    // Recorded so the game's own location banner doesn't repeat it (FadeMessageManager).
+                    string announcement = string.Format(T("Entering {0}"), MapNameResolver.GetCurrentMapName());
+                    LocationMessageTracker.SetLastMapTransition(announcement);
+                    FFV_ScreenReaderMod.SpeakText(announcement, interrupt: false);
+                }
+
                 if (!isFirstRun && mapChanged)
                 {
-                    string mapName = MapNameResolver.GetCurrentMapName();
-                    FFV_ScreenReaderMod.SpeakText(string.Format(T("Entering {0}"), mapName), interrupt: false);
-
                     bool isWorldMap = GameConstants.IsWorldMap(currentMapId);
                     MoveStateHelper.OnMapTransition(isWorldMap);
                     FieldNavigationHelper.ResetVehicleTypeMap();

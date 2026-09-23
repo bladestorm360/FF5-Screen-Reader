@@ -197,4 +197,43 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
+    /// <summary>
+    /// Speaks the title screen's "Press any button" prompt when it appears. InitShortcutCommand
+    /// (private, unique RVA 0x64D070) is the ShortcutCommand state's entry: it hides the menu and
+    /// activates view.startParent, the prompt. Read one frame later so the label is rendered; if it
+    /// is still blank, fall back to the game's own MENU_TITLE_PRESS_TEXT message.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.TitleWindowController), "InitShortcutCommand")]
+    public static class TitleWindowController_InitShortcutCommand_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.UI.KeyInput.TitleWindowController __instance)
+        {
+            if (__instance != null)
+                CoroutineManager.StartManaged(AnnouncePressPrompt(__instance));
+        }
+
+        private static IEnumerator AnnouncePressPrompt(Il2CppLast.UI.KeyInput.TitleWindowController window)
+        {
+            yield return null;
+
+            try
+            {
+                var startText = window?.view?.startText;                 // TitleWindowView.startText @ 0x30
+                if (startText == null || startText.gameObject == null || !startText.gameObject.activeInHierarchy)
+                    yield break;
+
+                string text = TextUtils.StripIconMarkup(startText.text);
+                if (string.IsNullOrWhiteSpace(text))
+                    text = TextUtils.StripIconMarkup(LocalizationHelper.GetGameMessage("MENU_TITLE_PRESS_TEXT"));
+                if (!string.IsNullOrWhiteSpace(text))
+                    FFV_ScreenReaderMod.SpeakText(text, interrupt: false);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Title] Error announcing press prompt: {ex.Message}");
+            }
+        }
+    }
+
 }
