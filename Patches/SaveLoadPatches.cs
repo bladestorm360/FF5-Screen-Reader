@@ -10,8 +10,10 @@ using FFV_ScreenReader.Utils;
 using static FFV_ScreenReader.Utils.ModTextTranslator;
 
 // FF5 Save/Load UI types
-// Touch version (title screen): SaveListController has contentList at 0x40, SelectContent(SaveSlotData data)
-// KeyInput version (main menu): SaveListController has contentList at 0x68, SelectContent(Cursor targetCursor, ...)
+// Touch version: SaveListController has contentList at 0x40, SelectContent(SaveSlotData data).
+//   Only instantiated in touch_savewindow_ui — not used by the PC title or field lists.
+// KeyInput version (title Load AND field Save/Load on PC): SaveListController has contentList
+//   at 0x68, SelectContent(Cursor targetCursor, ...)
 using TouchSaveListController = Il2CppLast.UI.Touch.SaveListController;
 using KeyInputSaveListController = Il2CppLast.UI.KeyInput.SaveListController;
 using KeyInputLoadWindowController = Il2CppLast.UI.KeyInput.LoadWindowController;
@@ -94,10 +96,15 @@ namespace FFV_ScreenReader.Patches
         private const int TOUCH_CONTROLLER_VIEW_OFFSET = 0x28;
         private const int KEYINPUT_CONTROLLER_VIEW_OFFSET = 0x20;
 
-        // KeyInput SaveContentController.SlotData (SaveSlotData) at 0x38; SaveSlotData.id at 0x30.
+        // SaveContentController.<SlotData>k__BackingField (SaveSlotData): KeyInput 0x38 (dump.cs
+        // 469147), Touch 0x50 (dump.cs 434378). SaveSlotData.id at 0x30.
         // The autosave and quick-save rows use the reserved ids above the numbered slots
         // (SaveSlotManager.MaxSlotCount 20, AutoSlotId 21, SuspendedSlotId 22).
+        // Every PC save/load list — title Load (key_loadgame), field Save/Load (key_menu,
+        // key_savewindow_ui) — is the KeyInput controller; the Touch SaveListController is only
+        // instantiated in touch_savewindow_ui. Both are read by id anyway.
         private const int KEYINPUT_CONTROLLER_SLOT_DATA_OFFSET = 0x38;
+        private const int TOUCH_CONTROLLER_SLOT_DATA_OFFSET = 0x50;
         private const int SLOT_DATA_ID_OFFSET = 0x30;
         private const int MAX_NUMBERED_SLOT_ID = 20;
 
@@ -636,7 +643,7 @@ namespace FFV_ScreenReader.Patches
                 if (viewPtr == IntPtr.Zero)
                     return null;
 
-                bool isNumberedSlot = !isKeyInput || IsNumberedSlot(contentControllerPtr);
+                bool isNumberedSlot = IsNumberedSlot(contentControllerPtr, isKeyInput);
                 return ReadSaveContentView(viewPtr, isKeyInput, isNumberedSlot);
             }
             catch (Exception ex)
@@ -654,11 +661,12 @@ namespace FFV_ScreenReader.Patches
         /// row's SaveSlotData id rather than its displayed name, which is localized. An unreadable
         /// id counts as numbered, so the number is still read.
         /// </summary>
-        private static bool IsNumberedSlot(IntPtr contentControllerPtr)
+        private static bool IsNumberedSlot(IntPtr contentControllerPtr, bool isKeyInput)
         {
             try
             {
-                IntPtr slotDataPtr = Marshal.ReadIntPtr(contentControllerPtr + KEYINPUT_CONTROLLER_SLOT_DATA_OFFSET);
+                int slotDataOffset = isKeyInput ? KEYINPUT_CONTROLLER_SLOT_DATA_OFFSET : TOUCH_CONTROLLER_SLOT_DATA_OFFSET;
+                IntPtr slotDataPtr = Marshal.ReadIntPtr(contentControllerPtr + slotDataOffset);
                 if (slotDataPtr == IntPtr.Zero) return true;
                 return Marshal.ReadInt32(slotDataPtr + SLOT_DATA_ID_OFFSET) <= MAX_NUMBERED_SLOT_ID;
             }

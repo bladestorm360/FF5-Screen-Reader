@@ -308,16 +308,35 @@ namespace FFV_ScreenReader.Patches
                 bool fresh = UnityEngine.Time.frameCount - DamageViewUIManager_CreateHitCount_Patch.PendingHitCountFrame <= 1;
                 int hitCount = fresh ? DamageViewUIManager_CreateHitCount_Patch.PendingHitCount : 1;
                 DamageViewUIManager_CreateHitCount_Patch.PendingHitCount = 1;
+
+                // One line per value-0 view, so a single in-game test shows which HitType a status
+                // cure (Antidote) and a buff/debuff carry. Battle events only — never per frame.
+                if (value == 0)
+                    MelonLogger.Msg($"[Battle] value-0 view: hitType={(int)hitType} isRecovery={isRecovery} target={targetName}");
+
+                // Speak only the views the game actually draws. A postfix runs even when the original
+                // returned early, and BattleBasicFunction.CreateDamageView (0x889870) creates NO view for:
+                //  - value 0 with HitType Hit or Non (nothing appears on screen, yet the mod used to
+                //    say "X: 0 damage" — a 2026-07-26 log has "Faris: 0 damage" right before
+                //    "Faris: Paralyze" from Entangle);
+                //  - RecoveryCondition unless SystemConfigData.GetSerialType() == 5 and value > 0 —
+                //    FF5's GetSerialType (0x2B2720) returns 5, so it is drawn only with a value;
+                //  - MissType.NonView, whatever the HitType (Steal, Focus and similar).
+                // HitType.Zero with value 0 IS drawn (a "0" over the target), so it still reads
+                // "X: 0 damage" below — the same thing a sighted player sees.
+                if (value == 0 && (hitType == Il2CppLast.Systems.HitType.Hit || hitType == Il2CppLast.Systems.HitType.Non))
+                    return;
+                if (hitType == Il2CppLast.Systems.HitType.RecoveryCondition && value <= 0)
+                    return;
+                if (missType == Il2CppLast.Systems.CalcResult.MissType.NonView)
+                    return;
+
                 if (hitCount <= 1)
                     hitCount = ReadWeaponHitCount(__instance, data);
 
                 string message;
                 if (hitType == Il2CppLast.Systems.HitType.Miss)
                 {
-                    // NonView = non-damage ability (Steal, Focus, etc.) — game doesn't show "Miss" visually
-                    if (missType == Il2CppLast.Systems.CalcResult.MissType.NonView)
-                        return;
-
                     message = string.Format(T("{0}: Miss"), targetName);
                 }
                 else if (hitType == Il2CppLast.Systems.HitType.MPRecovery
@@ -330,10 +349,14 @@ namespace FFV_ScreenReader.Patches
                     // MP damage (Osmose, Rasp) and the losing side of an MP drain
                     message = string.Format(T("{0}: {1} MP damage"), targetName, value);
                 }
-                else if (hitType == Il2CppLast.Systems.HitType.Recovery || isRecovery)
+                else if (hitType == Il2CppLast.Systems.HitType.Recovery
+                    || hitType == Il2CppLast.Systems.HitType.RecoveryCondition
+                    || isRecovery)
                 {
                     // HP recovery, including the gaining side of an HP drain (HpAbs) — the game's
-                    // own isRecovery flag says which side of the drain this view is
+                    // own isRecovery flag says which side of the drain this view is. The game forces
+                    // RecoveryCondition views (drawn only with a value > 0, see above) to draw as
+                    // recovery whatever isRecovery says, so they read as recovery too.
                     message = string.Format(T("{0}: Recovered {1} HP"), targetName, value);
                 }
                 else

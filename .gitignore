@@ -8,3 +8,4 @@ build_log.txt
 nul
 NUL
 NUL.*
+__pycache__/

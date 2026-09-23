@@ -490,8 +490,17 @@ namespace FFV_ScreenReader.Patches
     /// EnemysInit places its cursor through SelectContent, so enemy targeting already announces on
     /// open; PlayerInit (unique RVA 0x44D910) instead positions the cursor with
     /// BattleCursorUtility.SetTargetPlayer and never calls SelectContent, so the first ally was
-    /// silent. The focused ally is GetPlayerTarget()[0]; its position comes from playerDataList.
-    /// AnnouncePlayerTarget's (mode, index) guard keeps a later SelectContent on the same ally quiet.
+    /// silent. The focused ally is GetPlayerTarget()[0].
+    ///
+    /// Index: the game's own cursor index, never a position searched for in playerDataList.
+    /// PlayerUpdate (0x44DFC0) rewrites playerDataList EVERY frame to a new
+    /// GetSelectedPlayerTarget(TargetPlayerList) list, and navigation's SelectContent(list, index)
+    /// passes that list with selectCursor.Index; PlayerInit itself does not rewrite it, so right
+    /// after PlayerInit the field can still hold the previous targeting's list, where the ally may
+    /// sit at a different position. GetPlayerTarget() = fresh filtered list[selectCursor.Index].
+    /// So the read waits (within the settle cap) until playerDataList holds the focused ally AT the
+    /// cursor index — i.e. it is the list the game navigates — and then announces that index, which
+    /// is exactly what the next SelectContent will compare against in the (mode, index) guard.
     /// </summary>
     [HarmonyPatch(typeof(BattleTargetSelectController), "PlayerInit")]
     public static class BattleTargetSelectController_PlayerInit_Patch
@@ -505,19 +514,21 @@ namespace FFV_ScreenReader.Patches
             {
                 if (!MenuFocusAnnouncer.IsAlive(__instance)) return false;
 
+                var cursor = __instance.selectCursor;   // Cursor @ 0xD8
+                if (cursor == null) return false;
+                int cursorIndex = cursor.Index;
+
                 var targets = __instance.GetPlayerTarget();
                 var players = __instance.playerDataList?.TryCast<Il2CppSystem.Collections.Generic.List<BattlePlayerData>>();
                 if (targets == null || targets.Count == 0 || targets[0] == null || players == null) return false;
 
-                for (int i = 0; i < players.Count; i++)
-                {
-                    if (players[i] != null && players[i].Pointer == targets[0].Pointer)
-                    {
-                        BattleTargetPatches.AnnouncePlayerTarget(__instance.playerDataList, i);
-                        return true;
-                    }
-                }
-                return false;
+                // Not yet the navigated list (PlayerUpdate has not rewritten it): retry next frame.
+                if (cursorIndex < 0 || cursorIndex >= players.Count || players[cursorIndex] == null
+                    || players[cursorIndex].Pointer != targets[0].Pointer)
+                    return false;
+
+                BattleTargetPatches.AnnouncePlayerTarget(__instance.playerDataList, cursorIndex);
+                return true;
             });
         }
     }

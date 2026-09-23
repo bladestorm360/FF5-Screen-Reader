@@ -639,14 +639,12 @@ namespace FFV_ScreenReader.Menus
                             return menuText;
                         }
 
-                        // Try to find the correct text (not "Battle Type")
+                        // Try to find the row's name text. (An English "Battle Type" skip used to
+                        // sit here; FF5 has no such string in any language — its row is "Battle
+                        // Mode", MSG_CFG_INF_135 — so the check could never match and was removed.)
                         var allTexts = configItem.GetComponentsInChildren<UnityEngine.UI.Text>();
                         foreach (var text in allTexts)
                         {
-                            // Skip if it's "Battle Type" and we're not on the first item
-                            if (text.text == "Battle Type" && cursorIndex > 0)
-                                continue;
-
                             // Look for text that seems like a menu option name
                             if (text.name.Contains("command_name") || text.name.Contains("nameText") || text.name == "last_text")
                             {
@@ -792,6 +790,33 @@ namespace FFV_ScreenReader.Menus
             return null;
         }
 
+        // Config value words the last-resort row-name search must skip: On, Off, Wait, Active
+        // (system_en MSG_CFG_INF_43 / 44 / 138 / 139). Resolved through the game's MessageManager
+        // on each call, so they follow the current language instead of matching English.
+        private static readonly string[] ConfigValueMessageIds =
+            { "MSG_CFG_INF_43", "MSG_CFG_INF_44", "MSG_CFG_INF_138", "MSG_CFG_INF_139" };
+
+        private static System.Collections.Generic.HashSet<string> GetConfigValueWords()
+        {
+            var words = new System.Collections.Generic.HashSet<string>();
+            try
+            {
+                var messageManager = MessageManager.Instance;
+                if (messageManager == null) return words;
+                foreach (var id in ConfigValueMessageIds)
+                {
+                    string word = messageManager.GetMessage(id, false);
+                    if (!string.IsNullOrWhiteSpace(word))
+                        words.Add(word.Trim());
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[MenuTextDiscovery] Could not read config value words: {ex.Message}");
+            }
+            return words;
+        }
+
         /// <summary>
         /// Strategy 6: In-game config menu structure.
         /// </summary>
@@ -848,14 +873,19 @@ namespace FFV_ScreenReader.Menus
                             }
 
                             // Last resort: Get text components but avoid values
-                            // Use non-allocating search for first valid text that isn't a value
+                            // Use non-allocating search for first valid text that isn't a value.
+                            // The value words are compared against the game's own localized
+                            // strings (On/Off/Active/Wait), so this works in every language.
+                            var valueWords = GetConfigValueWords();
                             var foundText = FindFirstText(menuItem, t =>
                             {
                                 if (string.IsNullOrEmpty(t.text?.Trim()))
                                     return false;
                                 var textValue = t.text.Trim();
                                 // Skip if it looks like a value (number, percentage, On/Off)
-                                return !System.Text.RegularExpressions.Regex.IsMatch(textValue, @"^\d+%?$|^On$|^Off$|^Active$|^Wait$");
+                                if (System.Text.RegularExpressions.Regex.IsMatch(textValue, @"^\d+%?$"))
+                                    return false;
+                                return !valueWords.Contains(textValue);
                             });
 
                             if (foundText != null)

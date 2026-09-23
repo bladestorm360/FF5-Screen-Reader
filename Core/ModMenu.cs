@@ -279,6 +279,7 @@ namespace FFV_ScreenReader.Core
             if (IsOpen) return;
 
             IsOpen = true;
+            ControllerRouter.OnModMenuOpened();
             currentIndex = 0;
 
             // Skip section header at index 0
@@ -313,6 +314,7 @@ namespace FFV_ScreenReader.Core
             if (!IsOpen) return;
 
             IsOpen = false;
+            ControllerRouter.OnModMenuClosed();
             // Announce on every close path (keyboard Escape/F8, "Close Menu" item, controller B/Start).
             // Game input is restored automatically — ControllerRouter.SuppressGameInput becomes false.
             FFV_ScreenReaderMod.SpeakText(T("Mod menu closed"), interrupt: true);

@@ -294,8 +294,17 @@ namespace FFV_ScreenReader.Field
         public override int Priority => 10;
         public override bool BlocksPathing => false;
 
-        protected override string GetDisplayName() => GetVehicleName(TransportationId, MessageId);
+        // The fallback names reuse the lowercase keys that "On {0}" speaks mid-sentence, so the
+        // entity list capitalises the first letter for its own display only (a no-op for scripts
+        // without case). The movement-state speech keeps the lowercase keys.
+        protected override string GetDisplayName() => CapitalizeFirst(GetVehicleName(TransportationId, MessageId));
         protected override string GetEntityTypeName() => T("Vehicle");
+
+        private static string CapitalizeFirst(string name)
+        {
+            if (string.IsNullOrEmpty(name) || !char.IsLower(name[0])) return name;
+            return char.ToUpperInvariant(name[0]) + name.Substring(1);
+        }
 
         /// <summary>
         /// Gets a human-readable vehicle name for the given transportation ID.

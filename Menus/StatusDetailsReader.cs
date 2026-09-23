@@ -821,12 +821,17 @@ namespace FFV_ScreenReader.Menus
             }
         }
 
+        // The on-screen Evasion row is ParameterType.EvasionRate (17), read offline from the
+        // status_details prefab in key_menu_assets_all. The game fills it with
+        // ParameterUtility.GetValue(data, 17, false) = Parameter.ConfirmedEvasionRate(false)
+        // (vtable slot 21), and IsPercent(17) returns SystemConfig.IsVisibleEvasionRatePercent(),
+        // which FF5 leaves at the base `return true` — so the row shows a "%".
         private static string ReadEvasion(OwnedCharacterData data)
         {
             try
             {
                 if (data?.Parameter == null) return T("N/A");
-                return $"{T("Evasion")}: {data.Parameter.ConfirmedDefenseCount()}";
+                return $"{T("Evasion")}: {data.Parameter.ConfirmedEvasionRate(false)}%";
             }
             catch (Exception ex)
             {

@@ -23,6 +23,13 @@ namespace FFV_ScreenReader.Patches
     /// a toggle — so these speak only on the field with no menu open, and only on a real change.
     ///
     /// Prefixes, so the old value is still readable: "real change" is exact with no seeding.
+    ///
+    /// The load path can never speak, whatever the gate says (checked 2026-09-23 for the game-over
+    /// → load flow, where IsFieldToggle could be true): SaveSlotManager.&lt;GotoLoadSaveData&gt;d__50
+    /// .MoveNext (0x4F41A0) calls SetIsEnableEncount(UserDataManager.Instance().CheatSettingsData
+    /// .isEnableEncount) AFTER FromJsonAsync — it re-applies the value just loaded — and
+    /// SetIsEnableEncount (0x54EEA0) writes that same field (UserDataManager+0xA8 → +0x10). So the
+    /// old and new values are always equal there and the real-change check returns first.
     /// Do NOT hook CheatSettingsData.set_IsEnableEncount instead: its body is folded with 22 other
     /// setters (RVA 0x346D70), so a detour there would fire for all of them.
     /// </summary>

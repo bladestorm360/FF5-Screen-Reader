@@ -32,13 +32,70 @@ namespace FFV_ScreenReader.Patches
     /// </summary>
     public static class BattleListDetails
     {
+        // Each list's own StateMachine<State>: KeyInput BattleItemInfomationController.stateMachine
+        // @ 0x58 (dump.cs 448521), Serial.Template.UI.KeyInput.BattleAbilityInfomationControllerBase
+        // .stateMachine @ 0x30 (dump.cs 295000). StateMachine<T>.current @ 0x10 (get_Current
+        // 0x10BA260 reads [rcx+0x10]) -> State<T>.Tag @ 0x10. Tag 0 is State.None in both enums:
+        // Close() changes to None, and the item list's None Init (NonInit) hides view.rootObject
+        // while the controller's own GameObject stays active — which is why activeInHierarchy on
+        // the controller alone could let a closed list's description through.
+        public const int ITEM_LIST_STATE_MACHINE = 0x58;
+        public const int ABILITY_LIST_STATE_MACHINE = 0x30;
+        private const int OFFSET_CURRENT_STATE = 0x10;
+        private const int OFFSET_STATE_TAG = 0x10;
+        private const int STATE_NONE = 0;
+        // Both controllers keep their view at 0x28 (BattleItemInfomationView /
+        // BattleAbilityInfomationView), and both views keep rootObject at 0x18 — the object the
+        // item list's NonInit hides (SafeActiveSet(view.rootObject, false)).
+        private const int OFFSET_VIEW = 0x28;
+        private const int OFFSET_VIEW_ROOT_OBJECT = 0x18;
+
         private static UnityEngine.Component _owner;
         private static string _description;
+        private static int _stateMachineOffset = -1;
 
-        public static void SetFocused(UnityEngine.Component owner, string description)
+        public static void SetFocused(UnityEngine.Component owner, string description, int stateMachineOffset)
         {
             _owner = owner;
             _description = description;
+            _stateMachineOffset = stateMachineOffset;
+        }
+
+        /// <summary>The owning list's State tag, or -1 when it can't be read.</summary>
+        private static unsafe int ReadListState(UnityEngine.Component owner, int stateMachineOffset)
+        {
+            try
+            {
+                if (owner == null || stateMachineOffset < 0 || owner.Pointer == IntPtr.Zero) return -1;
+                IntPtr stateMachine = *(IntPtr*)((byte*)owner.Pointer + stateMachineOffset);
+                if (stateMachine == IntPtr.Zero) return -1;
+                IntPtr current = *(IntPtr*)((byte*)stateMachine + OFFSET_CURRENT_STATE);
+                if (current == IntPtr.Zero) return -1;
+                return *(int*)((byte*)current + OFFSET_STATE_TAG);
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
+        /// <summary>True only when the list's view root is readable and hidden.</summary>
+        private static unsafe bool IsViewRootHidden(UnityEngine.Component owner)
+        {
+            try
+            {
+                if (owner == null || owner.Pointer == IntPtr.Zero) return false;
+                IntPtr view = *(IntPtr*)((byte*)owner.Pointer + OFFSET_VIEW);
+                if (view == IntPtr.Zero) return false;
+                IntPtr root = *(IntPtr*)((byte*)view + OFFSET_VIEW_ROOT_OBJECT);
+                if (root == IntPtr.Zero) return false;
+                var rootObject = new UnityEngine.GameObject(root);
+                return !rootObject.activeInHierarchy;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>Speaks the description if a battle item/ability list is open; false otherwise.</summary>
@@ -47,6 +104,14 @@ namespace FFV_ScreenReader.Patches
             try
             {
                 if (_owner == null || _owner.gameObject == null || !_owner.gameObject.activeInHierarchy)
+                    return false;
+
+                // The list's own state is the real signal: back on the command menu it is None,
+                // even though the controller object is still active. The hidden view root is the
+                // visible half of the same thing, checked too in case a close path skips None.
+                if (ReadListState(_owner, _stateMachineOffset) == STATE_NONE)
+                    return false;
+                if (IsViewRootHidden(_owner))
                     return false;
             }
             catch
@@ -308,7 +373,7 @@ namespace FFV_ScreenReader.Patches
                     catch {}
                 }
 
-                BattleListDetails.SetFocused(__instance, description);
+                BattleListDetails.SetFocused(__instance, description, BattleListDetails.ITEM_LIST_STATE_MACHINE);
                 if (PreferencesManager.AutoDetailEnabled && !string.IsNullOrWhiteSpace(description))
                     announcement += $", {description}";
 
@@ -376,7 +441,7 @@ namespace FFV_ScreenReader.Patches
                 string description = string.IsNullOrWhiteSpace(mesIdDescription)
                     ? null
                     : StripIconMarkup(messageManager.GetMessage(mesIdDescription));
-                BattleListDetails.SetFocused(__instance, description);
+                BattleListDetails.SetFocused(__instance, description, BattleListDetails.ABILITY_LIST_STATE_MACHINE);
                 if (PreferencesManager.AutoDetailEnabled && !string.IsNullOrWhiteSpace(description))
                     announcement += $", {description}";
 

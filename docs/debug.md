@@ -1413,6 +1413,8 @@ and quick-save rows — `SaveSlotManager.AutoSlotId`/`SuspendedSlotId`); `Change
 dump, so whether "Evasion" is `EvasionRate` (17, a percentage — what FF1 reads) or a count could
 not be settled offline. `ReadEvasion` still uses `ConfirmedDefenseCount()`. One log line of
 `ParameterContentController.Type`/`SubType` for the Evasion row would settle it.
+*(Settled offline in the session-2 pass below: the prefab can be read from the bundles; it is
+`EvasionRate`, shown with "%".)*
 
 **Per-frame cost kept out:** `InputManager.IsOnValidMap` self-heals with `GameObjectCache.Refresh`
 only for on-demand callers; `DetermineContext` (every frame) passes `refreshIfMissing: false`,
@@ -1443,3 +1445,175 @@ FF5's returns 0 (ATB; FF1–FF3 return 1), so the `CreateHitCount` hook never fi
 command's ability 1; the same rule the ×N display uses). `battleActData` is protected, read at offset
 0x28. Default is now "With hit count", stored as `MultiHitDamage`. *Unverified in game:* that
 `GetHitCount` is hits landed (FF5 basic attacks are usually single-hit, so most attacks read as before).
+
+### Open-issues pass (2026-09-23, session 2)
+
+This pass closes the FF5 items in `OPEN_ISSUES.md`. It builds clean (0 warnings, 0 errors), but
+nothing was tested in game. Every answer below was settled offline:
+- UnityPy on the Addressables bundles;
+- capstone on `GameAssembly.dll`, with RVAs mapped through dump.cs;
+- the read-only `tools\hitscan.py` / `tools\callees.py`.
+
+The scratch scripts are not part of the repo.
+
+**Prefab data is readable offline.** An IL2CPP MonoBehaviour has no type tree, but its raw bytes are
+simple to read:
+- the header: `m_GameObject` PPtr (12 bytes), `m_Enabled` (4, aligned), `m_Script` PPtr (12) and
+  `m_Name` (a length-prefixed string, 4-aligned);
+- then the serialized fields, in dump.cs order.
+
+Match `m_Script` to the bundle's MonoScript (namespace plus class name). Walk `RectTransform.m_Father`
+to get each object's path. Any "prefab data, invisible in the dump" question can be settled this way.
+
+**Evasion.** `key_menu_assets_all` →
+`status_details/parameters/status_parameters_content`: eight `Last.UI.KeyInput.ParameterContentController`
+rows. Each has `type` at 0x18 and `subType` at 0x1C, and every `subType` is 0:
+
+| Row | `type` |
+|---|---|
+| Strength | Power (4) |
+| Agility | Agility (6) |
+| Stamina | Vitality (5) |
+| Magic | Magic (14) |
+| Attack | Attack (10) |
+| Defense | Defense (11) |
+| **Evasion** | **EvasionRate (17)** |
+| Magic Defense | AbilityDefense (12) |
+
+The KeyInput `StatusDetailsControllerBase.SetParameter` (0x524F00) fills each row as follows:
+- label: `GetMessageByMessageConclusion(ParameterUtility.GetMessageId(type))`;
+- value: `SetData(label, GetValue(data, type, false))`;
+- count: `SetCountValue(GetValue(subType))`, hidden when `subType` is 0;
+- "%": `SetEnablePercentText(IsPercent(type))`.
+
+The engine code behind it:
+- `GetValue` (0x497310) is a jump table. Case 17 calls `Parameter` vtable 0x280, which is slot 21,
+  `ConfirmedEvasionRate(isNatunalValue)`. The vtable base is 0x130, 16 bytes per slot.
+- The other seven cases map to the readers the mod already used (slots 7, 8, 9, 13, 15, 16, 18).
+- `IsPercent` (0x497B10) cases:
+  - 16, 18 and 19: `true`;
+  - 13 and 17: `SystemConfig.IsVisibleEvasionRatePercent()`, which reaches
+    `SystemConfigDataBase` slot 49. That is the shared `return true` stub (0x2EAD10), and FF5's
+    `SystemConfigData` does not override it;
+  - 12: `IsVisibleAbilityDefencePercent`, slot 37, `return false`.
+
+So `ReadEvasion` now speaks `ConfirmedEvasionRate(false)` + "%", the same as FF1.
+
+**MenuTextDiscovery English checks.**
+- "Battle Type" does not exist in FF5. It is in no message table (`system_en` has "Battle Mode",
+  `MSG_CFG_INF_135`) and in no `key_*`, `touch_*` or `ui_*` bundle, so the skip could never match and
+  was removed.
+- The last-resort value filter used `^On$|^Off$|^Active$|^Wait$`. It now compares against
+  `MessageManager.GetMessage` of `MSG_CFG_INF_43/44/138/139` (On/Off/Wait/Active in `system_en`),
+  resolved on each call so it follows the current language. The `^\d+%?$` number check stays.
+
+**Save-list slot id (Touch).** Only the KeyInput `SaveListController` is instantiated by the PC
+bundles:
+- `key_loadgame`: the title Load list;
+- `key_menu`: the field menu lists, 2 instances;
+- `key_savewindow_ui`: the save window.
+
+The Touch controller appears only in `touch_savewindow_ui`. So the title list was already read
+through the KeyInput `SlotData` at 0x38. The Touch path had skipped the id check and assumed
+"numbered". It now reads the Touch `<SlotData>k__BackingField` at 0x50 (dump.cs 434378), then
+`SaveSlotData.id` at 0x30.
+
+**Battle I key: the list's real state.** Both lists run a `StateMachine<State>`:
+- KeyInput `BattleItemInfomationController.stateMachine` is at 0x58;
+- `Serial.Template.UI.KeyInput.BattleAbilityInfomationControllerBase.stateMachine` is at 0x30;
+- then `StateMachine<T>.current` at 0x10, confirmed by `get_Current` 0x10BA260 reading
+  `[rcx+0x10]`, and `State<T>.Tag` at 0x10.
+
+In both enums 0 is `None`. `Close()` (item 0x3FBD60, ability 0x6C3140) changes to `None`. The item
+list's `NonInit` (0x3FD860) is `SafeActiveSet(view.rootObject, false)`: it hides `view` (0x28) →
+`rootObject` (0x18), but not the controller's own GameObject. That is why the old check
+(controller `activeInHierarchy`) could pass after the list closed. `BattleListDetails.TryAnnounce`
+now also requires `Tag != None` and a visible `view.rootObject`. Both are pointer reads, done on the
+key press only.
+
+**Encounter toggle on a load: not a bug.** `SaveSlotManager.<GotoLoadSaveData>d__50.MoveNext`
+(0x4F41A0) calls
+`CheatSettingsClient.SetIsEnableEncount(UserDataManager.Instance().CheatSettingsData.isEnableEncount)`.
+It runs after `FromJsonAsync`, so it re-applies the value just loaded. `SetIsEnableEncount`
+(0x54EEA0) writes that same field: `SaveMapManager.SetEncountEnable`, then `UserDataManager`+0xA8
+(`<CheatSettingsData>`) → +0x10 (`isEnableEncount`). The prefix's old value therefore always equals
+the new value on that path, and it returns before speaking, whatever `IsFieldToggle` says. The only
+change is a comment in `GameTogglePatches`.
+
+**First ally target index.**
+- `PlayerUpdate` (0x44DFC0) rewrites `playerDataList` (0x30) every frame to a new
+  `GetSelectedPlayerTarget<BattlePlayerData>(TargetPlayerList)` (0xBC69C0).
+- The navigation lambdas `<PlayerUpdate>b__1..3` (one body, 0x948170) call
+  `SelectContent(closure.list, index)` with that list.
+- `GetPlayerTarget()` (0x44BE80) returns the fresh filtered list's element at `selectCursor.Index`
+  (0xD8).
+- `PlayerInit` does not rewrite `playerDataList`, so right after it the field can still hold the
+  previous targeting's list.
+
+The postfix searched that list by pointer and used whatever position it found. That position could
+differ from the cursor index the next `SelectContent` passes, and then a real move would be
+swallowed by the `(mode, index)` guard. The postfix now uses `selectCursor.Index`, and it announces
+only once `playerDataList[cursorIndex]` is the focused ally. Until then it returns false, and
+`MenuFocusAnnouncer` retries within its 6-frame cap.
+
+**Value-0 battle events.** First, what the mod did before this pass:
+- It spoke every `CreateDamageView` except Miss + `NonView`.
+- A 2026-07-26 log has `"Faris: 0 damage"` right before `"Faris: Paralyze"` (Entangle), and
+  `"Wing Raptor: 0 damage"` after its own actions.
+- Status removal is announced nowhere: only `BattleConditionController.Add` is hooked.
+
+The key finding: **a Harmony postfix runs even when the original returns early**, and
+`BattleBasicFunction.CreateDamageView` (0x889870) draws nothing in several cases. Decoded:
+- `value == 0` and `hitType` is `Hit` (0) or `Non` (-1): return, no view.
+- `hitType == RecoveryCondition` (7): a view only when
+  `ProviderManager.SystemConfigData.GetSerialType()` (vslot 5) is 5 and `value > 0`, and then it is
+  drawn as recovery. FF5's `GetSerialType` (0x2B2720) is `mov eax, 5`, so the condition is simply
+  `value > 0`.
+- `missType == NonView` (2): return, for any hitType.
+- Otherwise:
+  - `isRecovery` is forced true for `Recovery` (4) and `MPRecovery` (6);
+  - it is flipped when `value < 0`;
+  - `BattleUtility.CreateDamageView(data, value, isRec, IsMiss(data))` draws the view. The base
+    `IsMiss` is `GetHitType() == Miss`.
+
+`CreateViewEntity` (0x889D40) takes `hitType`, `value` and `missType` from `ICalcResult` slots 5, 3
+and 13. No `CalcResult.SetStatus` call site passes a constant `Zero` or `RecoveryCondition` (a byte
+scan for `mov r8d, 3/7` before 0x3CC810/0x3CC9F0 found none). The types come from the per-function
+calc code, for example `RecoveryConditionFunction.Calc` (0x626F20), and were not traced further.
+
+The postfix now mirrors those rules:
+- no speech for an undrawn view;
+- `RecoveryCondition` reads as "Recovered N HP";
+- `Zero` (drawn as "0") still reads "X: 0 damage".
+
+**Still open:** whether a pure status cure is `RecoveryCondition` with value 0, which is undrawn and
+therefore silent, and whether any buff carries it. So no "{0}: cured" key was added. Each value-0
+view logs one `[Battle] value-0 view: hitType=N isRecovery=B target=X` line, so one Antidote plus
+one buff in game settles it.
+
+**Vehicle names.** `VehicleEntity.GetDisplayName` upper-cases the first letter of the fallback key.
+This is display only: `GetVehicleName` and the "On {0}" movement speech keep the lowercase keys.
+
+**Controller state sync (the FF1 findings), event-driven with no per-frame check.**
+- `GamepadManager.HandleGamepadRemoved` → `ControllerRouter.OnGamepadRemoved()` drops ModMode.
+  `Update()` returns early without a gamepad, so mod mode used to stick, and `SuppressGameInput`
+  with it.
+- `ModMenu.Open` → `OnModMenuOpened()` sets State = ModMenu. An F8-opened menu left the router in
+  Normal, so the D-pad cycled waypoints, the right stick cycled entities and LT pathfound underneath
+  the menu.
+- `ModMenu.Close` → `OnModMenuClosed()` returns ModMenu to Normal. A keyboard close with no
+  controller used to leave State = ModMenu.
+- FF1's third finding (Tab clears the battle flag mid-battle) does not apply: FF5 binds no such key.
+
+**Official-name substring pass (2026-09-23).** The first alignment pass (`tools/official_fix.py`) only fixed entries whose Japanese key *exactly* matched a string in the game's own message tables. This pass also fixed keys that *contain* an official proper noun: characters, places, key items, vehicles, monsters, weapons and jobs. Where a value rendered the noun differently, only that noun was replaced with the game's form for that language, taken from `tools/extract_entities.py gamedict` (FF5's own tables only). It also covered:
+- FF5 keys made of an event/map prefix plus an exact official name, e.g. `13:ウォルスの隕石`, `ev_e_0097:クルル` (44 keys);
+- name stems that several of the game's official strings share: Tycoon 泰空 / Тайкун / ไทคูน; Walse → fr Wolse, it Walz, ru Вольс; Karnak 卡納克; Ghido; Xezat; Korean 크리스탈 → 크리스털;
+- further examples: Gido's Shrine → Ghido's Cave, Wyvern → Wind Drake, Rix → Lix, Firebrand → Fire Lash.
+
+Totals: 385 entries / 1,625 values, applied identically to `translation.json` and `translation.generated.json` (still byte-identical). Russian and German case forms of an official stem were kept.
+
+Left for review:
+- 飛竜 in Spanish (26 entries, "Viverna…"). The official form is ambiguous: "Guiverno" in the system table, "Dragón" as a speaker name.
+- German Moogle labels now use masculine articles ("Den Mogry entdecken"); a native speaker should check them.
+
+The rules, the full old→new list and the skipped items are in `D:\Games\Dev\Unity\FFPR\tools\official_substring\`. Values were edited in place, so the diff shows only the changed value lines.

@@ -425,6 +425,7 @@ namespace FFV_ScreenReader.Core
                     return;
 
                 CloseAndClearGamepadState();
+                ControllerRouter.OnGamepadRemoved();
                 MelonLogger.Msg("[GamepadManager] Controller disconnected");
             }
             catch (Exception ex)

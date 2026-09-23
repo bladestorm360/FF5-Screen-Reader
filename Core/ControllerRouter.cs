@@ -133,6 +133,40 @@ namespace FFV_ScreenReader.Core
             Array.Clear(consumedButtons, 0, consumedButtons.Length);
         }
 
+        // --- Event-driven state sync (no per-frame checks) ---
+
+        /// <summary>
+        /// Called by GamepadManager when our controller is disconnected. Update() returns early
+        /// without a gamepad, so mod mode could never be left again, and SuppressGameInput
+        /// (State == ModMode) would lock the keyboard out of the game. The mod menu is left
+        /// alone: it stays keyboard-drivable, and its Close() resets the state.
+        /// </summary>
+        internal static void OnGamepadRemoved()
+        {
+            if (State == ControllerState.ModMode)
+                Reset();
+        }
+
+        /// <summary>
+        /// Called by ModMenu.Open, whatever opened it (F8 or Start). Without this an F8-opened menu
+        /// left the router in Normal, so the D-pad, right stick and LT still drove waypoints,
+        /// entities and pathfinding underneath the menu, and the controller could not drive it.
+        /// </summary>
+        internal static void OnModMenuOpened()
+        {
+            State = ControllerState.ModMenu;
+        }
+
+        /// <summary>
+        /// Called by ModMenu.Close, whatever closed it (Escape, F8, the Close item, B, Start). A
+        /// keyboard close with no controller left State at ModMenu, which kept SuppressGameInput on.
+        /// </summary>
+        internal static void OnModMenuClosed()
+        {
+            if (State == ControllerState.ModMenu)
+                State = ControllerState.Normal;
+        }
+
         // =====================================================================
         // Context-aware controls announcement (RB on controller, Shift+I on keyboard)
         // =====================================================================
