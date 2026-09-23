@@ -73,6 +73,10 @@ namespace FFV_ScreenReader.Field.Routing
             if (fieldController == null || mapHandle == null)
                 return false;
 
+            // Loop flags come from the game, not a guess, and TryVisit reads them. This is
+            // the only thing that runs before a flood, so it is where they must be refreshed.
+            RoutingAdapter.RefreshMapInfo(fieldController, mapId);
+
             try
             {
                 int w = mapHandle.GetCollisionLayerWidth();
@@ -208,6 +212,7 @@ namespace FFV_ScreenReader.Field.Routing
         private static int floodMapId = -1;
         private static int floodTransportId = -1;
         private static int floodStartIndex = -1;
+        private static bool floodDiagonal;
         private static int[] dist;
         private static int[] parent;
         private static int[] bfsQueue;
@@ -221,7 +226,10 @@ namespace FFV_ScreenReader.Field.Routing
 
         private static bool wrapX, wrapY;
 
-        private static bool EnsureFlood(int mapId, int transportId, int startX, int startY)
+        /// <summary>Whether the flood currently being built may step diagonally.</summary>
+        private static bool diagonalMoves;
+
+        private static bool EnsureFlood(int mapId, int transportId, int startX, int startY, bool diagonal)
         {
             if (!InBounds(startX, startY)) return false;
 
@@ -230,7 +238,8 @@ namespace FFV_ScreenReader.Field.Routing
             if (dist != null
                 && floodMapId == mapId
                 && floodTransportId == transportId
-                && floodStartIndex == startIndex)
+                && floodStartIndex == startIndex
+                && floodDiagonal == diagonal)
                 return true;
 
             int cellCount = gridWidth * gridHeight;
@@ -244,6 +253,7 @@ namespace FFV_ScreenReader.Field.Routing
 
             wrapX = RoutingAdapter.WorldMapWrapsX(mapId);
             wrapY = RoutingAdapter.WorldMapWrapsY(mapId);
+            diagonalMoves = diagonal;
 
             var sw = Stopwatch.StartNew();
 
@@ -268,10 +278,23 @@ namespace FFV_ScreenReader.Field.Routing
                 int cy = cur / gridWidth;
                 int nextDist = dist[cur] + 1;
 
+                // Order matters, and not only for speed. Visiting both vertical neighbours
+                // before both horizontal ones makes every shortest path canonical: the
+                // vertical run is always claimed first, so an open-water route decomposes
+                // into "north 40, west 30" rather than 70 alternating single steps. Keep
+                // vertical before horizontal, and orthogonal before diagonal.
                 TryVisit(cx, cy, 0, -1, cur, nextDist, ref tail);  // north (cell y decreases)
                 TryVisit(cx, cy, 0, 1, cur, nextDist, ref tail);   // south
                 TryVisit(cx, cy, 1, 0, cur, nextDist, ref tail);   // east
                 TryVisit(cx, cy, -1, 0, cur, nextDist, ref tail);  // west
+
+                if (diagonalMoves)
+                {
+                    TryVisit(cx, cy, 1, -1, cur, nextDist, ref tail);   // northeast
+                    TryVisit(cx, cy, -1, -1, cur, nextDist, ref tail);  // northwest
+                    TryVisit(cx, cy, 1, 1, cur, nextDist, ref tail);    // southeast
+                    TryVisit(cx, cy, -1, 1, cur, nextDist, ref tail);   // southwest
+                }
             }
 
             sw.Stop();
@@ -279,38 +302,59 @@ namespace FFV_ScreenReader.Field.Routing
             floodMapId = mapId;
             floodTransportId = transportId;
             floodStartIndex = startIndex;
+            floodDiagonal = diagonal;
 
-            RoutingAdapter.LogOnce(ref loggedFirstFlood,
+            RoutingAdapter.LogOnce($"flood-{mapId}-{transportId}-{diagonal}",
                 $"[Routing] Flood: {tail} of {cellCount} cells reachable for transport {transportId} " +
-                $"in {sw.ElapsedMilliseconds}ms (wrapX={wrapX}, wrapY={wrapY})");
+                $"in {sw.ElapsedMilliseconds}ms (diagonal={diagonal}, wrapX={wrapX}, wrapY={wrapY})");
 
             return true;
         }
 
-        private static bool loggedFirstFlood;
+        /// <summary>
+        /// Applies edge wrapping, then bounds. Returns false when the cell is off the map.
+        /// </summary>
+        private static bool NormalizeCell(ref int x, ref int y)
+        {
+            if (wrapX)
+            {
+                if (x < 0) x += gridWidth;
+                else if (x >= gridWidth) x -= gridWidth;
+            }
+            else if (x < 0 || x >= gridWidth) return false;
+
+            if (wrapY)
+            {
+                if (y < 0) y += gridHeight;
+                else if (y >= gridHeight) y -= gridHeight;
+            }
+            else if (y < 0 || y >= gridHeight) return false;
+
+            return true;
+        }
+
+        private static bool PassableAt(int x, int y)
+        {
+            if (!NormalizeCell(ref x, ref y)) return false;
+            return okByAttribute[attrGrid[y * gridWidth + x]];
+        }
 
         private static void TryVisit(int cx, int cy, int dx, int dy, int from, int nextDist, ref int tail)
         {
             int nx = cx + dx;
             int ny = cy + dy;
 
-            if (wrapX)
-            {
-                if (nx < 0) nx += gridWidth;
-                else if (nx >= gridWidth) nx -= gridWidth;
-            }
-            else if (nx < 0 || nx >= gridWidth) return;
-
-            if (wrapY)
-            {
-                if (ny < 0) ny += gridHeight;
-                else if (ny >= gridHeight) ny -= gridHeight;
-            }
-            else if (ny < 0 || ny >= gridHeight) return;
+            if (!NormalizeCell(ref nx, ref ny)) return;
 
             int idx = ny * gridWidth + nx;
             if (dist[idx] != UNREACHABLE) return;
             if (!okByAttribute[attrGrid[idx]]) return;
+
+            // Corner rule: a diagonal that squeezes between two tiles the vehicle cannot
+            // occupy is not a move it could actually make. Both orthogonals have to be
+            // blocked for this to fire, so a flyer still rounds a single-tile obstacle.
+            if (dx != 0 && dy != 0 && !PassableAt(cx + dx, cy) && !PassableAt(cx, cy + dy))
+                return;
 
             dist[idx] = nextDist;
             parent[idx] = from;
@@ -346,7 +390,8 @@ namespace FFV_ScreenReader.Field.Routing
 
             int sx = WorldToCellX(playerWorldPos.x);
             int sy = WorldToCellY(playerWorldPos.y);
-            if (!EnsureFlood(mapId, transportId, sx, sy))
+            bool diagonal = RoutingAdapter.AllowsDiagonalMovement(tc, transportId);
+            if (!EnsureFlood(mapId, transportId, sx, sy, diagonal))
             {
                 result.ErrorMessage = "Flood failed";
                 return result;
@@ -419,18 +464,7 @@ namespace FFV_ScreenReader.Field.Routing
                         int nx = tx + dx;
                         int ny = ty + dy;
 
-                        if (wrapX)
-                        {
-                            if (nx < 0) nx += gridWidth;
-                            else if (nx >= gridWidth) nx -= gridWidth;
-                        }
-                        if (wrapY)
-                        {
-                            if (ny < 0) ny += gridHeight;
-                            else if (ny >= gridHeight) ny -= gridHeight;
-                        }
-
-                        if (!InBounds(nx, ny)) continue;
+                        if (!NormalizeCell(ref nx, ref ny)) continue;
 
                         int idx = ny * gridWidth + nx;
                         if (dist[idx] == UNREACHABLE) continue;

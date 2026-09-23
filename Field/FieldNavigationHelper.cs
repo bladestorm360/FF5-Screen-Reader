@@ -221,12 +221,13 @@ namespace FFV_ScreenReader.Field
                 if (transportController == null)
                     return;
 
-                // Get the current transport ID for CheckLandingList
-                int transportId = MoveStateHelper.GetCurrentTransportType();
-
-                // Use the transport controller's ID if available, fall back to MoveStateHelper
-                var currentTransportInfo = transportController.CurrentTransportation;
-                int checkTransportId = currentTransportInfo?.Id ?? transportId;
+                // CheckLandingList indexes modelList by TransportationInfo.Id. There used to be
+                // a `?? MoveStateHelper.GetCurrentTransportType()` fallback here, but Id and
+                // TransportationType are different number spaces — when CurrentTransportation
+                // was null that fallback silently read a different vehicle's landing list.
+                // No id means no answer; stay quiet rather than ping the wrong tiles.
+                if (!RoutingAdapter.TryGetCurrentTransportId(transportController, out int checkTransportId))
+                    return;
 
                 Vector3 pos = player.transform.position;
                 float tile = GameConstants.TILE_SIZE;

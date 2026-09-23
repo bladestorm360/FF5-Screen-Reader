@@ -49,9 +49,9 @@
 - `NavigableEntity` — Entity wrapper (TreasureChestEntity overrides FormatDescription)
 - `GroupEntity` — Grouped entities, delegates to IGroupingStrategy representative
 - `EntityFactory` — Creates entities, filters duplicates (goName + entityName checks)
-- `FieldNavigationHelper` — Pathfinding, distance, terrain attributes, landing detection. Owns `FindPathTo` (the single choke point for every route), `PathInfo`/`RouteLeg`/`RouteFailure`/`PathSearchMode`, `BuildLegs`, `DescribeRoute`, `DescribeFailure`, and `KnownTransports`
+- `FieldNavigationHelper` — Pathfinding, distance, terrain attributes, landing detection. Owns `FindPathTo` (the single choke point for every route), `PathInfo`/`RouteLeg`/`RouteFailure`/`PathSearchMode`, `BuildLegs`, and `DescribeRoute`
 - `Routing/` — Long-range route search. Portable by design: no speech, no localization, no logging, no god-class references. See "Routing architecture" below
-  - `RoutingAdapter` — Every game-specific fact (tile size, world-map ids, wrap flags, transport ids, struct offsets, logging hook). **The only file a port should need to edit**
+  - `RoutingAdapter` — Every game-specific fact (tile size, world-map ids, loop flags, transport ids, diagonal-movement rule, logging hook). **The only file a port should need to edit.** Contains no struct offsets — keep it that way
   - `VehicleRouteSearcher` — Terrain-attribute grid + per-transport passability + memoised BFS flood. Used when riding
   - `BreadcrumbRouteChainer` — Hop-level A* chaining several `MapRouteSearcher` searches. Used on foot beyond the game's window
   - `PathSpaceNormalizer` — Self-calibrating cell-vs-world coordinate detection for the game's searcher
@@ -478,7 +478,7 @@ Hooks: ShowPointsInit (EXP/Gil/ABP), ResultStatusUpController.SetData (level-up,
 1. Original: `AbilityList[targetCursor.Index]` — `AbilityList` is compact (learned spells only), but `targetCursor.Index` maps to the visual grid (includes empty slots for unlearned spells), causing index mismatch after the first tier.
 2. Previous fix: `__instance.SelectedOwnedAbility` — auto-property only updated by `SelectContent()`, not during cursor movement (`SetCursor`), so always null.
 
-**Solution**: Read private `contentList` field (offset 0x50) via IL2CPP pointer access. This is `List<BattleAbilityInfomationContentController>` indexed by visual grid position. Each controller's `.Data` property returns the `OwnedAbility` at that slot (null for empty/unlearned). Uses established unsafe pointer pattern (see `PopulateVehicleTypeMap`, `CacheTerrainMappingData`).
+**Solution**: Read private `contentList` field (offset 0x50) via IL2CPP pointer access. This is `List<BattleAbilityInfomationContentController>` indexed by visual grid position. Each controller's `.Data` property returns the `OwnedAbility` at that slot (null for empty/unlearned). Uses established unsafe pointer pattern (see `PopulateVehicleTypeMap`).
 
 **Lesson**: When a list controller has both a compact data list and a visual content list, always use the content list (indexed by visual cursor position) for cursor-driven navigation.
 
@@ -1097,6 +1097,60 @@ That last one is what makes an airship useful: it cannot sit on a town tile, so 
 goes to the closest tile it *can* occupy and `PathInfo` carries the remaining offset plus
 whether that tile is a landing spot.
 
+### Neighbour order is load-bearing — do not reorder it
+
+`EnsureFlood` visits **north, south, east, west** and only then the diagonals. That order is
+not arbitrary. In a fixed-order FIFO BFS the first predecessor to reach a cell claims it, and
+visiting both vertical neighbours before both horizontal ones makes every shortest path
+canonical: the vertical run is always claimed first. On open terrain a route therefore
+decomposes into exactly two legs — `north 40, west 30` — instead of 70 alternating single
+steps that `BuildLegs` cannot merge and `DescribeRoute` would truncate at six legs plus
+"and 64 more".
+
+This was verified by replicating the BFS and the leg decomposition outside the game before
+any code changed: 4-connected open terrain gives 2 legs for every start/goal pair tried, and
+still 2 legs around a 20x30 obstacle. No tie-break or path-straightening pass is needed, and
+one was deliberately *not* added. Reordering these four calls silently degrades every spoken
+route, so if this ever needs to change, re-run that check first.
+
+### Diagonals for free-moving vehicles
+
+`RoutingAdapter.AllowsDiagonalMovement` 8-connects the flood for `TransportationType`
+`Plane` (3), `LowFlying` (7) and `SpecialPlane` (8), via the public
+`TransportationController.GetTransportationType(id)` — no struct offsets. The airship and
+the wind drake fly with free directional input (the game swaps in
+`FieldPlayerKeyAirshipController` for them), so routing them on 4 neighbours both overstates
+the distance and describes a path the player would never fly. Measured on open terrain:
+40 north / 30 west is **70 steps 4-connected, 40 steps 8-connected**, two legs either way
+(`north 10, northwest 30`).
+
+Everything else stays 4-connected, walking included — town and world-map foot movement is
+grid-locked, so a diagonal instruction there would be unfollowable.
+
+Cost stays uniform at 1 per step, so the BFS remains an exact shortest-path search; it just
+becomes Chebyshev rather than Manhattan distance, which is the right cost model for analog
+movement. A **corner rule** rejects a diagonal step when *both* orthogonal neighbours are
+impassable, so a flyer never squeezes through a pinch its `OkList` does not permit — it still
+rounds a single-tile obstacle diagonally.
+
+The diagonal flag is part of the flood cache key, so swapping ship for airship rebuilds
+rather than reusing a 4-connected flood.
+
+### World-map wrap comes from the game, not a guess
+
+`RoutingAdapter.WorldMapWrapsX/Y` used to return `IsWorldMap(mapId)` — a guess. They now read
+`MapModel.GetLoopType()` (`dump.cs:331104`) against `MapConstants.LoopType`
+(`None=0, Horizontal=1, Vertical=2, All=3`), reached via `fieldController.mapManager`
+→ `CurrentMapModel`. `RoutingAdapter.RefreshMapInfo` caches it per map and is called from
+`EnsureGrid`, which is the only thing that runs before a flood — that ordering is what
+guarantees `TryVisit` never reads a stale flag.
+
+The old heuristic remains the fallback if the read throws, so a failure degrades to previous
+behaviour rather than silently disabling wrap on a map that does loop. `RefreshMapInfo` also
+cross-checks `fieldController.CheckCurrentWorldMap()` (`dump.cs:325497`) against
+`GameConstants.IsWorldMap` and warns once on a mismatch — behaviour is unchanged, but a
+missing world-map id shows up in the log instead of having to be debugged blind.
+
 ### Breadcrumb chaining: what makes it correct
 
 The lever is that `MapRouteSearcher.Search` accepts an **arbitrary start cell** — it need not
@@ -1246,18 +1300,25 @@ needs explicit invalidation, and getting this list wrong is the likely source of
 
 The down-pitched "out of range" beacon exists because the game's searcher could not see past
 ~31.5 tiles, so "no path" usually meant "too far to tell". That reason is gone: a failed route
-is now one of three *definite* answers (vehicle-gated, proved impossible, stopped early).
+is now one of two *definite* answers — `RouteFailure.NoPathProved` (search space exhausted,
+genuinely no route within the model) or `RouteFailure.StoppedEarly` (a budget or bound fired
+first, so reachability is unknown).
 
 Dead once this lands: `MODE_B_INTERVAL_FAR`, `MODE_B_INTERVAL_NEAR`, `MODE_B_FAR_TILES`,
 `MODE_B_NEAR_TILES` (`:64-67`), the `lowPitch` local, and the `pathValid` branch (`:384-409`).
 `SoundPlayer.PlayBeacon`'s `lowPitch` parameter (`Utils/SoundPlayer.cs:262`) has no other
 caller and can lose the parameter with it.
 
-**What replaces it is not nothing.** Genuinely unreachable targets still exist — that is the
-whole point of the vehicle-gated outcome. Pinging low forever at a town across the ocean is
-worse than saying `Requires Pirate Ship` once and going quiet. Recommended: on a `Full` route
-failure, speak the reason via `FieldNavigationHelper.DescribeFailure` **once**, then silence
-the beacon, re-arming the announcement only on the invalidation events listed above.
+**What replaces it is not nothing.** Genuinely unreachable targets still exist. Pinging low
+forever at a town across the ocean is worse than saying so once and going quiet. Recommended:
+on a `Full` route failure with `NoPathProved`, say "no route" **once**, then silence the
+beacon, re-arming the announcement only on the invalidation events listed above.
+
+Note what this must *not* say. There is no `DescribeFailure` and no `KnownTransports` — both
+died with the "Requires Pirate Ship" removal (see "The vehicle-requirement check and why it
+was removed"). Naming a required vehicle is an event-gating claim that terrain data cannot
+support. Saying "no route" is a statement about the search; saying "requires the pirate ship"
+is a statement about the story, and only one of those is knowable here.
 
 One caveat to respect: a `Quick` failure inside the search window is still ambiguous, so the
 speak-the-reason path must fire only on a `Full` result. Otherwise the beacon will announce
@@ -1280,8 +1341,13 @@ Copy `Field/Routing/` wholesale, then:
    only one this code ever had went away with the vehicle-requirement check, and it should
    stay that way.
    - `TileSize` / `TileSizeInverse` (FF5 is 16; do not assume).
-   - `IsWorldMap(mapId)` — FF5 uses ids 0/1/2.
-   - `WorldMapWrapsX/Y` — verify by routing across the map seam.
+   - `IsWorldMap(mapId)` — FF5 uses ids 0/1/2. `RefreshMapInfo` warns once if the game's
+     `CheckCurrentWorldMap()` disagrees, which is the cheapest way to find the right ids.
+   - `WorldMapWrapsX/Y` — these read `MapModel.GetLoopType()`; only the fallback is a guess.
+     Still verify by routing across the map seam.
+   - `AllowsDiagonalMovement` — which `TransportationType` values move analog rather than on
+     the movement grid. FF5: `Plane`/`LowFlying`/`SpecialPlane`. A game without a free-flying
+     vehicle can return `false` unconditionally.
 3. `PathInfo` — add `Legs`, `IsApproximate`, `ApproachOffset`, `IsLandingSpot`, `Failure`.
 4. `FieldNavigationHelper` — route **every** `MapRouteSearcher.Search` call through a
    `SafeSearch`-style wrapper. This is not optional: `Search` throws outside its window, and
