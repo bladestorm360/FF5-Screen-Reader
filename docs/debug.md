@@ -1446,6 +1446,23 @@ command's ability 1; the same rule the ×N display uses). `battleActData` is pro
 0x28. Default is now "With hit count", stored as `MultiHitDamage`. *Unverified in game:* that
 `GetHitCount` is hits landed (FF5 basic attacks are usually single-hit, so most attacks read as before).
 
+**Correction (2026-09-23, session 2, capstone): FF5's calc result never carries a hit count, so the
+fallback above always returns 1 and FF5 reads the total only.** `CalcControllerProvider.GetFightStatus`
+(0x3C9D40) is a stub. It logs "このFunctionは使われない想定です" and returns (0, Miss, 0), and its
+only caller is `FuncitonNormalAttack.Calc` (0x6214B0). Real attacks go through `GetUniqueStatus`
+(0x3CA940) → `ClacExecuteFF5.MainExecution` (0xAC3C20). Its `SetStatus` at 0x3CADCC passes hit count 0
+explicitly (`xor eax,eax; mov [rsp+0x28],eax`), and so do the early-out at 0x3CB695 and
+`UniqueFunction.Calc`'s re-set at 0x76B143.
+
+Every one of the 63 `SetStatus` call sites passes 0, except the add-condition ones. `MainExecution`
+does compute a value it logs as "攻撃回数:" (attack count), but it is `SpCalc`'s (0xAC94F0) sixth
+tuple element, which looks like a damage multiplier, and it is dropped anyway.
+
+The Multi-hit Damage setting therefore has no audible effect in FF5; FF4 has the same finding. The
+count only exists inside the calc functions, which return tuple structs. Hooking them would mean a
+struct-return postfix under Il2CppInterop, which needs a crash test. The other options are to hide
+the setting in FF5, or to leave it (harmless). This is left to the user.
+
 ### Open-issues pass (2026-09-23, session 2)
 
 This pass closes the FF5 items in `OPEN_ISSUES.md`. It builds clean (0 warnings, 0 errors), but
