@@ -968,7 +968,7 @@
   "ev_e_0096:飛竜(影)": {
     "de": "Winddrache (Schatten)",
     "en": "Wind Drake (shadow)",
-    "es": "Viverna (sombra)",
+    "es": "Dragón del viento (sombra)",
     "fr": "Dragon (ombre)",
     "it": "Drago del vento (ombra)",
     "ja": "ev_e_0096:飛竜(影)",
@@ -996,7 +996,7 @@
   "ev_e_0097:飛竜(体)": {
     "de": "Winddrache (Körper)",
     "en": "Wind Drake (body)",
-    "es": "Viverna (cuerpo)",
+    "es": "Dragón del viento (cuerpo)",
     "fr": "Dragon (corps)",
     "it": "Drago del vento (corpo)",
     "ja": "ev_e_0097:飛竜(体)",
@@ -1010,7 +1010,7 @@
   "ev_e_0097:飛竜(頭)": {
     "de": "Winddrache (Kopf)",
     "en": "Wind Drake (head)",
-    "es": "Viverna (cabeza)",
+    "es": "Dragón del viento (cabeza)",
     "fr": "Dragon (tête)",
     "it": "Drago del vento (testa)",
     "ja": "ev_e_0097:飛竜(頭)",
@@ -1038,7 +1038,7 @@
   "ev_e_0102:飛竜(体)": {
     "de": "Winddrache (Körper)",
     "en": "Wind Drake (body)",
-    "es": "Viverna (cuerpo)",
+    "es": "Dragón del viento (cuerpo)",
     "fr": "Dragon (corps)",
     "it": "Drago del vento (corpo)",
     "ja": "ev_e_0102:飛竜(体)",
@@ -1052,7 +1052,7 @@
   "ev_e_0102:飛竜(影)": {
     "de": "Winddrache (Schatten)",
     "en": "Wind Drake (shadow)",
-    "es": "Viverna (sombra)",
+    "es": "Dragón del viento (sombra)",
     "fr": "Dragon (ombre)",
     "it": "Drago del vento (ombra)",
     "ja": "ev_e_0102:飛竜(影)",
@@ -1066,7 +1066,7 @@
   "ev_e_0102:飛竜(頭)": {
     "de": "Winddrache (Kopf)",
     "en": "Wind Drake (head)",
-    "es": "Viverna (cabeza)",
+    "es": "Dragón del viento (cabeza)",
     "fr": "Dragon (tête)",
     "it": "Drago del vento (testa)",
     "ja": "ev_e_0102:飛竜(頭)",
@@ -1234,7 +1234,7 @@
   "ev_e_0161:飛竜(体)": {
     "de": "Winddrache (Körper)",
     "en": "Wind Drake (body)",
-    "es": "Viverna (cuerpo)",
+    "es": "Dragón del viento (cuerpo)",
     "fr": "Dragon (corps)",
     "it": "Drago del vento (corpo)",
     "ja": "ev_e_0161:飛竜(体)",
@@ -1248,7 +1248,7 @@
   "ev_e_0161:飛竜(影)": {
     "de": "Winddrache (Schatten)",
     "en": "Wind Drake (shadow)",
-    "es": "Viverna (sombra)",
+    "es": "Dragón del viento (sombra)",
     "fr": "Dragon (ombre)",
     "it": "Drago del vento (ombra)",
     "ja": "ev_e_0161:飛竜(影)",
@@ -1262,7 +1262,7 @@
   "ev_e_0161:飛竜(頭)": {
     "de": "Winddrache (Kopf)",
     "en": "Wind Drake (head)",
-    "es": "Viverna (cabeza)",
+    "es": "Dragón del viento (cabeza)",
     "fr": "Dragon (tête)",
     "it": "Drago del vento (testa)",
     "ja": "ev_e_0161:飛竜(頭)",
@@ -1346,7 +1346,7 @@
   "ev_e_0162:飛竜(体)": {
     "de": "Winddrache (Körper)",
     "en": "Wind Drake (body)",
-    "es": "Viverna (cuerpo)",
+    "es": "Dragón del viento (cuerpo)",
     "fr": "Dragon (corps)",
     "it": "Drago del vento (corpo)",
     "ja": "ev_e_0162:飛竜(体)",
@@ -1360,7 +1360,7 @@
   "ev_e_0162:飛竜(影)": {
     "de": "Winddrache (Schatten)",
     "en": "Wind Drake (shadow)",
-    "es": "Viverna (sombra)",
+    "es": "Dragón del viento (sombra)",
     "fr": "Dragon (ombre)",
     "it": "Drago del vento (ombra)",
     "ja": "ev_e_0162:飛竜(影)",
@@ -1374,7 +1374,7 @@
   "ev_e_0162:飛竜(頭)": {
     "de": "Winddrache (Kopf)",
     "en": "Wind Drake (head)",
-    "es": "Viverna (cabeza)",
+    "es": "Dragón del viento (cabeza)",
     "fr": "Dragon (tête)",
     "it": "Drago del vento (testa)",
     "ja": "ev_e_0162:飛竜(頭)",
@@ -11622,7 +11622,7 @@
   "タイクーン城の飛竜(体)": {
     "de": "Winddrache von Schloss Tycoon (Körper)",
     "en": "Castle Tycoon Wind Drake (Body)",
-    "es": "Viverna del castillo de Tycoon (Cuerpo)",
+    "es": "Dragón del viento del castillo de Tycoon (Cuerpo)",
     "fr": "Dragon du château Tycoon (Corps)",
     "it": "Drago del vento del castello di Tycoon (Corpo)",
     "ja": "タイクーン城の飛竜(体)",
@@ -11636,7 +11636,7 @@
   "タイクーン城の飛竜(頭)": {
     "de": "Winddrache von Schloss Tycoon (Kopf)",
     "en": "Castle Tycoon Wind Drake (Head)",
-    "es": "Viverna del castillo de Tycoon (Cabeza)",
+    "es": "Dragón del viento del castillo de Tycoon (Cabeza)",
     "fr": "Dragon du château Tycoon (Tête)",
     "it": "Drago del vento del castello di Tycoon (Testa)",
     "ja": "タイクーン城の飛竜(頭)",
@@ -15794,7 +15794,7 @@
   "敵飛竜層の本体": {
     "de": "Feind-Winddrache-Ebene - Körper",
     "en": "Enemy Wind Drake Layer - Body",
-    "es": "Capa de la vibora alada enemiga - Cuerpo",
+    "es": "Capa del dragón del viento enemigo - Cuerpo",
     "fr": "Calque du Dragon ennemi - Corps",
     "it": "Livello del Drago del vento nemico - Corpo",
     "ja": "敵飛竜層の本体",
@@ -15808,7 +15808,7 @@
   "敵飛竜層の蔦": {
     "de": "Feind-Winddrache-Ebene - Ranke",
     "en": "Enemy Wind Drake Layer - Vine",
-    "es": "Capa de la vibora alada enemiga - Enredadera",
+    "es": "Capa del dragón del viento enemigo - Enredadera",
     "fr": "Calque du Dragon ennemi - Liane",
     "it": "Livello del Drago del vento nemico - Rampicante",
     "ja": "敵飛竜層の蔦",
@@ -18748,7 +18748,7 @@
   "飛竜(体)": {
     "de": "Winddrache (Körper)",
     "en": "Wind Drake (body)",
-    "es": "Viverna (cuerpo)",
+    "es": "Dragón del viento (cuerpo)",
     "fr": "Dragon (corps)",
     "it": "Drago del vento (corpo)",
     "ja": "飛竜(体)",
@@ -18762,7 +18762,7 @@
   "飛竜(影)": {
     "de": "Winddrache (Schatten)",
     "en": "Wind Drake (shadow)",
-    "es": "Viverna (sombra)",
+    "es": "Dragón del viento (sombra)",
     "fr": "Dragon (ombre)",
     "it": "Drago del vento (ombra)",
     "ja": "飛竜(影)",
@@ -18776,7 +18776,7 @@
   "飛竜(頭)": {
     "de": "Winddrache (Kopf)",
     "en": "Wind Drake (head)",
-    "es": "Viverna (cabeza)",
+    "es": "Dragón del viento (cabeza)",
     "fr": "Dragon (tête)",
     "it": "Drago del vento (testa)",
     "ja": "飛竜(頭)",
@@ -18790,7 +18790,7 @@
   "飛竜1": {
     "de": "Winddrache 1",
     "en": "Wind Drake 1",
-    "es": "Viverna 1",
+    "es": "Dragón del viento 1",
     "fr": "Dragon 1",
     "it": "Drago del vento 1",
     "ja": "飛竜1",
@@ -18804,7 +18804,7 @@
   "飛竜2": {
     "de": "Winddrache 2",
     "en": "Wind Drake 2",
-    "es": "Viverna 2",
+    "es": "Dragón del viento 2",
     "fr": "Dragon 2",
     "it": "Drago del vento 2",
     "ja": "飛竜2",
@@ -18818,7 +18818,7 @@
   "飛竜3": {
     "de": "Winddrache 3",
     "en": "Wind Drake 3",
-    "es": "Viverna 3",
+    "es": "Dragón del viento 3",
     "fr": "Dragon 3",
     "it": "Drago del vento 3",
     "ja": "飛竜3",
@@ -18846,7 +18846,7 @@
   "飛竜（体）": {
     "de": "Winddrache (Körper)",
     "en": "Wind Drake (body)",
-    "es": "Viverna (cuerpo)",
+    "es": "Dragón del viento (cuerpo)",
     "fr": "Dragon (corps)",
     "it": "Drago del vento (corpo)",
     "ja": "飛竜（体）",
@@ -18860,7 +18860,7 @@
   "飛竜（影）": {
     "de": "Winddrache (Schatten)",
     "en": "Wind Drake (shadow)",
-    "es": "Viverna (sombra)",
+    "es": "Dragón del viento (sombra)",
     "fr": "Dragon (ombre)",
     "it": "Drago del vento (ombra)",
     "ja": "飛竜（影）",
@@ -18874,7 +18874,7 @@
   "飛竜（頭）": {
     "de": "Winddrache (Kopf)",
     "en": "Wind Drake (head)",
-    "es": "Viverna (cabeza)",
+    "es": "Dragón del viento (cabeza)",
     "fr": "Dragon (tête)",
     "it": "Drago del vento (testa)",
     "ja": "飛竜（頭）",
@@ -18888,7 +18888,7 @@
   "飛竜（顔）": {
     "de": "Winddrache (Gesicht)",
     "en": "Wind Drake (face)",
-    "es": "Viverna (cara)",
+    "es": "Dragón del viento (cara)",
     "fr": "Dragon (visage)",
     "it": "Drago del vento (viso)",
     "ja": "飛竜（顔）",
