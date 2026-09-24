@@ -174,21 +174,6 @@
     "de": "Versteckt", "es": "Oculto", "ko": "숨김", "zht": "隱藏",
     "zhc": "隐藏", "ru": "Скрыто", "th": "ซ่อน", "pt": "Oculto"
   },
-  "Multi-hit Damage": {
-    "en": "Multi-hit Damage", "ja": "連続ヒットダメージ", "fr": "Dégâts multi-coups", "it": "Danno multi-colpo",
-    "de": "Mehrfachtreffer-Schaden", "es": "Daño de golpes múltiples", "ko": "다단히트 대미지", "zht": "多段傷害",
-    "zhc": "多段伤害", "ru": "Урон многоударных атак", "th": "ความเสียหายหลายครั้ง", "pt": "Dano de múltiplos golpes"
-  },
-  "Total only": {
-    "en": "Total only", "ja": "合計のみ", "fr": "Total uniquement", "it": "Solo totale",
-    "de": "Nur Gesamt", "es": "Solo total", "ko": "합계만", "zht": "僅總計",
-    "zhc": "仅总计", "ru": "Только итог", "th": "เฉพาะยอดรวม", "pt": "Apenas total"
-  },
-  "With hit count": {
-    "en": "With hit count", "ja": "ヒット数付き", "fr": "Avec nombre de coups", "it": "Con numero di colpi",
-    "de": "Mit Trefferzahl", "es": "Con número de golpes", "ko": "히트 수 포함", "zht": "含命中次數",
-    "zhc": "含命中次数", "ru": "С числом ударов", "th": "พร้อมจำนวนครั้งที่โจมตี", "pt": "Com contagem de golpes"
-  },
   "Close Menu": {
     "en": "Close Menu", "ja": "メニューを閉じる", "fr": "Fermer le menu", "it": "Chiudi menu",
     "de": "Menü schließen", "es": "Cerrar menú", "ko": "메뉴 닫기", "zht": "關閉選單",
@@ -1029,6 +1014,131 @@
     "de": "{0}: {1} Schaden", "es": "{0}: {1} de daño", "ko": "{0}: {1} 데미지", "zht": "{0}：{1} 傷害",
     "zhc": "{0}：{1} 伤害", "ru": "{0}: {1} урона", "th": "{0}: ความเสียหาย {1}", "pt": "{0}: {1} de dano"
   },
+  "Critical": {
+    "en": "Critical", "ja": "瀕死", "fr": "Critique", "it": "Critico",
+    "de": "Kritisch", "es": "Crítico", "ko": "빈사", "zht": "瀕死",
+    "zhc": "濒死", "ru": "При смерти", "th": "ใกล้ตาย", "pt": "Crítico"
+  },
+  "KO": {
+    "en": "KO", "ja": "戦闘不能", "fr": "K.-O.", "it": "KO",
+    "de": "K. o.", "es": "KO", "ko": "전투 불능", "zht": "無法戰鬥",
+    "zhc": "无法战斗", "ru": "Без чувств", "th": "น็อกเอ้าท์", "pt": "Morte"
+  },
+  "Silence": {
+    "en": "Silence", "ja": "沈黙", "fr": "Mutisme", "it": "Mutismo",
+    "de": "Stille", "es": "Mudez", "ko": "침묵", "zht": "沉默",
+    "zhc": "沉默", "ru": "Немота", "th": "เป็นใบ้", "pt": "Silêncio"
+  },
+  "Sleep": {
+    "en": "Sleep", "ja": "眠り", "fr": "Sommeil", "it": "Sonno",
+    "de": "Schlaf", "es": "Sueño", "ko": "수면", "zht": "睡眠",
+    "zhc": "睡眠", "ru": "Сон", "th": "นอนหลับ", "pt": "Sono"
+  },
+  "Paralysis": {
+    "en": "Paralyze", "ja": "マヒ", "fr": "Paralysie", "it": "Paralisi",
+    "de": "Lähmung", "es": "Parálisis", "ko": "마비", "zht": "麻痺",
+    "zhc": "麻痹", "ru": "Паралич", "th": "เป็นอัมพาต", "pt": "Paralisia"
+  },
+  "Blind": {
+    "en": "Darkness", "ja": "暗闇", "fr": "Aveugle", "it": "Cecità",
+    "de": "Blind", "es": "Ceguera", "ko": "실명", "zht": "失明",
+    "zhc": "失明", "ru": "Тьма", "th": "ความมืด", "pt": "Cegueira"
+  },
+  "Poison": {
+    "en": "Poison", "ja": "毒", "fr": "Poison", "it": "Veleno",
+    "de": "Gift", "es": "Veneno", "ko": "독", "zht": "毒",
+    "zhc": "毒", "ru": "Яд", "th": "พิษ", "pt": "Veneno"
+  },
+  "Stone": {
+    "en": "Petrify", "ja": "石化", "fr": "Fossile", "it": "Pietra",
+    "de": "Stein", "es": "Piedra", "ko": "석화", "zht": "石化",
+    "zhc": "石化", "ru": "Окаменение", "th": "กลายเป็นหิน", "pt": "Petrificar"
+  },
+  "Confusion": {
+    "en": "Confuse", "ja": "混乱", "fr": "Folie", "it": "Caos",
+    "de": "Konfus", "es": "Confusión", "ko": "혼란", "zht": "混亂",
+    "zhc": "混乱", "ru": "Замешательство", "th": "สับสน", "pt": "Confusão"
+  },
+  "Blink": {
+    "en": "Blink", "ja": "ブリンク", "fr": "Leurre", "it": "Inganno",
+    "de": "Blink", "es": "Parpadeo", "ko": "블링크", "zht": "閃躲",
+    "zhc": "闪躲", "ru": "Мерцание", "th": "กะพริบตา", "pt": "Evasão"
+  },
+  "Haste": {
+    "en": "Haste", "ja": "ヘイスト", "fr": "Booster", "it": "Andante",
+    "de": "Hast", "es": "Prisa", "ko": "헤이스트", "zht": "急速",
+    "zhc": "加速", "ru": "Ускорение", "th": "เร่งรีบ", "pt": "Impulso"
+  },
+  "Slow": {
+    "en": "Slow", "ja": "スロウ", "fr": "Somni", "it": "Adagio",
+    "de": "Gemach", "es": "Freno", "ko": "슬로우", "zht": "緩慢",
+    "zhc": "减速", "ru": "Замедление", "th": "ช้า", "pt": "Lentidão"
+  },
+  "Stop": {
+    "en": "Stop", "ja": "ストップ", "fr": "Stop", "it": "Stop",
+    "de": "Stopp", "es": "Paro", "ko": "스톱", "zht": "停止",
+    "zhc": "停止", "ru": "Остановка", "th": "หยุด", "pt": "Catatonia"
+  },
+  "Protect": {
+    "en": "Protect", "ja": "プロテス", "fr": "Carapace", "it": "Egida",
+    "de": "Protes", "es": "Coraza", "ko": "프로테스", "zht": "物防護",
+    "zhc": "护盾", "ru": "Защита", "th": "ปกป้อง", "pt": "Proteção"
+  },
+  "Regen": {
+    "en": "Regen", "ja": "リジェネ", "fr": "Récup", "it": "Rigene",
+    "de": "Regena", "es": "Revitalia", "ko": "리제네", "zht": "再生",
+    "zhc": "再生", "ru": "Восстановление", "th": "ฟื้นคืน", "pt": "Regeneração"
+  },
+  "Old": {
+    "en": "Old", "ja": "老化", "fr": "Vieillissement", "it": "Vecchiaia",
+    "de": "Altern", "es": "Viejo", "ko": "노화", "zht": "老化",
+    "zhc": "老化", "ru": "Старение", "th": "แก่", "pt": "Envelhecimento"
+  },
+  "Zombie": {
+    "en": "Zombie", "ja": "ゾンビ", "fr": "Zombie", "it": "Zombie",
+    "de": "Zombie", "es": "Zombi", "ko": "좀비", "zht": "殭屍",
+    "zhc": "僵尸", "ru": "Зомби", "th": "ซอมบี้", "pt": "Zumbi"
+  },
+  "Mini": {
+    "en": "Mini", "ja": "こびと", "fr": "Mini", "it": "Mini",
+    "de": "Wicht", "es": "Mini", "ko": "소인", "zht": "縮小",
+    "zhc": "缩小", "ru": "Мини", "th": "มินิ", "pt": "Miniatura"
+  },
+  "Toad": {
+    "en": "Toad", "ja": "カエル", "fr": "Crapaud", "it": "Rospo",
+    "de": "Frosch", "es": "Rana", "ko": "개구리", "zht": "蛙變",
+    "zhc": "蛙变", "ru": "Жаба", "th": "คางคก", "pt": "Sapo"
+  },
+  "Doom": {
+    "en": "Doom", "ja": "死の宣告", "fr": "Châtiment", "it": "Rovina",
+    "de": "Todesurteil", "es": "Condena", "ko": "죽음의 선고", "zht": "死亡宣告",
+    "zhc": "死亡宣告", "ru": "Рок", "th": "ชะตาขาด", "pt": "Condenação"
+  },
+  "Float": {
+    "en": "Float", "ja": "レビテト", "fr": "Lévitation", "it": "Levitazione",
+    "de": "Levitas", "es": "Lévita", "ko": "레비테트", "zht": "浮空",
+    "zhc": "浮空", "ru": "Левитация", "th": "ลอย", "pt": "Flutuar"
+  },
+  "Berserk": {
+    "en": "Berserk", "ja": "バーサク", "fr": "Furie", "it": "Furia",
+    "de": "Tobsucht", "es": "Locura", "ko": "버서크", "zht": "狂暴",
+    "zhc": "狂暴", "ru": "Берсерк", "th": "บ้าระห่ำ", "pt": "Frenesi"
+  },
+  "Shell": {
+    "en": "Shell", "ja": "シェル", "fr": "Blindage", "it": "Bozzolo",
+    "de": "Schutz", "es": "Escudo", "ko": "셸", "zht": "魔防護",
+    "zhc": "魔盾", "ru": "Аура", "th": "เกราะ", "pt": "Couraça"
+  },
+  "Reflect": {
+    "en": "Reflect", "ja": "リフレク", "fr": "Boomerang", "it": "Reflex",
+    "de": "Reflek", "es": "Espejo", "ko": "리플렉", "zht": "反射",
+    "zhc": "反射", "ru": "Отражение", "th": "สะท้อน", "pt": "Repulsão"
+  },
+  "{0}: {1} removed": {
+    "en": "{0}: {1} removed", "ja": "{0}: {1} 解除", "fr": "{0} : fin de {1}", "it": "{0}: fine di {1}",
+    "de": "{0}: {1} aufgehoben", "es": "{0}: fin de {1}", "ko": "{0}: {1} 해제", "zht": "{0}：{1} 解除",
+    "zhc": "{0}：{1} 解除", "ru": "{0}: эффект {1} снят", "th": "{0}: {1} หายไป", "pt": "{0}: fim de {1}"
+  },
   "{0}: Miss": {
     "en": "{0}: Miss", "ja": "{0}: ミス", "fr": "{0} : Raté", "it": "{0}: Mancato",
     "de": "{0}: Verfehlt", "es": "{0}: Fallo", "ko": "{0}: 빗나감", "zht": "{0}：未命中",
@@ -1749,6 +1859,11 @@
     "de": "Gil", "es": "gil", "ko": "길", "zht": "基爾",
     "zhc": "基尔", "ru": "гил", "th": "กิล", "pt": "gil"
   },
+  "Name: {0}": {
+    "en": "Name: {0}", "ja": "名前: {0}", "fr": "Nom : {0}", "it": "Nome: {0}",
+    "de": "Name: {0}", "es": "Nombre: {0}", "ko": "이름: {0}", "zht": "名字：{0}",
+    "zhc": "名字：{0}", "ru": "Имя: {0}", "th": "ชื่อ: {0}", "pt": "Nome: {0}"
+  },
   ". Current: {0}": {
     "en": ". Current: {0}", "ja": "。現在: {0}", "fr": ". Actuel : {0}", "it": ". Attuale: {0}",
     "de": ". Aktuell: {0}", "es": ". Actual: {0}", "ko": ". 현재: {0}", "zht": "。目前：{0}",
@@ -1913,11 +2028,6 @@
     "en": "Adds a letter such as A or B to enemies that share a name, so you can tell them apart.", "ja": "同じ名前の敵にAやBなどの記号を付けて、見分けられるようにします。", "fr": "Ajoute une lettre comme A ou B aux ennemis portant le même nom, pour les distinguer.", "it": "Aggiunge una lettera come A o B ai nemici con lo stesso nome, per distinguerli.",
     "de": "Hängt Gegnern mit gleichem Namen einen Buchstaben wie A oder B an, damit du sie unterscheiden kannst.", "es": "Añade una letra como A o B a los enemigos que comparten nombre para distinguirlos.", "ko": "이름이 같은 적에게 A, B 같은 문자를 붙여 구별할 수 있게 합니다.", "zht": "為同名的敵人加上A或B等字母，方便區分。",
     "zhc": "为同名的敌人加上A或B等字母，方便区分。", "ru": "Добавляет букву, например A или B, врагам с одинаковыми именами, чтобы их различать.", "th": "เพิ่มตัวอักษร เช่น A หรือ B ให้ศัตรูที่มีชื่อเดียวกัน เพื่อให้แยกแยะได้", "pt": "Adiciona uma letra como A ou B a inimigos com o mesmo nome, para diferenciá-los."
-  },
-  "For attacks that hit several times, reads the total damage alone or together with the number of hits.": {
-    "en": "For attacks that hit several times, reads the total damage alone or together with the number of hits.", "ja": "複数回ヒットする攻撃で、合計ダメージのみを読み上げるか、ヒット数も合わせて読み上げるかを選びます。", "fr": "Pour les attaques à plusieurs coups, lit le total des dégâts seul ou accompagné du nombre de coups.", "it": "Per gli attacchi a più colpi, legge solo il danno totale o insieme al numero di colpi.",
-    "de": "Liest bei Mehrfachtreffern nur den Gesamtschaden oder zusammen mit der Trefferzahl vor.", "es": "En ataques de varios golpes, lee solo el daño total o junto con el número de golpes.", "ko": "여러 번 맞히는 공격에서 합계 대미지만 읽을지, 히트 수와 함께 읽을지 정합니다.", "zht": "對多段攻擊，只朗讀總傷害，或連同命中次數一起朗讀。",
-    "zhc": "对多段攻击，只朗读总伤害，或连同命中次数一起朗读。", "ru": "Для многоударных атак зачитывает только общий урон или вместе с числом ударов.", "th": "สำหรับการโจมตีหลายครั้ง จะอ่านเฉพาะความเสียหายรวม หรืออ่านพร้อมจำนวนครั้งที่โจมตี", "pt": "Em ataques de vários golpes, lê apenas o dano total ou junto com o número de golpes."
   },
   "Closes the mod menu and returns to the game.": {
     "en": "Closes the mod menu and returns to the game.", "ja": "Modメニューを閉じてゲームに戻ります。", "fr": "Ferme le menu mod et revient au jeu.", "it": "Chiude il menu mod e torna al gioco.",

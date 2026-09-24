@@ -91,7 +91,7 @@ namespace FFV_ScreenReader.Patches
                 MenuStateRegistry.BESTIARY_FORMATION,
                 MenuStateRegistry.BESTIARY_MAP);
             BestiaryNavigationTracker.Instance.Reset();
-            LibraryMenuController_UpdateController_Patch.ResetState();
+            BestiaryMinimapState.ResetState();
         }
     }
 
@@ -178,8 +178,9 @@ namespace FFV_ScreenReader.Patches
                         break;
 
                     case 5: // ArTop (Formation)
+                        // The formation itself is read by ArBattleTopController.SetActive(true)
+                        // (Patch 7), the moment its party list is built.
                         MenuStateRegistry.SetActive(MenuStateRegistry.BESTIARY_FORMATION, true);
-                        CoroutineManager.StartManaged(AnnounceFormation());
                         break;
 
                     case 7: // GotoTitle — leaving bestiary
@@ -273,40 +274,7 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        private static IEnumerator AnnounceFormation()
-        {
-            float elapsed = 0f;
-
-            while (elapsed < 3f)
-            {
-                yield return null;
-                elapsed += Time.deltaTime;
-
-                try
-                {
-                    var controller = UnityEngine.Object.FindObjectOfType<ArBattleTopController>();
-                    if (controller != null)
-                    {
-                        var partyList = controller.monsterPartyList;
-                        if (partyList != null && partyList.Count > 0)
-                        {
-                            ReadCurrentFormation(controller);
-                            yield break;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MelonLogger.Warning($"[Bestiary] Error polling formation: {ex.Message}");
-                    break;
-                }
-            }
-
-            // Timeout — announce generic fallback
-            FFV_ScreenReaderMod.SpeakText(T("Formation view"), true);
-        }
-
-        private static void ReadCurrentFormation(ArBattleTopController controller)
+        internal static void ReadCurrentFormation(ArBattleTopController controller)
         {
             try
             {
@@ -328,9 +296,9 @@ namespace FFV_ScreenReader.Patches
                 // Append formation position last (localized + toggle-aware).
                 announcement = MenuPosition.Format(announcement, partyIndex, partyList.Count);
 
-                // Unconditional: the only two callers are AnnounceFormation (a settle loop that
-                // stops the moment it succeeds) and ReannounceFormation (an explicit user request),
-                // so neither can produce a repeat.
+                // Unconditional: the only two callers are ArBattleTopController.SetActive(true)
+                // (entering the view) and ChangeMonsterParty (an explicit user request), so
+                // neither can produce a repeat.
                 FFV_ScreenReaderMod.SpeakText(announcement, true);
             }
             catch (Exception ex)
@@ -340,26 +308,6 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        /// <summary>
-        /// Called externally to re-read the current formation (e.g., after reorganize).
-        /// </summary>
-        public static void ReannounceFormation()
-        {
-            if (!BestiaryStateTracker.IsInFormation) return;
-
-            try
-            {
-                var controller = UnityEngine.Object.FindObjectOfType<ArBattleTopController>();
-                if (controller != null)
-                {
-                    ReadCurrentFormation(controller);
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[Bestiary] Error re-announcing formation: {ex.Message}");
-            }
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -554,106 +502,152 @@ namespace FFV_ScreenReader.Patches
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Patch 6: Map change (left/right in list view changes habitat map)
-
+    // Patch 6: Minimap open/close and map change (list view)
+    //
+    // Event-driven since round 2 (2026-09-24). This used to be a postfix on
+    // LibraryMenuController.UpdateController, which runs every frame, comparing selectState and
+    // selectMapIndex against the previous frame. The game's own events:
+    //  - LibraryMenuController.ChangeState(State) 0x993E70 (KeyInput): the only writer of
+    //    selectState (0x44). Callers: Show, the click lambda, <UpdateMonsterList>b__17_0 (opens
+    //    the minimap) and <UpdateEnlargedMap>b__18_0 (closes it). Returns early on the same state.
+    //  - KeyInput LibraryMenuHabitatController.OnContentSelected(int index, MonsterData) 0x996ED0:
+    //    <UpdateEnlargedMap>b__18_0 calls it with the new selectMapIndex (0x50) right after
+    //    left/right changes it. Its other caller is the list's OnContentSelected (a list move,
+    //    minimap closed), which the open flag filters out.
     // ─────────────────────────────────────────────────────────────────────────
 
-    [HarmonyPatch(typeof(LibraryMenuController_KeyInput), nameof(LibraryMenuController_KeyInput.UpdateController))]
-    public static class LibraryMenuController_UpdateController_Patch
+    internal static class BestiaryMinimapState
     {
-        private static int lastMapIndex = -1;
-        private static int lastSelectState = -1;
+        // Mirrors the old per-frame baseline: reset to "closed" whenever the bestiary state is
+        // cleared, so a controller left in EnlargedMap never announces a spurious "closed".
+        internal static bool MinimapOpen;
+        internal static int LastMapIndex = -1;
 
+        public static void ResetState()
+        {
+            MinimapOpen = false;
+            LastMapIndex = -1;
+        }
+    }
+
+    [HarmonyPatch(typeof(LibraryMenuController_KeyInput), nameof(LibraryMenuController_KeyInput.ChangeState))]
+    public static class LibraryMenuController_ChangeState_Patch
+    {
         [HarmonyPostfix]
         public static void Postfix(LibraryMenuController_KeyInput __instance)
         {
-
             try
             {
-                if (!BestiaryStateTracker.IsInList) return;
+                if (!BestiaryStateTracker.IsInList || __instance == null) return;
 
                 // Direct IL2CPP property access (Traverse fails on IL2CPP enums)
-                int currentState = (int)__instance.selectState;
-                int currentMapIndex = __instance.selectMapIndex;
+                bool open = (int)__instance.selectState == 1; // EnlargedMap
+                if (open == BestiaryMinimapState.MinimapOpen) return;
+                BestiaryMinimapState.MinimapOpen = open;
 
-                if (currentState != lastSelectState && lastSelectState >= 0)
+                var tracker = BestiaryNavigationTracker.Instance;
+                if (open)
                 {
-                    if (currentState == 1) // EnlargedMap
-                    {
-                        var tracker = BestiaryNavigationTracker.Instance;
-                        // Cache entry name while MonsterData is still alive
-                        if (tracker.CurrentMonsterData?.pictureBookData != null)
-                            BestiaryStateTracker.CachedEntryName = BestiaryReader.ReadListEntry(tracker.CurrentMonsterData.pictureBookData);
+                    int mapIndex = __instance.selectMapIndex;
+                    BestiaryMinimapState.LastMapIndex = mapIndex;
 
-                        string mapInfo = T("Minimap open");
-                        if (tracker.CurrentMonsterData != null)
-                        {
-                            string mapName = BestiaryReader.ReadMapName(tracker.CurrentMonsterData, currentMapIndex);
-                            if (!string.IsNullOrEmpty(mapName))
-                                mapInfo = string.Format(T("Minimap open: {0}"), mapName);
-                        }
-                        FFV_ScreenReaderMod.SpeakText(mapInfo, true);
-                    }
-                    else if (currentState == 0) // MonsterList
+                    // Cache entry name while MonsterData is still alive
+                    if (tracker.CurrentMonsterData?.pictureBookData != null)
+                        BestiaryStateTracker.CachedEntryName = BestiaryReader.ReadListEntry(tracker.CurrentMonsterData.pictureBookData);
+
+                    string mapInfo = T("Minimap open");
+                    if (tracker.CurrentMonsterData != null)
                     {
-                        string closeMsg = T("Minimap closed");
-                        if (!string.IsNullOrEmpty(BestiaryStateTracker.CachedEntryName))
-                            closeMsg += $". {BestiaryStateTracker.CachedEntryName}";
-                        BestiaryStateTracker.CachedEntryName = null;
-                        FFV_ScreenReaderMod.SpeakText(closeMsg, true);
+                        string mapName = BestiaryReader.ReadMapName(tracker.CurrentMonsterData, mapIndex);
+                        if (!string.IsNullOrEmpty(mapName))
+                            mapInfo = string.Format(T("Minimap open: {0}"), mapName);
                     }
+                    FFV_ScreenReaderMod.SpeakText(mapInfo, true);
                 }
-                lastSelectState = currentState;
-
-                // Only track map index changes when in EnlargedMap state
-                if (currentState == 1)
+                else
                 {
-                    if (currentMapIndex != lastMapIndex && lastMapIndex >= 0)
-                    {
-                        var tracker = BestiaryNavigationTracker.Instance;
-                        if (tracker.CurrentMonsterData != null)
-                        {
-                            string mapName = BestiaryReader.ReadMapName(tracker.CurrentMonsterData, currentMapIndex);
-                            if (!string.IsNullOrEmpty(mapName))
-                                FFV_ScreenReaderMod.SpeakText(mapName, true);
-                        }
-                    }
-                    lastMapIndex = currentMapIndex;
+                    string closeMsg = T("Minimap closed");
+                    if (!string.IsNullOrEmpty(BestiaryStateTracker.CachedEntryName))
+                        closeMsg += $". {BestiaryStateTracker.CachedEntryName}";
+                    BestiaryStateTracker.CachedEntryName = null;
+                    FFV_ScreenReaderMod.SpeakText(closeMsg, true);
                 }
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"[Bestiary] Error in UpdateController patch: {ex.Message}");
+                MelonLogger.Warning($"[Bestiary] Error in LibraryMenuController.ChangeState patch: {ex.Message}");
             }
         }
+    }
 
-        public static void ResetState()
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.LibraryMenuHabitatController), nameof(Il2CppLast.UI.KeyInput.LibraryMenuHabitatController.OnContentSelected))]
+    public static class LibraryMenuHabitatController_OnContentSelected_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(int index)
         {
-            lastMapIndex = -1;
-            lastSelectState = 0;
+            try
+            {
+                if (!BestiaryStateTracker.IsInList || !BestiaryMinimapState.MinimapOpen) return;
+                if (index == BestiaryMinimapState.LastMapIndex) return;
+                BestiaryMinimapState.LastMapIndex = index;
+
+                var tracker = BestiaryNavigationTracker.Instance;
+                if (tracker.CurrentMonsterData != null)
+                {
+                    string mapName = BestiaryReader.ReadMapName(tracker.CurrentMonsterData, index);
+                    if (!string.IsNullOrEmpty(mapName))
+                        FFV_ScreenReaderMod.SpeakText(mapName, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Bestiary] Error in LibraryMenuHabitatController.OnContentSelected patch: {ex.Message}");
+            }
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Patch 7: Formation rearrange — announce new formation after Q key
-
+    // Patch 7: Formation view — read on entry, and after Q rearranges it
+    //
+    // Event-driven since round 2 (2026-09-24). Entry used to poll FindObjectOfType
+    // <ArBattleTopController> every frame for up to 3 s (Time.deltaTime) until monsterPartyList
+    // (0xC0) filled. ArBattleTopController.SetActive(bool) 0x3DE3F0 is called only by
+    // ExtraArBattleTopUi's StateInit/StateExit, and SetActive(true) builds that list itself
+    // (InitMonsterPartyList 0x3DC140, its only caller), so the list is ready in the postfix.
+    // It fires again on the way back from an AR battle, which re-reads the formation as before.
+    // ChangeMonsterParty 0x3DBAC0 advances selectMonsterPartyIndex (0xD0) synchronously, so its
+    // postfix reads __instance directly instead of a FindObjectOfType one frame later.
     // ─────────────────────────────────────────────────────────────────────────
+
+    [HarmonyPatch(typeof(ArBattleTopController), nameof(ArBattleTopController.SetActive))]
+    public static class ArBattleTopController_SetActive_Patch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(ArBattleTopController __instance, bool active)
+        {
+            try
+            {
+                // StateInit may run inside SubSceneManagerExtraLibrary.ChangeState, before its
+                // postfix marks the formation state, so gate on the bestiary as a whole.
+                if (!active || __instance == null || !BestiaryStateTracker.IsInBestiary) return;
+                SubSceneManagerExtraLibrary_ChangeState_Patch.ReadCurrentFormation(__instance);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Bestiary] Error in ArBattleTopController.SetActive patch: {ex.Message}");
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(ArBattleTopController), nameof(ArBattleTopController.ChangeMonsterParty))]
     public static class ArBattleTopController_ChangeMonsterParty_Patch
     {
         [HarmonyPostfix]
-        public static void Postfix()
+        public static void Postfix(ArBattleTopController __instance)
         {
-
-            if (!BestiaryStateTracker.IsInFormation) return;
-            CoroutineManager.StartManaged(DelayedReannounce());
-        }
-
-        private static IEnumerator DelayedReannounce()
-        {
-            yield return null;
-            SubSceneManagerExtraLibrary_ChangeState_Patch.ReannounceFormation();
+            if (!BestiaryStateTracker.IsInFormation || __instance == null) return;
+            SubSceneManagerExtraLibrary_ChangeState_Patch.ReadCurrentFormation(__instance);
         }
     }
 
@@ -808,10 +802,9 @@ namespace FFV_ScreenReader.Patches
                 _previousState = -1;
                 BestiaryStateTracker.ClearState();
 
-                // Back in the config menu on the Library row it was opened from. The game re-asserts
-                // ConfigCommandController.SetFocus every frame (ConfigActualDetailsControllerBase.
-                // UpdateFocus), but its guard still holds that row, so clear it to re-announce.
-                ConfigCommandController_SetFocus_Patch.ResetLastCommand();
+                // Back in the config menu on the Library row it was opened from: re-read it. (This
+                // used to rely on the game's per-frame SetFocus plus a guard reset.)
+                ConfigActualDetails_SelectCommand_Patch.AnnounceFocusedRow(requireConfigActive: false);
             }
             catch (Exception ex)
             {

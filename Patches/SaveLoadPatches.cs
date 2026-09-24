@@ -22,6 +22,7 @@ using KeyInputLoadGameWindowController = Il2CppLast.UI.KeyInput.LoadGameWindowCo
 using GameCursor = Il2CppLast.UI.Cursor;
 using SavePopup = Il2CppLast.UI.KeyInput.SavePopup;
 using InterruptionController = Il2CppLast.UI.KeyInput.InterruptionWindowController;
+using OverwriteSaveController = Il2CppLast.UI.Save.KeyInput.SaveWindowController;
 
 namespace FFV_ScreenReader.Patches
 {
@@ -121,8 +122,26 @@ namespace FFV_ScreenReader.Patches
         private const int COMMON_COMMAND_TEXT_OFFSET = 0x18;
 
 
+        // Each controller's SavePopup field (dump.cs): KeyInput LoadGameWindowController (title
+        // Load) 0x58, KeyInput LoadWindowController / SaveWindowController (field menu) 0x28,
+        // KeyInput InterruptionWindowController (quick save) 0x38, and
+        // Save.KeyInput.SaveWindowController view 0x30 → SaveWindowView.savePopup 0x28 (overwrite).
+        private const int LOAD_GAME_WINDOW_SAVE_POPUP_OFFSET = 0x58;
+        private const int MENU_WINDOW_SAVE_POPUP_OFFSET = 0x28;
+        private const int INTERRUPTION_SAVE_POPUP_OFFSET = 0x38;
+        private const int OVERWRITE_CONTROLLER_VIEW_OFFSET = 0x30;
+        private const int OVERWRITE_VIEW_SAVE_POPUP_OFFSET = 0x28;
+
         private static int lastAnnouncedIndex = -1;
         private static int lastPopupButtonIndex = -1;
+
+        // The open SavePopup whose Yes/No moves are read (set by the open read, cleared on close).
+        // Holding the wrapper keeps the object alive while its cursor pointer is compared.
+        private static SavePopup activeSavePopup;
+
+        // True from a popup's open hook until its delayed open read has spoken, so a move in those
+        // two frames doesn't speak a button ahead of the message.
+        private static bool savePopupOpenReadPending;
 
         public static void ApplyPatches(HarmonyLib.Harmony harmony)
         {
@@ -144,8 +163,11 @@ namespace FFV_ScreenReader.Patches
                 TryPatchLoadWindowSetActive(harmony);
                 TryPatchSaveWindowSetActive(harmony);
 
-                // Patch SavePopup.UpdateCommand for button navigation (covers ALL save/load popups)
-                TryPatchSavePopupUpdateCommand(harmony);
+                // SavePopup buttons: each controller's own open hook reads the popup (title,
+                // message, focused button) and registers it; Yes/No moves are then read by
+                // TryReadSavePopupMove from the Cursor.NextIndex/PrevIndex patches. Replaces a
+                // postfix on SavePopup.UpdateCommand, which ran every frame (round 2, 2026-09-24).
+                TryPatchOverwriteConfirmInit(harmony);
 
                 // Patch InterruptionWindowController for QuickSave popup message
                 TryPatchInterruptionController(harmony);
@@ -361,30 +383,29 @@ namespace FFV_ScreenReader.Patches
         #region Popup Button Navigation Patches
 
         /// <summary>
-        /// Patches SavePopup.UpdateCommand for button navigation.
-        /// This single patch handles ALL popup button navigation since all controllers use the same SavePopup class.
+        /// Patches OverwriteConfirmInit on Last.UI.Save.KeyInput.SaveWindowController (0x8411B0,
+        /// a virtual override; unique RVA): the overwrite confirmation. It drives the SavePopup at
+        /// view (0x30) → savePopup (0x28), and calls SavePopup.ResetCursor itself.
         /// </summary>
-        private static void TryPatchSavePopupUpdateCommand(HarmonyLib.Harmony harmony)
+        private static void TryPatchOverwriteConfirmInit(HarmonyLib.Harmony harmony)
         {
             try
             {
-                Type popupType = typeof(SavePopup);
-                var method = AccessTools.Method(popupType, "UpdateCommand");
-
+                var method = AccessTools.Method(typeof(OverwriteSaveController), "OverwriteConfirmInit");
                 if (method != null)
                 {
-                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(SavePopupUpdateCommand_Postfix),
+                    var postfix = typeof(SaveLoadPatches).GetMethod(nameof(OverwriteConfirmInit_Postfix),
                         BindingFlags.Public | BindingFlags.Static);
                     harmony.Patch(method, postfix: new HarmonyMethod(postfix));
                 }
                 else
                 {
-                    MelonLogger.Warning("[SaveLoad] SavePopup.UpdateCommand not found");
+                    MelonLogger.Warning("[SaveLoad] Save.KeyInput.SaveWindowController.OverwriteConfirmInit not found");
                 }
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"[SaveLoad] Failed to patch SavePopup.UpdateCommand: {ex.Message}");
+                MelonLogger.Warning($"[SaveLoad] Failed to patch OverwriteConfirmInit: {ex.Message}");
             }
         }
 
@@ -417,11 +438,9 @@ namespace FFV_ScreenReader.Patches
                 // InitComplite (the game's spelling) — dump.cs:465262, RVA 0x802830.
                 //
                 // QuickSave reuses ONE SavePopup instance across Confirmation -> Complite and has
-                // no *Exit methods, so SetEnablePopup never fires a second time. Without this
-                // reset, lastPopupButtonIndex is still set from the confirmation dialog, so
-                // SavePopupUpdateCommand_Postfix skips its first-call branch and speaks only the
-                // button ("Close") -- the completion message is never read. Normal Save gets the
-                // reset for free because SaveWindowController tears its popup down in PopupExit.
+                // no *Exit methods, so SetEnablePopup never fires a second time, and InitComplite
+                // does not call SavePopup.ResetCursor. This is the completion popup's open hook:
+                // without it the completion message would never be read.
                 var initComplite = AccessTools.Method(controllerType, "InitComplite");
                 if (initComplite != null)
                 {
@@ -816,7 +835,7 @@ namespace FFV_ScreenReader.Patches
         // popup. That flag feeds SaveLoadMenuState.ShouldSuppress(), which MessagePatches checks
         // to keep dialogue text from talking over a confirmation dialog, and IsActive gates the
         // Cursor.*Index patches so the generic cursor reader doesn't double-read popup buttons
-        // that SavePopup.UpdateCommand already handles.
+        // that TryReadSavePopupMove already handles.
         //
         // They do NOT suppress PopupOpen_Postfix, despite what earlier comments here claimed --
         // that postfix only checks IsShopActive(). It never fires for these popups anyway:
@@ -876,65 +895,154 @@ namespace FFV_ScreenReader.Patches
         #region Postfix Methods
 
         public static void LoadGameWindowSetPopupActive_Postfix(object __instance, bool isEnable)
-        {
-            try
-            {
-                if (isEnable)
-                {
-                    if (__instance != null)
-                    {
-                        // Reset button index for fresh popup
-                        lastPopupButtonIndex = -1;
-                    }
-                }
-                else
-                {
-                    SaveLoadMenuState.IsInConfirmation = false;
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Error in LoadGameWindowSetPopupActive_Postfix: {ex.Message}");
-            }
-        }
+            => OnPopupActive(__instance, isEnable, LOAD_GAME_WINDOW_SAVE_POPUP_OFFSET, "LoadGameWindowController");
 
         public static void LoadWindowSetPopupActive_Postfix(object __instance, bool isEnable)
+            => OnPopupActive(__instance, isEnable, MENU_WINDOW_SAVE_POPUP_OFFSET, "LoadWindowController");
+
+        public static void SaveWindowSetPopupActive_Postfix(object __instance, bool isEnable)
+            => OnPopupActive(__instance, isEnable, MENU_WINDOW_SAVE_POPUP_OFFSET, "SaveWindowController");
+
+        /// <summary>
+        /// A controller's popup opened or closed (SetPopupActive / SetEnablePopup). On open, reads
+        /// and registers the controller's SavePopup at <paramref name="savePopupOffset"/>.
+        /// </summary>
+        private static void OnPopupActive(object instance, bool isEnable, int savePopupOffset, string context)
         {
             try
             {
                 if (isEnable)
                 {
-                    // Reset button index for fresh popup
-                    lastPopupButtonIndex = -1;
+                    ReadSavePopupAt(ReadPointerField(instance, savePopupOffset));
                 }
                 else
                 {
                     SaveLoadMenuState.IsInConfirmation = false;
+                    ForgetSavePopup();
                 }
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"[SaveLoad] Error in LoadWindowSetPopupActive_Postfix: {ex.Message}");
+                savePopupOpenReadPending = false;
+                MelonLogger.Warning($"[SaveLoad] Error in {context} popup postfix: {ex.Message}");
             }
         }
 
-        public static void SaveWindowSetPopupActive_Postfix(object __instance, bool isEnable)
+        /// <summary>The pointer stored at <paramref name="offset"/> in an IL2CPP object, or zero.</summary>
+        private static IntPtr ReadPointerField(object instance, int offset)
+        {
+            var obj = instance as Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase;
+            if (obj == null || obj.Pointer == IntPtr.Zero) return IntPtr.Zero;
+            return Marshal.ReadIntPtr(obj.Pointer + offset);
+        }
+
+        /// <summary>
+        /// Registers an opened SavePopup (confirmation state, fresh button guard, open read pending)
+        /// and reads its title, message and focused button two frames later, once the texts and
+        /// the cursor are set. Its Yes/No moves are then read by TryReadSavePopupMove.
+        /// </summary>
+        private static void ReadSavePopupAt(IntPtr popupPtr)
+        {
+            if (popupPtr == IntPtr.Zero)
+            {
+                savePopupOpenReadPending = false;
+                return;
+            }
+
+            SaveLoadMenuState.IsActive = true;
+            SaveLoadMenuState.IsInConfirmation = true;
+            lastPopupButtonIndex = -1;
+            savePopupOpenReadPending = true;
+            activeSavePopup = new SavePopup(popupPtr);
+
+            CoroutineManager.StartManaged(DelayedSavePopupRead(popupPtr));
+        }
+
+        private static void ForgetSavePopup()
+        {
+            activeSavePopup = null;
+            savePopupOpenReadPending = false;
+            lastPopupButtonIndex = -1;
+        }
+
+        /// <summary>
+        /// Yes/No moves of the open SavePopup, called from the Cursor.NextIndex/PrevIndex patches.
+        /// SavePopup.UpdateSelect moves its selectCursor (0x58) only through Cursor.NextIndex /
+        /// PrevIndex (&lt;UpdateSelect&gt;b__32_0, 0x7E1DB0), which set the index (Cursor 0x18)
+        /// before invoking the move callback, so the index is current here. Returns true when the
+        /// cursor is that popup's (the move is handled, spoken or not).
+        /// </summary>
+        public static bool TryReadSavePopupMove(GameCursor cursor)
         {
             try
             {
-                if (isEnable)
-                {
-                    // Reset button index for fresh popup
-                    lastPopupButtonIndex = -1;
-                }
-                else
-                {
-                    SaveLoadMenuState.IsInConfirmation = false;
-                }
+                var popup = activeSavePopup;
+                if (popup == null || cursor == null) return false;
+                IntPtr ptr = popup.Pointer;
+                if (ptr == IntPtr.Zero || Marshal.ReadIntPtr(ptr + SAVE_POPUP_SELECT_CURSOR_OFFSET) != cursor.Pointer)
+                    return false;
+
+                if (savePopupOpenReadPending) return true;
+
+                int index = cursor.Index;
+                if (index == lastPopupButtonIndex) return true;
+                lastPopupButtonIndex = index;
+
+                string buttonText = ReadPopupButton(ptr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, index);
+                if (!string.IsNullOrWhiteSpace(buttonText))
+                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
+                return true;
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"[SaveLoad] Error in SaveWindowSetPopupActive_Postfix: {ex.Message}");
+                MelonLogger.Warning($"[SaveLoad] Error reading SavePopup move: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The focused button of a SavePopup-style popup (selectCursor, commandList). When the first
+        /// command is hidden (a single-button popup such as the quick-save completion), the game's
+        /// UpdateSelect forces the cursor to index 1 every frame, so that is the focused button
+        /// whatever the index says yet.
+        /// </summary>
+        internal static int FocusedSaveStyleIndex(IntPtr popupPtr, int cursorOffset, int cmdListOffset)
+        {
+            int index = -1;
+            try
+            {
+                IntPtr cursorPtr = Marshal.ReadIntPtr(popupPtr + cursorOffset);
+                if (cursorPtr != IntPtr.Zero)
+                    index = new GameCursor(cursorPtr).Index;
+
+                IntPtr listPtr = Marshal.ReadIntPtr(popupPtr + cmdListOffset);
+                if (listPtr == IntPtr.Zero || Marshal.ReadInt32(listPtr + 0x18) < 2) return index;
+                IntPtr itemsPtr = Marshal.ReadIntPtr(listPtr + 0x10);
+                IntPtr firstPtr = itemsPtr == IntPtr.Zero ? IntPtr.Zero : Marshal.ReadIntPtr(itemsPtr + 0x20);
+                if (firstPtr == IntPtr.Zero) return index;
+                var first = new UnityEngine.Component(firstPtr).gameObject;
+                if (first != null && !first.activeSelf) return 1;
+            }
+            catch { }
+            return index;
+        }
+
+        /// <summary>
+        /// Postfix for OverwriteConfirmInit (Save.KeyInput.SaveWindowController): the overwrite
+        /// confirmation's open read. Every popup call in that body goes through view → savePopup.
+        /// </summary>
+        public static void OverwriteConfirmInit_Postfix(object __instance)
+        {
+            try
+            {
+                IntPtr viewPtr = ReadPointerField(__instance, OVERWRITE_CONTROLLER_VIEW_OFFSET);
+                ReadSavePopupAt(viewPtr == IntPtr.Zero ? IntPtr.Zero
+                    : Marshal.ReadIntPtr(viewPtr + OVERWRITE_VIEW_SAVE_POPUP_OFFSET));
+            }
+            catch (Exception ex)
+            {
+                savePopupOpenReadPending = false;
+                MelonLogger.Warning($"[SaveLoad] Error in OverwriteConfirmInit_Postfix: {ex.Message}");
             }
         }
 
@@ -946,6 +1054,7 @@ namespace FFV_ScreenReader.Patches
                 {
                     SaveLoadMenuState.ResetState();
                     lastAnnouncedIndex = -1;
+                    ForgetSavePopup();
                 }
                 else
                 {
@@ -966,6 +1075,7 @@ namespace FFV_ScreenReader.Patches
                 {
                     SaveLoadMenuState.ResetState();
                     lastAnnouncedIndex = -1;
+                    ForgetSavePopup();
                 }
                 else
                 {
@@ -986,6 +1096,7 @@ namespace FFV_ScreenReader.Patches
                 {
                     SaveLoadMenuState.ResetState();
                     lastAnnouncedIndex = -1;
+                    ForgetSavePopup();
                 }
                 else
                 {
@@ -1006,6 +1117,7 @@ namespace FFV_ScreenReader.Patches
         {
             SaveLoadMenuState.ResetState();
             lastAnnouncedIndex = -1;
+            ForgetSavePopup();
         }
 
         #endregion
@@ -1018,58 +1130,24 @@ namespace FFV_ScreenReader.Patches
         private const int SAVE_POPUP_TITLE_TEXT_OFFSET = 0x38;
         private const int SAVE_POPUP_MESSAGE_TEXT_OFFSET = 0x40;
 
-        public static void SavePopupUpdateCommand_Postfix(SavePopup __instance)
-        {
-            try
-            {
-                if (__instance == null) return;
-
-                IntPtr ptr = __instance.Pointer;
-                if (ptr == IntPtr.Zero) return;
-
-                // Read cursor from offset 0x58
-                IntPtr cursorPtr = Marshal.ReadIntPtr(ptr + SAVE_POPUP_SELECT_CURSOR_OFFSET);
-                if (cursorPtr == IntPtr.Zero) return;
-
-                var cursor = new GameCursor(cursorPtr);
-                int index = cursor.Index;
-
-                // Deduplicate
-                if (index == lastPopupButtonIndex) return;
-
-                bool isFirstCall = (lastPopupButtonIndex == -1);
-                lastPopupButtonIndex = index;
-
-                // On first call after popup opens, delay read by 1 frame -- title text may not be populated yet
-                if (isFirstCall)
-                {
-                    CoroutineManager.StartManaged(DelayedSavePopupRead(ptr, index));
-                    return; // Button will be read inside the coroutine after title+message
-                }
-
-                // Subsequent calls: read button text normally
-                string buttonText = ReadPopupButton(ptr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, index);
-                if (!string.IsNullOrWhiteSpace(buttonText))
-                {
-                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Error in SavePopupUpdateCommand: {ex.Message}");
-            }
-        }
 
         /// <summary>
-        /// Delayed read of save popup title + message + initial button, waiting 1 frame for UI to populate.
+        /// Open read of a SavePopup: title + message, then the focused button queued behind them.
+        /// Two frames after the controller's open hook, so the texts and the cursor (ResetCursor,
+        /// and UpdateSelect's single-button correction) are in place. Event-started, bounded.
         /// </summary>
-        private static IEnumerator DelayedSavePopupRead(IntPtr popupPtr, int buttonIndex)
+        private static IEnumerator DelayedSavePopupRead(IntPtr popupPtr)
         {
-            yield return null; // Wait 1 frame for UI to populate
+            yield return null;
+            yield return null;
+
+            // From here on, Yes/No moves are read by TryReadSavePopupMove.
+            savePopupOpenReadPending = false;
 
             try
             {
                 if (popupPtr == IntPtr.Zero) yield break;
+                if (activeSavePopup == null || activeSavePopup.Pointer != popupPtr) yield break; // closed meanwhile
 
                 // Read title + message
                 string title = ReadTextAtOffset(popupPtr, SAVE_POPUP_TITLE_TEXT_OFFSET);
@@ -1080,8 +1158,11 @@ namespace FFV_ScreenReader.Patches
                     FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
                 }
 
-                // Read initial button text (queues after title+message)
-                string buttonText = ReadPopupButton(popupPtr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, buttonIndex);
+                // Read the focused button (queues after title+message) and claim its index so the
+                // first move away is the next thing read.
+                int index = FocusedSaveStyleIndex(popupPtr, SAVE_POPUP_SELECT_CURSOR_OFFSET, SAVE_POPUP_COMMAND_LIST_OFFSET_V2);
+                lastPopupButtonIndex = index;
+                string buttonText = ReadPopupButton(popupPtr, SAVE_POPUP_COMMAND_LIST_OFFSET_V2, index);
                 if (!string.IsNullOrWhiteSpace(buttonText))
                 {
                     FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: false);
@@ -1094,40 +1175,29 @@ namespace FFV_ScreenReader.Patches
         }
 
         /// <summary>
-        /// Postfix for InterruptionWindowController.SetEnablePopup - reads QuickSave popup message.
+        /// Postfix for InterruptionWindowController.SetEnablePopup: the QuickSave confirmation
+        /// opens (InitConfirmation) or closes.
         /// </summary>
         public static void InterruptionSetEnablePopup_Postfix(object __instance, bool isEnable)
-        {
-            try
-            {
-                if (isEnable)
-                {
-                    if (__instance != null)
-                    {
-                        // Reset button index for fresh popup
-                        lastPopupButtonIndex = -1;
-                    }
-                }
-                else
-                {
-                    SaveLoadMenuState.IsInConfirmation = false;
-                }
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[SaveLoad] Error in InterruptionSetEnablePopup: {ex.Message}");
-            }
-        }
+            => OnPopupActive(__instance, isEnable, INTERRUPTION_SAVE_POPUP_OFFSET, "InterruptionWindowController");
 
         /// <summary>
         /// Postfix for InterruptionWindowController.InitComplite -- the Quick Save completion
-        /// popup. Resets the first-call flag so SavePopup.UpdateCommand reads title + message
-        /// instead of only the button. See TryPatchInterruptionController for why QuickSave
-        /// needs this and normal Save does not.
+        /// popup. QuickSave reuses ONE SavePopup across Confirmation -> Complite and
+        /// SetEnablePopup does not fire again, so this is the completion's open hook: title +
+        /// message, then its single button (the first command is hidden; see FocusedSaveStyleIndex).
         /// </summary>
-        public static void InterruptionInitComplite_Postfix()
+        public static void InterruptionInitComplite_Postfix(object __instance)
         {
-            lastPopupButtonIndex = -1;
+            try
+            {
+                ReadSavePopupAt(ReadPointerField(__instance, INTERRUPTION_SAVE_POPUP_OFFSET));
+            }
+            catch (Exception ex)
+            {
+                savePopupOpenReadPending = false;
+                MelonLogger.Warning($"[SaveLoad] Error in InterruptionInitComplite_Postfix: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1137,7 +1207,7 @@ namespace FFV_ScreenReader.Patches
         public static void InterruptionClose_Postfix()
         {
             SaveLoadMenuState.ResetState();
-            lastPopupButtonIndex = -1;
+            ForgetSavePopup();
         }
 
         /// <summary>

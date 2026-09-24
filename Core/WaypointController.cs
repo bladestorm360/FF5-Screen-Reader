@@ -159,11 +159,11 @@ namespace FFV_ScreenReader.Core
                     waypointNavigator.RefreshList(mapId);
 
                     string categoryName = WaypointEntity.GetCategoryDisplayName(category);
-                    FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Added {0} as {1}"), name, categoryName));
+                    FFV_ScreenReaderMod.SpeakTextQueued(string.Format(T("Added {0} as {1}"), name, categoryName));
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Waypoint creation cancelled"));
+                    FFV_ScreenReaderMod.SpeakTextQueued(T("Waypoint creation cancelled"));
                 }
             );
         }
@@ -214,16 +214,16 @@ namespace FFV_ScreenReader.Core
                     if (waypointManager.RenameWaypoint(waypointId, newName))
                     {
                         waypointNavigator.RefreshList(mapId);
-                        FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Renamed to {0}"), newName));
+                        FFV_ScreenReaderMod.SpeakTextQueued(string.Format(T("Renamed to {0}"), newName));
                     }
                     else
                     {
-                        FFV_ScreenReaderMod.SpeakTextDelayed(T("Rename failed"));
+                        FFV_ScreenReaderMod.SpeakTextQueued(T("Rename failed"));
                     }
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Rename cancelled"));
+                    FFV_ScreenReaderMod.SpeakTextQueued(T("Rename cancelled"));
                 }
             );
         }
@@ -250,11 +250,11 @@ namespace FFV_ScreenReader.Core
                     waypointNavigator.RefreshList(mapId);
                     waypointNavigator.ClearSelection();
 
-                    FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Removed {0}"), name));
+                    FFV_ScreenReaderMod.SpeakTextQueued(string.Format(T("Removed {0}"), name));
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Cancelled"));
+                    FFV_ScreenReaderMod.SpeakTextQueued(T("Cancelled"));
                 }
             );
         }
@@ -281,17 +281,17 @@ namespace FFV_ScreenReader.Core
                             int cleared = waypointManager.ClearMapWaypoints(mapId);
                             waypointNavigator.RefreshList(mapId);
                             waypointNavigator.ClearSelection();
-                            FFV_ScreenReaderMod.SpeakTextDelayed(string.Format(T("Cleared {0} waypoints"), cleared));
+                            FFV_ScreenReaderMod.SpeakTextQueued(string.Format(T("Cleared {0} waypoints"), cleared));
                         },
                         () =>
                         {
-                            FFV_ScreenReaderMod.SpeakTextDelayed(T("Cancelled"));
+                            FFV_ScreenReaderMod.SpeakTextQueued(T("Cancelled"));
                         }
                     );
                 },
                 () =>
                 {
-                    FFV_ScreenReaderMod.SpeakTextDelayed(T("Cancelled"));
+                    FFV_ScreenReaderMod.SpeakTextQueued(T("Cancelled"));
                 }
             );
         }

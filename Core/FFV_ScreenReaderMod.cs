@@ -146,6 +146,8 @@ namespace FFV_ScreenReader.Core
 
             // Config menu: title-screen Language dropdown focus + keyboard/gamepad remap assign-flow.
             ConfigMenuPatches.ApplyPatches(harmony);
+            // Config list focus events (replace the game's per-frame SetFocus re-assertion).
+            ConfigFocusEntryPatches.ApplyPatches(harmony);
 
             // The game's own F1 walk/run and F3 encounter toggles, from any input source.
             GameTogglePatches.ApplyPatches(harmony);
@@ -754,18 +756,13 @@ namespace FFV_ScreenReader.Core
         }
 
         /// <summary>
-        /// Speaks text after a delay to avoid window focus announcements interrupting.
+        /// Speaks a mod dialog's result queued behind the dialog's own echo ("Yes", "Confirmed:
+        /// X"), so both are heard. Replaces a 0.3 s WaitForSeconds that dated from the real-window
+        /// dialogs and their NVDA focus announcement (Rule 3: no timers).
         /// </summary>
-        public static void SpeakTextDelayed(string text, float delay = 0.3f)
+        public static void SpeakTextQueued(string text)
         {
-            CoroutineManager.StartManaged(DelayedSpeech(text, delay));
-        }
-
-        private static IEnumerator DelayedSpeech(string text, float delay)
-        {
-            yield return new WaitForSeconds(delay);
-            if (Instance != null)
-                SpeakText(text, interrupt: true);
+            SpeakText(text, interrupt: false);
         }
 
         // Audio toggle and suppression operations delegated to AudioLoopManager

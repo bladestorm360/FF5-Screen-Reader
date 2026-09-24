@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using MelonLoader;
 using UnityEngine;
 using FFV_ScreenReader.Utils;
@@ -26,54 +25,42 @@ namespace FFV_ScreenReader.Core
         private static bool selectedYes = true; // Default selection is Yes
 
         /// <summary>
-        /// Opens the confirmation dialog. If a dialog is already open (a callback chained into a
-        /// new prompt), the new prompt is announced immediately instead of via the delayed coroutine.
+        /// Opens the confirmation dialog and announces the prompt. If a dialog is already open (a
+        /// callback chained into a new prompt), it stays open with the new prompt.
         /// </summary>
         /// <param name="promptText">Prompt to display to user (spoken via TTS)</param>
         /// <param name="onYes">Callback when user confirms Yes</param>
         /// <param name="onNo">Callback when user confirms No</param>
         public static void Open(string promptText, Action onYes, Action onNo = null)
         {
-            bool wasAlreadyOpen = IsOpen;
-
             IsOpen = true;
             prompt = promptText ?? "";
             onYesCallback = onYes;
             onNoCallback = onNo;
             selectedYes = true; // Default to Yes
 
-            if (!wasAlreadyOpen)
-            {
-                // First open — announce prompt with a short delay so it settles cleanly.
-                CoroutineManager.StartManaged(DelayedPromptAnnouncement($"{prompt} {T("Yes or No")}"));
-            }
-            else
-            {
-                // Continuation — dialog already open, just announce the new prompt immediately.
-                FFV_ScreenReaderMod.SpeakText($"{prompt} {T("Yes or No")}", interrupt: true);
-            }
-        }
-
-        private static IEnumerator DelayedPromptAnnouncement(string text)
-        {
-            yield return new WaitForSeconds(0.1f);
-            FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
+            // Spoken at once, first open or a chained prompt alike. The old 0.1 s delay dated from
+            // the real-window version, which had to wait for NVDA's focus announcement; the
+            // dialog is virtual now, so there is no focus change to wait for (Rule 3: no timers).
+            FFV_ScreenReaderMod.SpeakText($"{prompt} {T("Yes or No")}", interrupt: true);
         }
 
         /// <summary>
-        /// Announces the chosen option after a short delay, then invokes the callback. If the
-        /// callback opened a new prompt (chained confirmation), this dialog stays open (the new
-        /// prompt re-announced itself); otherwise the dialog closes.
+        /// Announces the chosen option, then invokes the callback. If the callback opened a new
+        /// prompt (chained confirmation), this dialog stays open (the new prompt announced itself);
+        /// otherwise the dialog closes. The callback's own result is queued behind the echo
+        /// (FFV_ScreenReaderMod.SpeakTextQueued). A null echo speaks nothing, for when the callback's
+        /// result already says it ("Cancelled" twice otherwise).
         /// </summary>
-        private static IEnumerator DelayedCloseAnnouncement(string text, Action callback)
+        private static void CloseWith(string text, Action callback)
         {
             // Clear callbacks up front so we can detect whether the invoked callback opens a new
             // prompt (which repopulates onYesCallback).
             onYesCallback = null;
             onNoCallback = null;
 
-            yield return new WaitForSeconds(0.1f);
-            FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
+            if (!string.IsNullOrEmpty(text))
+                FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
             callback?.Invoke();
 
             if (onYesCallback == null)
@@ -99,24 +86,23 @@ namespace FFV_ScreenReader.Core
             // Y key - confirm Yes immediately
             if (GamepadManager.IsKeyCodePressed(KeyCode.Y))
             {
-                var callback = onYesCallback;
-                CoroutineManager.StartManaged(DelayedCloseAnnouncement(T("Yes"), callback));
+                CloseWith(T("Yes"), onYesCallback);
                 return true;
             }
 
             // N key - confirm No immediately
             if (GamepadManager.IsKeyCodePressed(KeyCode.N))
             {
-                var callback = onNoCallback;
-                CoroutineManager.StartManaged(DelayedCloseAnnouncement(T("No"), callback));
+                CloseWith(T("No"), onNoCallback);
                 return true;
             }
 
-            // Escape - same as No
+            // Escape - same as No. Every caller's No callback says "Cancelled" itself, so the
+            // echo is only spoken when there is no callback to say it.
             if (GamepadManager.IsKeyCodePressed(KeyCode.Escape))
             {
                 var callback = onNoCallback;
-                CoroutineManager.StartManaged(DelayedCloseAnnouncement(T("Cancelled"), callback));
+                CloseWith(callback == null ? T("Cancelled") : null, callback);
                 return true;
             }
 
@@ -124,15 +110,9 @@ namespace FFV_ScreenReader.Core
             if (GamepadManager.IsKeyCodePressed(KeyCode.Return))
             {
                 if (selectedYes)
-                {
-                    var callback = onYesCallback;
-                    CoroutineManager.StartManaged(DelayedCloseAnnouncement(T("Yes"), callback));
-                }
+                    CloseWith(T("Yes"), onYesCallback);
                 else
-                {
-                    var callback = onNoCallback;
-                    CoroutineManager.StartManaged(DelayedCloseAnnouncement(T("No"), callback));
-                }
+                    CloseWith(T("No"), onNoCallback);
                 return true;
             }
 

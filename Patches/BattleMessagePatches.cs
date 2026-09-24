@@ -231,88 +231,20 @@ namespace FFV_ScreenReader.Patches
         }
     }
 
-    /// <summary>
-    /// Captures the on-screen multi-hit "×N" multiplier from DamageViewUIManager.CreateHitCount, which
-    /// fires just before the matching CreateDamageView. Lets the damage announce optionally prepend it
-    /// (e.g. "14x1552 damage") when the Multi-hit Damage setting is "With hit count". The value is
-    /// consumed and reset to 1 by BattleBasicFunction_CreateDamageView_Patch.
-    /// </summary>
-    [HarmonyPatch(typeof(Il2CppLast.UI.DamageViewUIManager), nameof(Il2CppLast.UI.DamageViewUIManager.CreateHitCount))]
-    public static class DamageViewUIManager_CreateHitCount_Patch
-    {
-        // Multi-hit multiplier awaiting the next CreateDamageView. 1 = single hit (default / after consume).
-        public static int PendingHitCount = 1;
-        // Frame the multiplier was captured on. Used to reject a stale count that was never
-        // consumed by a CreateDamageView (e.g. a fully-evaded multi-hit) so it can't leak into
-        // an unrelated later attack's damage announcement.
-        public static int PendingHitCountFrame = -1;
-
-        [HarmonyPostfix]
-        public static void Postfix(int hitCountValue)
-        {
-            PendingHitCount = hitCountValue;
-            PendingHitCountFrame = UnityEngine.Time.frameCount;
-        }
-    }
+    // Damage is always read as the total. FF5 has no multi-hit "×N" reading: the game draws its ×N
+    // (DamageViewUIManager.CreateHitCount) only in Command battles, and FF5 is ATB, and its calc
+    // results never carry a hit count either (CalcControllerProvider.GetFightStatus 0x3C9D40 is a
+    // stub; the real path, GetUniqueStatus 0x3CA940, passes 0). See docs/debug.md.
 
     [HarmonyPatch(typeof(Il2CppLast.Battle.Function.BattleBasicFunction), nameof(Il2CppLast.Battle.Function.BattleBasicFunction.CreateDamageView))]
     public static class BattleBasicFunction_CreateDamageView_Patch
     {
-        // BattleBaseFunction.<battleActData>k__BackingField — a protected property, so read by offset.
-        private const int OFFSET_BATTLE_ACT_DATA = 0x28;
-        // Ability.TypeId of weapon attacks (the Fight command's ability 1 has this type).
-        private const int WEAPON_ABILITY_TYPE = 4;
-
-        /// <summary>
-        /// The attack's own hit count against this target, from the function's calculation results
-        /// (ICalcResultDic → ICalcResult.GetHitCount). FF5 is an ATB game, and the game only draws
-        /// the on-screen ×N (BattleBasicFunction.CreateHitCount) when SystemConfigData.GetBattleType()
-        /// is Command — FF5's returns ATB — so CreateHitCount never fires here and the count has to
-        /// come from the calculation. Weapon attacks only, the same rule the ×N display uses; 1 for
-        /// anything else or on any failure.
-        /// </summary>
-        private static int ReadWeaponHitCount(Il2CppLast.Battle.Function.BattleBasicFunction function, Il2CppLast.Battle.BattleUnitData target)
-        {
-            try
-            {
-                if (function == null || target == null) return 1;
-                IntPtr actPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(function.Pointer, OFFSET_BATTLE_ACT_DATA);
-                if (actPtr == IntPtr.Zero) return 1;
-                var abilities = new BattleActData(actPtr).abilityList;
-                if (abilities == null || abilities.Count == 0 || abilities[0] == null
-                    || abilities[0].TypeId != WEAPON_ABILITY_TYPE)
-                    return 1;
-                var results = function.ICalcResultDic;
-                if (results == null || !results.ContainsKey(target)) return 1;
-                var result = results[target];
-                return result != null ? Math.Max(1, result.GetHitCount()) : 1;
-            }
-            catch
-            {
-                return 1;
-            }
-        }
-
         [HarmonyPostfix]
-        public static void Postfix(Il2CppLast.Battle.Function.BattleBasicFunction __instance, Il2CppLast.Battle.BattleUnitData data, int value, Il2CppLast.Systems.HitType hitType, bool isRecovery, Il2CppLast.Systems.CalcResult.MissType missType)
+        public static void Postfix(Il2CppLast.Battle.BattleUnitData data, int value, Il2CppLast.Systems.HitType hitType, bool isRecovery, Il2CppLast.Systems.CalcResult.MissType missType)
         {
             try
             {
                 string targetName = BattleUnitHelper.GetUnitName(data) ?? T("Unknown");
-
-                // Consume the multi-hit "×N" multiplier captured by CreateHitCount (fires just before
-                // this view, on the same or adjacent frame). Reject a stale count from an earlier
-                // action that never produced a damage view, then reset to 1 so a later damage with no
-                // fresh hit count defaults to single. In practice FF5 never draws the ×N (see
-                // ReadWeaponHitCount), so the count comes from the attack's calculation.
-                bool fresh = UnityEngine.Time.frameCount - DamageViewUIManager_CreateHitCount_Patch.PendingHitCountFrame <= 1;
-                int hitCount = fresh ? DamageViewUIManager_CreateHitCount_Patch.PendingHitCount : 1;
-                DamageViewUIManager_CreateHitCount_Patch.PendingHitCount = 1;
-
-                // One line per value-0 view, so a single in-game test shows which HitType a status
-                // cure (Antidote) and a buff/debuff carry. Battle events only — never per frame.
-                if (value == 0)
-                    MelonLogger.Msg($"[Battle] value-0 view: hitType={(int)hitType} isRecovery={isRecovery} target={targetName}");
 
                 // Speak only the views the game actually draws. A postfix runs even when the original
                 // returned early, and BattleBasicFunction.CreateDamageView (0x889870) creates NO view for:
@@ -330,9 +262,6 @@ namespace FFV_ScreenReader.Patches
                     return;
                 if (missType == Il2CppLast.Systems.CalcResult.MissType.NonView)
                     return;
-
-                if (hitCount <= 1)
-                    hitCount = ReadWeaponHitCount(__instance, data);
 
                 string message;
                 if (hitType == Il2CppLast.Systems.HitType.Miss)
@@ -361,12 +290,8 @@ namespace FFV_ScreenReader.Patches
                 }
                 else
                 {
-                    // HP damage — optionally prepend the multi-hit "{N}x" multiplier to the value
-                    // (e.g. "14x1552") when the Multi-hit Damage setting is "With hit count".
-                    string valueText = (PreferencesManager.DamageDisplay == 1 && hitCount > 1)
-                        ? $"{hitCount}x{value}"
-                        : value.ToString();
-                    message = string.Format(T("{0}: {1} damage"), targetName, valueText);
+                    // HP damage, always the total (see the note above this patch).
+                    message = string.Format(T("{0}: {1} damage"), targetName, value);
                 }
 
                 // Announce damage/recovery
@@ -466,8 +391,11 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Patch BattleConditionController.Add to announce status effects when applied
-    /// This includes KO (UnableFight), Poison, Silence, Sleep, and all other conditions
+    /// Patch BattleConditionController.Add to announce status effects when applied: KO (UnableFight),
+    /// Silence, Sleep, Haste, Protect and every other condition the game names. Add creates the
+    /// condition's BattleConditionFunction; RemoveFunction (patched below) is its mirror. FF5's
+    /// condition table gives Poison, Blind, Stone, Toad, Mini and Float no name (mes_id_name
+    /// "None"); GetConditionName gives them the localized status name by type instead.
     /// </summary>
     [HarmonyPatch(typeof(Il2CppLast.Battle.BattleConditionController), nameof(Il2CppLast.Battle.BattleConditionController.Add))]
     public static class BattleConditionController_Add_Patch
@@ -486,6 +414,43 @@ namespace FFV_ScreenReader.Patches
 
         /// <summary>Clears announced conditions so they can be announced again next turn.</summary>
         public static void ResetLastCondition() => _announcedConditions.Clear();
+
+        /// <summary>
+        /// Forgets one (unit, condition) pair once its removal has been announced, so the status
+        /// being applied again in the same turn is announced again.
+        /// </summary>
+        internal static void Forget(IntPtr unit, int id) => _announcedConditions.Remove((unit, id));
+
+        // ConditionType values never given a fallback name here, even though the target reader
+        // lists them: Dying (4, "Critical") is an HP threshold rather than a status, and the
+        // nameless KO row (id 75, only in condition group 900 beside the named KO row 5) would
+        // otherwise read "X: KO" a second time.
+        private const int CONDITION_TYPE_DYING = 4;
+        private const int CONDITION_TYPE_UNABLE_FIGHT = 5;
+
+        /// <summary>
+        /// The localized name of a condition master row, shared by the add and removal
+        /// announcements so both use the same wording. The game's own name (MesIdName →
+        /// MessageManager) when it has one. FF5's condition table gives Poison, Blind, Stone, Toad,
+        /// Mini, Float and one Doom row none ("None"), so those fall back to the localized status
+        /// name by ConditionType (CharacterStatusHelper, the game's own words through T()). Null
+        /// when there is no name at all (internal states such as Defend or Jump); an empty string
+        /// when the message lookup fails.
+        /// </summary>
+        internal static string GetConditionName(Il2CppLast.Data.Master.Condition condition)
+        {
+            if (condition == null) return null;
+
+            string mesId = condition.MesIdName;
+            if (string.IsNullOrEmpty(mesId) || mesId == "None")
+            {
+                int type = condition.ConditionType;
+                if (type == CONDITION_TYPE_DYING || type == CONDITION_TYPE_UNABLE_FIGHT)
+                    return null;
+                return CharacterStatusHelper.GetConditionTypeName(type);
+            }
+            return TextUtils.StripIconMarkup(MessageManager.Instance?.GetMessage(mesId) ?? "");
+        }
 
         [HarmonyPostfix]
         public static void Postfix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id)
@@ -515,23 +480,14 @@ namespace FFV_ScreenReader.Patches
                             {
                                 if (condition != null && condition.Id == id)
                                 {
-                                    string conditionMesId = condition.MesIdName;
+                                    string localizedConditionName = GetConditionName(condition);
 
                                     // Skip conditions with no message ID (internal/hidden statuses)
-                                    if (string.IsNullOrEmpty(conditionMesId) || conditionMesId == "None")
-                                    {
-                                        return; // Skip this status announcement
-                                    }
+                                    if (localizedConditionName == null)
+                                        return;
 
-                                    var messageManager = MessageManager.Instance;
-                                    if (messageManager != null)
-                                    {
-                                        string localizedConditionName = messageManager.GetMessage(conditionMesId);
-                                        if (!string.IsNullOrEmpty(localizedConditionName))
-                                        {
-                                            conditionName = localizedConditionName;
-                                        }
-                                    }
+                                    if (localizedConditionName.Length > 0)
+                                        conditionName = localizedConditionName;
                                     break;
                                 }
                             }
@@ -561,6 +517,187 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"Error in BattleConditionController.Add patch: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Announces a status leaving a unit, "{0}: {1} removed": cures, natural wear-off, revive (KO).
+    ///
+    /// Hooked on BattleConditionController.RemoveFunction (0x333260), not Remove (0x333410). In FF5,
+    /// Remove has three callers only (the two InterruptRemoveCondition overloads and
+    /// BattleEndRecoveryCondition), so cures and wear-off never reach it. Every other path takes the
+    /// condition out of Parameter.CurrentConditionList directly: the action's result, NaturalRemove
+    /// (timed wear-off), Recovery(unit, untilType), Cancellation (a conflicting status). The sync
+    /// CheckConditionFunction → RemoveConditionFunction then drops the condition's
+    /// BattleConditionFunction through RemoveFunction, and Remove itself tail-calls RemoveFunction.
+    /// RemoveFunction is therefore the one place every removal passes, and it is the mirror of Add,
+    /// which creates that function and which the add announcement hooks.
+    ///
+    /// Silent for:
+    ///  - no function for this id: nothing is removed, and Add never ran, so nothing was announced;
+    ///  - conditions without a name, own or fallback (GetConditionName, shared with the add line);
+    ///  - a unit that is KO or Stone: death clearing its other statuses (Cancellation on KO);
+    ///  - the battle-end cleanup and anything after victory, defeat or escape starts;
+    ///  - a stack that is still present (a second Image, for example) — only the last one speaks;
+    ///  - the same (unit, condition) twice in one frame.
+    /// FF5's Remove never passes isNegate = true (all three call sites pass false), so there is no
+    /// negation path to filter.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.Battle.BattleConditionController), nameof(Il2CppLast.Battle.BattleConditionController.RemoveFunction))]
+    public static class BattleConditionController_RemoveFunction_Patch
+    {
+        // ConditionType values (Last.Defaine.ConditionType): UnableFight = KO, Mineralization = Stone.
+        private const int CONDITION_TYPE_KO = 5;
+        private const int CONDITION_TYPE_STONE = 11;
+
+        // Set when the battle ends (BattleController.StateChange into a win/lose/escape state, or
+        // BattleEndRecoveryCondition); cleared when the next battle starts.
+        private static bool _battleOver;
+
+        private static int _frame = -1;
+        private static readonly HashSet<(IntPtr, int)> _spokenThisFrame = new HashSet<(IntPtr, int)>();
+
+        internal static void SetBattleOver(bool over)
+        {
+            _battleOver = over;
+            if (!over) _spokenThisFrame.Clear();
+        }
+
+        /// <summary>The unit's condition object for this id, taken from its live function list.</summary>
+        private static Il2CppLast.Data.Master.Condition FindFunctionCondition(Il2CppLast.Battle.BattleUnitDataInfo info, int id)
+        {
+            var functions = info?.BattleConditionFunction;
+            if (functions == null) return null;
+            for (int i = 0; i < functions.Count; i++)
+            {
+                var condition = functions[i]?.condition;
+                if (condition != null && condition.Id == id)
+                    return condition;
+            }
+            return null;
+        }
+
+        /// <summary>True when the unit's current condition list holds this id.</summary>
+        private static bool HasCondition(Il2CppLast.Battle.BattleUnitDataInfo info, int id)
+        {
+            var list = info?.Parameter?.CurrentConditionList;
+            if (list == null) return false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var condition = list[i];
+                if (condition != null && condition.Id == id)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>True when the unit is KO or Stone for a reason other than the condition being removed.</summary>
+        private static bool IsDown(Il2CppLast.Battle.BattleUnitDataInfo info, int removedId)
+        {
+            var list = info?.Parameter?.CurrentConditionList;
+            if (list == null) return false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var condition = list[i];
+                if (condition == null || condition.Id == removedId) continue;
+                int type = condition.ConditionType;
+                if (type == CONDITION_TYPE_KO || type == CONDITION_TYPE_STONE)
+                    return true;
+            }
+            return false;
+        }
+
+        [HarmonyPrefix]
+        public static void Prefix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id, out string __state)
+        {
+            __state = null;
+            try
+            {
+                if (_battleOver || battleUnitData == null) return;
+
+                var info = battleUnitData.BattleUnitDataInfo;
+                var condition = FindFunctionCondition(info, id);
+                if (condition == null) return;
+
+                string name = BattleConditionController_Add_Patch.GetConditionName(condition);
+                if (string.IsNullOrEmpty(name)) return;
+
+                if (IsDown(info, id)) return;
+
+                __state = name;
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in BattleConditionController.RemoveFunction prefix: {ex.Message}");
+            }
+        }
+
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.Battle.BattleUnitData battleUnitData, int id, string __state)
+        {
+            if (__state == null) return;
+            try
+            {
+                var info = battleUnitData.BattleUnitDataInfo;
+                if (HasCondition(info, id) || FindFunctionCondition(info, id) != null) return;
+
+                int frame = Time.frameCount;
+                if (frame != _frame)
+                {
+                    _frame = frame;
+                    _spokenThisFrame.Clear();
+                }
+                if (!_spokenThisFrame.Add((battleUnitData.Pointer, id))) return;
+
+                BattleConditionController_Add_Patch.Forget(battleUnitData.Pointer, id);
+
+                string unitName = BattleUnitHelper.GetUnitName(battleUnitData) ?? T("Unknown");
+                FFV_ScreenReaderMod.SpeakText(string.Format(T("{0}: {1} removed"), unitName, __state), interrupt: false);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in BattleConditionController.RemoveFunction postfix: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Battle-end cleanup: BattleController.SaveRecoveryCondition → BattleEndRecoveryCondition
+    /// (0x32F890, its only caller) strips the party's battle-only statuses through Remove →
+    /// RemoveFunction. SaveRecoveryCondition runs from StartWinResult, EndEscapeFadeOut,
+    /// StartForcedOnSave and the scripted-end lambda &lt;StartBattle&gt;b__29_0; the last two call it
+    /// before any StateChange, so the latch is set here too.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.Battle.BattleConditionController), nameof(Il2CppLast.Battle.BattleConditionController.BattleEndRecoveryCondition))]
+    public static class BattleConditionController_BattleEndRecoveryCondition_Patch
+    {
+        [HarmonyPrefix]
+        public static void Prefix() => BattleConditionController_RemoveFunction_Patch.SetBattleOver(true);
+    }
+
+    /// <summary>
+    /// BattleController.StateChange (0x341570), the battle's own state transition: Init (1) through
+    /// Event (6) are a live battle, WinWait (7) through End (20) are victory, defeat, escape and
+    /// their fades. Every battle starts with StateChange(Init) from StartBattle, which clears the
+    /// latch. A prefix, so the latch is set before the new state's own start-up code runs.
+    /// Transitions only — never per frame.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppLast.Battle.BattleController), nameof(Il2CppLast.Battle.BattleController.StateChange))]
+    public static class BattleController_StateChange_Patch
+    {
+        private const int STATE_INIT = 1;
+        private const int STATE_EVENT = 6;
+        private const int STATE_WIN_WAIT = 7;
+        private const int STATE_END = 20;
+
+        [HarmonyPrefix]
+        public static void Prefix(Il2CppLast.Battle.BattleController.BattleState __0)
+        {
+            int state = (int)__0;
+            if (state >= STATE_INIT && state <= STATE_EVENT)
+                BattleConditionController_RemoveFunction_Patch.SetBattleOver(false);
+            else if (state >= STATE_WIN_WAIT && state <= STATE_END)
+                BattleConditionController_RemoveFunction_Patch.SetBattleOver(true);
         }
     }
 

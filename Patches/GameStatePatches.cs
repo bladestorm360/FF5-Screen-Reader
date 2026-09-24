@@ -52,6 +52,7 @@ namespace FFV_ScreenReader.Patches
             // cleared, so a repeat "The party was defeated" / "Preemptive strike!" in a later
             // battle stayed silent for the whole session.
             BattleConditionController_Add_Patch.ResetLastCondition();
+            BattleConditionController_RemoveFunction_Patch.SetBattleOver(false);
             BattleCommandMessagePatches.ResetState();
 
             // Results from an earlier battle are stale now, and while they exist they hold the

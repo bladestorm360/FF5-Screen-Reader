@@ -16,8 +16,19 @@ namespace FFV_ScreenReader.Utils
         // One-shot diagnostic flag — fires once per session to reveal root cause in logs
         private static bool _hasLoggedConditionDiag = false;
 
-        // Whitelist of user-visible ConditionType values → readable English fallback names.
-        // Internal states (Defend, Escape, resistance buffs, etc.) excluded by omission.
+        // Whitelist of user-visible ConditionType values (Last.Defaine.ConditionType) → fallback
+        // name, a mod_text key spoken through T(). Internal states (Defend, Escape, resistance
+        // buffs, etc.) excluded by omission. Used when a condition row has no name of its own:
+        // FF5's condition table gives Poison, Blind, Stone, Toad, Mini, Float and one Doom row
+        // mes_id_name "None". Each key's translations are the game's own words for that status
+        // (system table MSG_SYSTEM_114-126/299/334/415 and the matching spell names), so a
+        // fallback reads exactly as the game names the status in every language.
+        //
+        // Only types FF5's condition table actually uses (checked against master_assets
+        // `condition`, 2026-09-24). Haste is Heist (15) and Protect is Proteus (19); the old
+        // entries 18 (Brave) and 107 (Protectra) matched no FF5 condition, so Haste and Protect
+        // were never read on a target. 13, 403, 405 and 406 (Transparent, Pig, Gradual Petrify,
+        // Curse) do not occur in FF5 and are dropped.
         private static readonly Dictionary<int, string> ConditionTypeFallbackNames = new Dictionary<int, string>
         {
             { 4, "Critical" },
@@ -29,26 +40,31 @@ namespace FFV_ScreenReader.Utils
             { 10, "Poison" },
             { 11, "Stone" },
             { 12, "Confusion" },
-            { 13, "Transparent" },
             { 14, "Blink" },
+            { 15, "Haste" },
             { 16, "Slow" },
             { 17, "Stop" },
-            { 18, "Haste" },
+            { 19, "Protect" },
             { 25, "Regen" },
             { 32, "Old" },
             { 34, "Zombie" },
-            { 107, "Protect" },
             { 401, "Mini" },
             { 402, "Toad" },
-            { 403, "Pig" },
             { 404, "Doom" },
-            { 405, "Gradual Petrify" },
-            { 406, "Curse" },
             { 409, "Float" },
             { 410, "Berserk" },
             { 412, "Shell" },
             { 413, "Reflect" }
         };
+
+        /// <summary>
+        /// The localized fallback name for a condition type (T() of the whitelist key), or null
+        /// when the type is not a user-visible status.
+        /// </summary>
+        public static string GetConditionTypeName(int conditionType)
+        {
+            return ConditionTypeFallbackNames.TryGetValue(conditionType, out string key) ? T(key) : null;
+        }
 
         /// <summary>
         /// Gets the HP and MP string for a character parameter.
@@ -143,10 +159,14 @@ namespace FFV_ScreenReader.Utils
                         if (shouldLog) MelonLogger.Msg($"[ConditionDiag] type={condType}, MesIdName/GetMessage threw, using fallback");
                     }
 
-                    // Fallback to dictionary name
+                    // Fallback to the localized dictionary name
                     if (string.IsNullOrEmpty(displayName))
                     {
-                        displayName = ConditionTypeFallbackNames[condType];
+                        displayName = GetConditionTypeName(condType);
+                    }
+                    else
+                    {
+                        displayName = TextUtils.StripIconMarkup(displayName);
                     }
 
                     statusNames.Add(displayName);

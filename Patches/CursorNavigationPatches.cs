@@ -101,6 +101,17 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
+    /// Button moves of the SavePopup-style popups, read from Cursor.NextIndex/PrevIndex (round 2,
+    /// 2026-09-24). Replaces the per-frame SavePopup.UpdateCommand and GameOverLoadPopup hooks.
+    /// </summary>
+    internal static class PopupCursorMoves
+    {
+        /// <summary>True when the cursor belongs to an open save/load-style popup (handled).</summary>
+        public static bool TryHandle(GameCursor cursor)
+            => SaveLoadPatches.TryReadSavePopupMove(cursor) || PopupPatches.TryReadGameOverLoadMove(cursor);
+    }
+
+    /// <summary>
     /// Harmony patches for cursor navigation.
     /// Hooks NextIndex, PrevIndex, SkipNextIndex, SkipPrevIndex to announce menu items as players navigate.
     /// Ported from FF6 screen reader.
@@ -113,7 +124,13 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Suppress generic cursor during save/load — SavePopupUpdateCommand handles buttons
+                // Save/load-style popup buttons (save, load, quick save, overwrite, game-over
+                // Load) are read here, from the move itself; the popups' own cursor setter re-runs
+                // every frame for a single-button popup.
+                if (PopupCursorMoves.TryHandle(__instance))
+                    return;
+
+                // Suppress generic cursor during save/load — the popup reader above handles buttons
                 if (SaveLoadMenuState.IsActive)
                     return;
 
@@ -144,7 +161,13 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Suppress generic cursor during save/load — SavePopupUpdateCommand handles buttons
+                // Save/load-style popup buttons (save, load, quick save, overwrite, game-over
+                // Load) are read here, from the move itself; the popups' own cursor setter re-runs
+                // every frame for a single-button popup.
+                if (PopupCursorMoves.TryHandle(__instance))
+                    return;
+
+                // Suppress generic cursor during save/load — the popup reader above handles buttons
                 if (SaveLoadMenuState.IsActive)
                     return;
 
@@ -175,7 +198,13 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Suppress generic cursor during save/load — SavePopupUpdateCommand handles buttons
+                // Save/load-style popup buttons (save, load, quick save, overwrite, game-over
+                // Load) are read here, from the move itself; the popups' own cursor setter re-runs
+                // every frame for a single-button popup.
+                if (PopupCursorMoves.TryHandle(__instance))
+                    return;
+
+                // Suppress generic cursor during save/load — the popup reader above handles buttons
                 if (SaveLoadMenuState.IsActive)
                     return;
 
@@ -206,7 +235,13 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Suppress generic cursor during save/load — SavePopupUpdateCommand handles buttons
+                // Save/load-style popup buttons (save, load, quick save, overwrite, game-over
+                // Load) are read here, from the move itself; the popups' own cursor setter re-runs
+                // every frame for a single-button popup.
+                if (PopupCursorMoves.TryHandle(__instance))
+                    return;
+
+                // Suppress generic cursor during save/load — the popup reader above handles buttons
                 if (SaveLoadMenuState.IsActive)
                     return;
 

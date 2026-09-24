@@ -15,7 +15,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 
 **Vehicles**: Movement state announcements (on foot/ship/airship/chocobo/submarine), landing zone detection via terrain attributes + CheckLandingList/OkList, vehicle entity tracking on world map.
 
-**Other**: Dialogue/message auto-read, repeat current dialogue page (R key, or mod + Square on controller), timer (T key), F1 walk/run and F3 encounters (narrated from the game's own setters, any input source), F5 enemy HP display, delayed dialog announcements (0.3s for NVDA focus), speech redundancy fixes, naming popup enhancements.
+**Other**: Dialogue/message auto-read, repeat current dialogue page (R key, or mod + Square on controller), timer (T key), F1 walk/run and F3 encounters (narrated from the game's own setters, any input source), F5 enemy HP display, mod dialogs (waypoint naming and delete confirmations) spoken at once with their result queued behind the echo (no timers since Round 2), speech redundancy fixes, naming popup enhancements.
 
 **Bestiary (Picture Book)**: Full screen reader support for the enemy encyclopedia. Works from both extras menu (title screen) and config menu (in-game). List navigation with entry number/name, detail view with navigable stat buffer (arrow keys, Shift for group jump, Ctrl for top/bottom), formation announcements, map/habitat name reading, page turn support, monster switching in detail view. Shift+I reads control tooltips. Minimap open/close/cycle with habitat names. Full map open/close/cycle with habitat names. Items read from master data (UI uses icons only). Config menu path supports list, detail, page turns, and monster switching (no map/formation views).
 
@@ -39,7 +39,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done (WaveOut backend, volume rebalanced) |
 | Vehicles (state announcements, landing detection, entity tracking) | Done |
 | Popups (common, game over, save/load, naming, info, job change, save complete) | Done |
-| Speech/dialogue (auto-read, redundancy fixes, delayed announcements) | Done |
+| Speech/dialogue (auto-read, redundancy fixes, mod dialog announcements) | Done |
 | Deep refactoring (PreferencesManager, AudioLoopManager, ToneGenerator, KeyBindingRegistry, etc.) | Done |
 | Entity filter refactor (IEntityFilter, FilterTiming, IGroupingStrategy) | Done |
 | Performance optimization (GameObjectCache, state flags, GameConstants) | Done |
@@ -142,11 +142,23 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Battle I key could read a closed list's description | Fixed, **not yet verified**. Gated on the list's own `StateMachine` (item 0x58, ability 0x30 → current 0x10 → Tag 0x10; 0 = None) and on `view.rootObject` being visible, instead of the controller GameObject alone (which stays active after the list closes) |
 | "Encounters on/off" on a load from the game-over flow | **Not a bug** — proved offline. The load re-applies the value it just loaded, so the "real change" check always returns first |
 | First ally target read index | Fixed, **not yet verified**. Now uses the game's own `selectCursor.Index`, and waits (within the settle cap) until `playerDataList` is the list the game navigates |
-| Value-0 battle events | Partial, **not yet verified**. Speech now follows the game's own view rules in `BattleBasicFunction.CreateDamageView`. No "0 damage" for value-0 Hit/Non views (nothing is drawn for them). `RecoveryCondition` reads as HP recovery, and only with a value. A real 0-damage hit (`Zero`) still reads "X: 0 damage". **A pure status cure is still silent**: it was not proved offline that buffs never carry `RecoveryCondition`, so there is no "cured" line. One `[Battle] value-0 view:` log line per value-0 view settles it |
+| Value-0 battle events | Done, **not yet verified**. Speech now follows the game's own view rules in `BattleBasicFunction.CreateDamageView`. No "0 damage" for value-0 Hit/Non views (nothing is drawn for them). `RecoveryCondition` reads as HP recovery, and only with a value. A real 0-damage hit (`Zero`) still reads "X: 0 damage". Status cures are now announced by the Round 2 removal hook below; the `[Battle] value-0 view:` log line is gone |
 | Vehicle entity names capitalised in the entity list | Done, **not yet verified**. Display-only; "On {0}" movement speech unchanged |
 | Controller unplugged in mod mode / keyboard-closed mod menu | Fixed, **not yet verified**. Event-driven: `GamepadManager.HandleGamepadRemoved` drops mod mode; `ModMenu.Close` returns the router to Normal |
 | F8-opened mod menu did not sync the controller state | Fixed, **not yet verified**. `ModMenu.Open` sets the router to ModMenu, so D-pad/stick/LT drive the menu instead of field navigation underneath it |
 | Tab "clear stuck battle flag" (FF1 issue) | N/A — FF5 has no such key |
+| **Round 2 (2026-09-24)** — built clean (0 warnings, 0 errors), **not yet verified in game**. Details in `docs/debug.md` → "Round 2 (2026-09-24)" | |
+| Status removal: "X: Poison removed"-style lines for cures, natural wear-off and revive ("X: KO removed") | Done, **not yet verified**. Hook `BattleConditionController.RemoveFunction` (FF5's `Remove` never sees cures or wear-off). Silent at battle end, after victory/defeat/escape starts, for statuses cleared by KO or Stone, for nameless internal conditions, and while a stack remains. Poison, Blind, Stone, Toad, Mini and Float have no name in FF5's condition table; they (add and removal) now use the localized status names, which are the game's own words (so an Antidote reads "X: Poison removed") |
+| Multi-hit Damage setting | **Removed** (user decision). FF5's calc results never carry a hit count, so the setting did nothing. Damage always reads "X: N damage" |
+| Bestiary minimap open/close and map change | Converted from a per-frame `UpdateController` postfix to `LibraryMenuController.ChangeState` + `LibraryMenuHabitatController.OnContentSelected`, **not yet verified**. Expect "Minimap open: {map}", each map name on left/right, "Minimap closed. {entry}" |
+| Bestiary formation view | Converted from a 3 s `FindObjectOfType` poll to `ArBattleTopController.SetActive(true)`, **not yet verified**. Expect the formation read on entry, after Q, and on return from an AR battle |
+| Gallery / Music Player entry | Converted from 2 s time-based polls to the focus event + a frame-bounded settle, **not yet verified**. Expect "Gallery" (or "Music Player") then the focused entry, once |
+| Save/load, quick-save, overwrite and game-over Load popups | Converted from the per-frame `UpdateCommand` hooks, **not yet verified**. Each controller's open hook reads title + message + focused button; Yes/No moves come from `Cursor.NextIndex/PrevIndex`. Expect the message, then the button, once on open; each move reads the new button; the quick-save completion reads its message and "Close" |
+| Waypoint dialogs without timers | Done, **not yet verified**. Prompts speak at once; "Yes"/"Confirmed: X" then the result ("Removed X", "Added X as Y"); Escape says "Cancelled" (or "Rename cancelled") once |
+| Config menu rows and slider values | Converted, **not yet verified**. Rows from `SelectCommand`; re-announce after a popup, the Library and on title Options pages from explicit events; slider values from Unity's `Slider.onValueChanged`. Expect each row once on open and on every move, the row again after a confirmation popup or the Library, and the new value on each left/right on a slider |
+| Status names through T(); Haste/Protect on targets | Done, **not yet verified**. Fallback status names are mod_text keys (the game's own words); the target reader now also lists Haste and Protect (their dictionary types were wrong) |
+| Naming screen "Name: X" | Now through `T()` |
+| Kept per-frame, by decision | `Timer.Update` (only while timer freeze is on), input passthrough, EXP counter feed tick. Reasons in `docs/debug.md` |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

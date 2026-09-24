@@ -478,8 +478,9 @@ namespace FFV_ScreenReader.Patches
                 if (PopupState.IsConfirmationPopupActive)
                 {
                     PopupState.Clear();
-                    // Clear the config guard so the option under the popup re-announces on dismissal
-                    ConfigCommandController_SetFocus_Patch.ResetLastCommand();
+                    // Re-read the config option under the popup on dismissal (a no-op outside the
+                    // config menu). This used to come from the game's per-frame SetFocus.
+                    ConfigActualDetails_SelectCommand_Patch.AnnounceFocusedRow();
                 }
             }
             catch (Exception ex)
@@ -498,20 +499,12 @@ namespace FFV_ScreenReader.Patches
         {
             try
             {
-                // Patch UpdateCommand for button navigation
-                Type loadPopupType = typeof(KeyInputGameOverLoadPopup);
-                var updateCommandMethod = AccessTools.Method(loadPopupType, "UpdateCommand");
-
-                if (updateCommandMethod != null)
-                {
-                    var postfix = typeof(PopupPatches).GetMethod(nameof(GameOverLoadPopup_UpdateCommand_Postfix),
-                        BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(updateCommandMethod, postfix: new HarmonyMethod(postfix));
-                }
-                else
-                {
-                    MelonLogger.Warning("[Popup] GameOverLoadPopup.UpdateCommand method not found");
-                }
+                // Button moves: TryReadGameOverLoadMove, from the Cursor.NextIndex/PrevIndex
+                // patches (GameOverLoadPopup.<UpdateSelect>b__32_0, 0x7F6D40, moves selectCursor
+                // only through them). Replaces a postfix on UpdateCommand, which ran every frame
+                // (and has no direct caller: GameOverPopupController.UpdateSaveLoadPopup calls
+                // UpdateSelect directly). SetCommandSelectCursor is not used either: UpdateSelect
+                // re-runs it every frame while the first button is hidden.
 
                 // Patch InitSaveLoadPopup to announce popup message when it opens
                 Type controllerType = typeof(KeyInputGameOverPopupController);
@@ -519,9 +512,11 @@ namespace FFV_ScreenReader.Patches
 
                 if (initMethod != null)
                 {
+                    var prefix = typeof(PopupPatches).GetMethod(nameof(GameOverPopupController_InitSaveLoadPopup_Prefix),
+                        BindingFlags.Public | BindingFlags.Static);
                     var postfix = typeof(PopupPatches).GetMethod(nameof(GameOverPopupController_InitSaveLoadPopup_Postfix),
                         BindingFlags.Public | BindingFlags.Static);
-                    harmony.Patch(initMethod, postfix: new HarmonyMethod(postfix));
+                    harmony.Patch(initMethod, prefix: new HarmonyMethod(prefix), postfix: new HarmonyMethod(postfix));
                 }
                 else
                 {
@@ -534,85 +529,102 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        public static void GameOverLoadPopup_UpdateCommand_Postfix(KeyInputGameOverLoadPopup __instance)
+        // True from InitSaveLoadPopup until its delayed read has spoken the message, so a move in
+        // that frame doesn't speak a button ahead of the message.
+        private static bool gameOverLoadOpening;
+
+        // The open game-over Load popup whose moves are read (set on open). Holding the wrapper
+        // keeps the object alive while its cursor pointer is compared.
+        private static KeyInputGameOverLoadPopup activeGameOverLoadPopup;
+
+        /// <summary>
+        /// Called from the Cursor.NextIndex/PrevIndex patches: when the moved cursor is the game-over
+        /// Load popup's (selectCursor 0x58), reads the newly focused button. Cursor.NextIndex /
+        /// PrevIndex set the index before invoking the move callback, so it is current here.
+        /// Returns true when the cursor was that popup's.
+        /// </summary>
+        public static bool TryReadGameOverLoadMove(GameCursor cursor)
         {
             try
             {
-                if (__instance == null) return;
+                var popup = activeGameOverLoadPopup;
+                if (popup == null || cursor == null) return false;
+                IntPtr popupPtr = popup.Pointer;
+                if (popupPtr == IntPtr.Zero || Marshal.ReadIntPtr(popupPtr + GAMEOVERLOAD_SELECT_CURSOR_OFFSET) != cursor.Pointer)
+                    return false;
 
-                IntPtr ptr = __instance.Pointer;
-                if (ptr == IntPtr.Zero) return;
+                if (gameOverLoadOpening) return true;
 
-                // Read cursor index from offset 0x58
-                IntPtr cursorPtr = Marshal.ReadIntPtr(ptr + GAMEOVERLOAD_SELECT_CURSOR_OFFSET);
-                if (cursorPtr == IntPtr.Zero) return;
-
-                var cursor = new GameCursor(cursorPtr);
                 int index = cursor.Index;
-
-                // Deduplicate by index
-                if (index == lastGameOverLoadIndex) return;
+                if (index == lastGameOverLoadIndex) return true;
                 lastGameOverLoadIndex = index;
 
-                // Read button text from commandList at offset 0x60
-                string buttonText = ReadButtonFromCommandList(ptr, GAMEOVERLOAD_CMDLIST_OFFSET, index);
+                string buttonText = ReadButtonFromCommandList(popupPtr, GAMEOVERLOAD_CMDLIST_OFFSET, index);
                 if (!string.IsNullOrWhiteSpace(buttonText))
-                {
-                    buttonText = TextUtils.StripIconMarkup(buttonText);
-                    FFV_ScreenReaderMod.SpeakText(buttonText, interrupt: true);
-                }
+                    FFV_ScreenReaderMod.SpeakText(TextUtils.StripIconMarkup(buttonText), interrupt: true);
+                return true;
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"[Popup] Error in GameOverLoadPopup.UpdateCommand: {ex.Message}");
+                MelonLogger.Warning($"[Popup] Error reading GameOverLoadPopup move: {ex.Message}");
+                return false;
             }
+        }
+
+        public static void GameOverPopupController_InitSaveLoadPopup_Prefix()
+        {
+            gameOverLoadOpening = true;
+            lastGameOverLoadIndex = -1;
         }
 
         public static void GameOverPopupController_InitSaveLoadPopup_Postfix(KeyInputGameOverPopupController __instance)
         {
             try
             {
-                if (__instance == null) return;
-
-                // Reset button tracking for fresh state
-                lastGameOverLoadIndex = -1;
+                IntPtr loadPopupPtr = GetGameOverLoadPopup(__instance?.Pointer ?? IntPtr.Zero);
+                if (loadPopupPtr == IntPtr.Zero)
+                {
+                    gameOverLoadOpening = false;
+                    return;
+                }
+                activeGameOverLoadPopup = new KeyInputGameOverLoadPopup(loadPopupPtr);
 
                 // Gates the Cursor.*Index patches so the generic cursor reader doesn't
-                // double-read these buttons -- GameOverLoadPopup.UpdateCommand already reads
-                // them. (This does NOT suppress PopupOpen_Postfix, which only checks
-                // IsShopActive; an older comment here claimed otherwise.) Cleared by
-                // MainMenuController.Show on the way back into a menu.
+                // double-read these buttons -- TryReadGameOverLoadMove reads them. (This does NOT
+                // suppress PopupOpen_Postfix, which only checks IsShopActive; an older comment
+                // here claimed otherwise.) Cleared by MainMenuController.Show on the way back
+                // into a menu.
                 SaveLoadMenuState.IsActive = true;
 
                 // Use coroutine to delay reading until UI has populated
-                CoroutineManager.StartManaged(DelayedGameOverLoadPopupRead(__instance.Pointer));
+                CoroutineManager.StartManaged(DelayedGameOverLoadPopupRead(loadPopupPtr));
             }
             catch (Exception ex)
             {
+                gameOverLoadOpening = false;
                 MelonLogger.Warning($"[Popup] Error in GameOverPopupController.InitSaveLoadPopup: {ex.Message}");
             }
         }
 
-        private static IEnumerator DelayedGameOverLoadPopupRead(IntPtr controllerPtr)
+        /// <summary>controller → view (0x30) → loadPopup (0x18), or zero.</summary>
+        private static IntPtr GetGameOverLoadPopup(IntPtr controllerPtr)
+        {
+            if (controllerPtr == IntPtr.Zero) return IntPtr.Zero;
+            IntPtr viewPtr = Marshal.ReadIntPtr(controllerPtr + GAMEOVERPOPUPCTRL_VIEW_OFFSET);
+            return viewPtr == IntPtr.Zero ? IntPtr.Zero : Marshal.ReadIntPtr(viewPtr + GAMEOVERPOPUPVIEW_LOADPOPUP_OFFSET);
+        }
+
+        /// <summary>
+        /// One frame after the popup opens: the message, then the focused button queued behind it.
+        /// Event-started one-frame deferral (the message text is set during the same Init).
+        /// </summary>
+        private static IEnumerator DelayedGameOverLoadPopupRead(IntPtr loadPopupPtr)
         {
             yield return null; // Wait one frame
 
             try
             {
-                if (controllerPtr == IntPtr.Zero) yield break;
-
-                // Navigate: controller->view(0x30)->loadPopup(0x18)->messageText(0x40)
-                IntPtr viewPtr = Marshal.ReadIntPtr(controllerPtr + GAMEOVERPOPUPCTRL_VIEW_OFFSET);
-                if (viewPtr == IntPtr.Zero)
-                {
-                    yield break;
-                }
-
-                IntPtr loadPopupPtr = Marshal.ReadIntPtr(viewPtr + GAMEOVERPOPUPVIEW_LOADPOPUP_OFFSET);
-                if (loadPopupPtr == IntPtr.Zero)
-                {
-                    yield break;
-                }
+                if (loadPopupPtr == IntPtr.Zero) yield break;
 
                 IntPtr messageTextPtr = Marshal.ReadIntPtr(loadPopupPtr + GAMEOVERLOAD_MESSAGE_OFFSET);
                 string message = ReadTextFromPointer(messageTextPtr);
@@ -622,10 +634,22 @@ namespace FFV_ScreenReader.Patches
                     message = TextUtils.StripIconMarkup(message.Trim());
                     FFV_ScreenReaderMod.SpeakText(message, interrupt: false);
                 }
+
+                // Focused button (single-button rule shared with the save popups), claiming its
+                // index so the first move away is the next thing read.
+                int index = SaveLoadPatches.FocusedSaveStyleIndex(loadPopupPtr, GAMEOVERLOAD_SELECT_CURSOR_OFFSET, GAMEOVERLOAD_CMDLIST_OFFSET);
+                lastGameOverLoadIndex = index;
+                string buttonText = ReadButtonFromCommandList(loadPopupPtr, GAMEOVERLOAD_CMDLIST_OFFSET, index);
+                if (!string.IsNullOrWhiteSpace(buttonText))
+                    FFV_ScreenReaderMod.SpeakText(TextUtils.StripIconMarkup(buttonText), interrupt: false);
             }
             catch (Exception ex)
             {
                 MelonLogger.Warning($"[Popup] Error in DelayedGameOverLoadPopupRead: {ex.Message}");
+            }
+            finally
+            {
+                gameOverLoadOpening = false;
             }
         }
 

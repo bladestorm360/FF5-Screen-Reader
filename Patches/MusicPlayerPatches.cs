@@ -25,12 +25,47 @@ namespace FFV_ScreenReader.Patches
         // ExtraSoundListController field offsets
         public const int OFFSET_CURRENT_LIST_TYPE = 0xC0;  // currentListType (AudioManager.BgmType)
 
+        // Entry read: "Music Player" spoken, focused song not read yet.
+        public static bool TitleSpoken { get; set; } = false;
+        public static bool EntryPending { get; set; } = false;
+
         public static void ClearState()
         {
             IsInMusicPlayer = false;
             SuppressContentChange = false;
             CachedFocusedPtr = IntPtr.Zero;
+            TitleSpoken = false;
+            EntryPending = false;
             MenuStateRegistry.Reset(MenuStateRegistry.MUSIC_PLAYER);
+        }
+
+        /// <summary>
+        /// The music player entry read: "Music Player" once, then the focused song queued behind it
+        /// as soon as the song SetFocus cached is readable. Returns true once the song is spoken (the
+        /// entry is complete and suppression ends). Driven by MenuFocusAnnouncer from ChangeState
+        /// and, for a late or slow list, by SetFocus itself.
+        /// </summary>
+        internal static bool TryAnnounceEntry()
+        {
+            if (!EntryPending) return true;
+
+            if (!TitleSpoken)
+            {
+                FFV_ScreenReaderMod.SpeakText(T("Music Player"), true);
+                TitleSpoken = true;
+            }
+
+            IntPtr focusedPtr = CachedFocusedPtr;
+            if (focusedPtr == IntPtr.Zero ||
+                !MusicPlayerReader.ReadContentFromPointer(focusedPtr, out string name, out int bgmId, out int idx, out int playTime))
+                return false;
+
+            string entry = MusicPlayerReader.ReadSongEntry(name, bgmId, idx, playTime);
+            if (!string.IsNullOrEmpty(entry))
+                FFV_ScreenReaderMod.SpeakText(entry, false);
+            EntryPending = false;
+            SuppressContentChange = false;
+            return true;
         }
     }
 
@@ -52,8 +87,13 @@ namespace FFV_ScreenReader.Patches
                     case 1: // View — entering music player
                         MusicPlayerStateTracker.IsInMusicPlayer = true;
                         MusicPlayerStateTracker.SuppressContentChange = true;
+                        MusicPlayerStateTracker.EntryPending = true;
+                        MusicPlayerStateTracker.TitleSpoken = false;
                         MenuStateRegistry.SetActiveExclusive(MenuStateRegistry.MUSIC_PLAYER);
-                        CoroutineManager.StartManaged(AnnounceMusicPlayerEntry());
+                        // Frame-bounded settle, not a timer: the first try is one frame after the
+                        // state change (where "Music Player" used to be spoken), and it stops the
+                        // moment the song is read. It replaced a 2 s Time.deltaTime poll.
+                        MenuFocusAnnouncer.Request("MusicPlayer", MusicPlayerStateTracker.TryAnnounceEntry);
                         break;
 
                     case 2: // GotoTitle — leaving music player
@@ -67,44 +107,6 @@ namespace FFV_ScreenReader.Patches
             }
         }
 
-        private static IEnumerator AnnounceMusicPlayerEntry()
-        {
-            yield return null;
-            FFV_ScreenReaderMod.SpeakText(T("Music Player"), true);
-
-            // Poll CachedFocusedPtr — SetFocus fires during entry with correct pointer,
-            // cached by the suppression path in the SetFocus patch.
-            float elapsed = 0f;
-
-            while (elapsed < 2f)
-            {
-                yield return null;
-                elapsed += Time.deltaTime;
-
-                try
-                {
-                    IntPtr focusedPtr = MusicPlayerStateTracker.CachedFocusedPtr;
-                    if (focusedPtr != IntPtr.Zero &&
-                        MusicPlayerReader.ReadContentFromPointer(focusedPtr, out string name, out int bgmId, out int idx, out int playTime))
-                    {
-                        string entry = MusicPlayerReader.ReadSongEntry(name, bgmId, idx, playTime);
-                        if (!string.IsNullOrEmpty(entry))
-                            FFV_ScreenReaderMod.SpeakText(entry, false);
-                        // Success — clear suppression and exit
-                        MusicPlayerStateTracker.SuppressContentChange = false;
-                        yield break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MelonLogger.Warning($"[MusicPlayer] Error announcing entry song: {ex.Message}");
-                    break;
-                }
-            }
-
-            // Timeout or error — still clear suppression
-            MusicPlayerStateTracker.SuppressContentChange = false;
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -131,6 +133,11 @@ namespace FFV_ScreenReader.Patches
                             MusicPlayerStateTracker.CachedFocusedPtr = __instance.Pointer;
                     }
                     catch { }
+                    // Entry still pending: complete the entry read now ("Music Player" first if the
+                    // settle has not said it yet). If the song is not readable yet, the settle
+                    // retries; if that gives up, the next focus change completes it. During the
+                    // arrangement toggle (EntryPending false) this only caches, as before.
+                    MusicPlayerStateTracker.TryAnnounceEntry();
                     return;
                 }
 
@@ -231,6 +238,7 @@ namespace FFV_ScreenReader.Patches
             finally
             {
                 MusicPlayerStateTracker.SuppressContentChange = false;
+                MusicPlayerStateTracker.EntryPending = false;
             }
         }
     }

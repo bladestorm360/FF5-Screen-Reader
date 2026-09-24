@@ -28,42 +28,170 @@ namespace FFV_ScreenReader.Patches
             IsActive = false;
 
             // Clear every config re-fire guard so re-entering the menu re-announces the focused row.
-            ConfigCommandController_SetFocus_Patch.ResetLastCommand();
+            ConfigActualDetails_SelectCommand_Patch.ResetLastCommand();
             ConfigKeysSettingController_SelectContent_Patch.ResetLastRow();
             ConfigActualDetails_SwitchArrowSelectType_Patch.ResetLastValue();
-            ConfigActualDetails_SwitchSliderType_Patch.ResetLastSlider();
+            ConfigSliderValueListener.Reset();
             ConfigActualDetailsTouch_SwitchArrowType_Patch.ResetLastValue();
             ConfigActualDetailsTouch_SwitchSliderType_Patch.ResetLastSlider();
         }
     }
 
     /// <summary>
-    /// Controller-based patches for config menu navigation.
-    /// Announces menu items directly from ConfigCommandController when navigating with up/down arrows.
+    /// Config row navigation (in-game config and title Options), event-driven since round 2
+    /// (2026-09-24).
+    ///
+    /// Hook: KeyInput ConfigActualDetailsControllerBase.SelectCommand(Cursor, WithinRangeType)
+    /// (private, RVA 0x82EA70, unique). It stores the focused row in SelectedCommand (0x20) and is
+    /// called by Initialize, ResetCursor, SetDefaultSelect, the mouse handler (&lt;SettingClicks&gt;b__0)
+    /// and the up/down move callbacks (&lt;UpdateController&gt;b__1 / b__7). It replaces a
+    /// ConfigCommandController.SetFocus postfix that ran for every row every frame: the menu's
+    /// per-frame UpdateController (0x838F70) calls UpdateFocus (0x8395B0), which calls SetFocus on
+    /// each row to set its colours.
+    ///
+    /// The per-frame re-assertion used to re-announce the row after a guard reset. That now comes
+    /// from explicit events: a list gaining focus (ConfigController.InitializeSelect /
+    /// InitializeGameBoosterSetting prefixes clear the guard, and their SetDefaultSelect → SelectCommand
+    /// reads the row), the title Options page Inits (read the shown list's row a frame later), a
+    /// config confirmation popup closing (PopupPatches.PopupClose_Postfix) and the Library exit
+    /// (ConfigBestiaryStateHandler.HandleExit), both through AnnounceFocusedRow. Reads are
+    /// suppressed while OptionController.SetActive and ConfigController.InitializeNone run: both
+    /// call ResetCursor (→ SelectCommand) on lists that are not being shown.
     /// </summary>
-    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigCommandController), nameof(Il2CppLast.UI.KeyInput.ConfigCommandController.SetFocus))]
-    public static class ConfigCommandController_SetFocus_Patch
+    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase), "SelectCommand")]
+    public static class ConfigActualDetails_SelectCommand_Patch
     {
-        // SetFocus is re-asserted on the focused controller rather than fired once per cursor
-        // move, so hold the last option name spoken. Cleared on menu exit (ConfigMenuState) and
-        // when a confirmation popup closes, so the same row can be re-announced.
+        // Last option name spoken, so a SelectCommand that lands on the same row (list ends, a
+        // ResetCursor right after SetDefaultSelect) stays quiet. Cleared on menu exit
+        // (ConfigMenuState) and whenever a list (re)gains focus, so the row is always read on open
+        // and on return. Keyed on the text, not the controller pointer: the list scrolls, so a row
+        // controller may be reused for a different option.
         private static string _lastCommand;
+
+        // The details controller whose row was last focused: the list the re-announce events read.
+        private static Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase _lastDetails;
+
+        /// <summary>Set while a game method calls ResetCursor on lists that are not being shown.</summary>
+        internal static bool SuppressReads;
+
+        private static bool _retryScheduled;
+
+        // Rows spoken so far, so a queued re-announce can tell that a focus event already spoke.
+        private static int _spokenCount;
 
         /// <summary>Clears the last announced option so it can be re-announced.</summary>
         public static void ResetLastCommand() => _lastCommand = null;
 
-        [HarmonyPostfix]
-        public static void Postfix(Il2CppLast.UI.KeyInput.ConfigCommandController __instance, bool isFocus)
+        /// <summary>The focused row of the last focused config list, or null.</summary>
+        internal static Il2CppLast.UI.KeyInput.ConfigCommandController FocusedCommand
         {
-            // Only announce when gaining focus (not losing it)
-            if (!isFocus) return;
-            Announce(__instance);
+            get
+            {
+                try { return _lastDetails?.SelectedCommand; }
+                catch { return null; }
+            }
+        }
+
+        [HarmonyPostfix]
+        public static void Postfix(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase __instance)
+        {
+            try
+            {
+                if (SuppressReads || __instance == null) return;
+                _lastDetails = __instance;
+
+                var command = __instance.SelectedCommand;
+                if (command == null) return;
+                ConfigSliderValueListener.Attach(command);
+
+                // Focus placed while the menu is still being shown: read it once the row is on
+                // screen, one frame later (the old per-frame hook read it on its first visible frame).
+                if (!Announce(command) && !command.gameObject.activeInHierarchy && !_retryScheduled)
+                {
+                    _retryScheduled = true;
+                    CoroutineManager.StartManaged(RetryNextFrame(__instance));
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in ConfigActualDetailsControllerBase.SelectCommand patch: {ex.Message}");
+            }
+        }
+
+        private static IEnumerator RetryNextFrame(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase details)
+        {
+            yield return null;
+            _retryScheduled = false;
+            try
+            {
+                var command = details?.SelectedCommand;
+                if (command != null) Announce(command);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"Error in config focus retry: {ex.Message}");
+            }
         }
 
         /// <summary>
-        /// Announces one config row as "Name: Value, (X of Y)". Shared by SetFocus (navigation) and
-        /// the title-screen Options initial-focus path; returns true when it spoke and false when
-        /// the row isn't readable yet, so a settle loop can retry.
+        /// Re-reads the focused row of the last focused config list (after a popup closes or the
+        /// Library is left). Frame-bounded settle, since the row may still be hidden that frame.
+        /// </summary>
+        /// <param name="requireConfigActive">False when the caller knows the config menu is being
+        /// returned to (the Library exit); the popup-close path keeps the gate, since popups close
+        /// in every menu.</param>
+        public static void AnnounceFocusedRow(bool requireConfigActive = true)
+        {
+            var details = _lastDetails;
+            if (details == null || (requireConfigActive && !ConfigMenuState.IsActive)) return;
+            ResetLastCommand();
+            int spokenBefore = _spokenCount;
+            MenuFocusAnnouncer.Request("ConfigRow", () =>
+            {
+                // A list-focus event (InitializeSelect → SelectCommand) already read a row since
+                // the request: nothing left to say.
+                if (_spokenCount != spokenBefore) return true;
+                var command = details.SelectedCommand;
+                return command == null || Announce(command);
+            });
+        }
+
+        /// <summary>
+        /// One frame after a title Options page Init, reads the focused row of the list whose
+        /// cursor is shown (the page Inits enable a list's cursor with SetCursorFocus but don't
+        /// call SelectCommand).
+        /// </summary>
+        internal static void ScheduleOptionPageRead(Il2CppLast.UI.KeyInput.OptionController option)
+        {
+            if (option == null) return;
+            MenuFocusAnnouncer.Request("ConfigOptionPage", () =>
+            {
+                if (TryAnnounceShownList(option.configActualDetailsController)) return true;
+                var lists = option.configControllerList;
+                if (lists == null) return false;
+                for (int i = 0; i < lists.Count; i++)
+                    if (TryAnnounceShownList(lists[i])) return true;
+                return false;
+            });
+        }
+
+        /// <summary>Reads the list's focused row if its cursor is shown. True when that list has focus.</summary>
+        private static bool TryAnnounceShownList(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase list)
+        {
+            var cursorObject = list?.selectCursor?.gameObject;
+            if (cursorObject == null || !cursorObject.activeInHierarchy) return false;
+            var command = list.SelectedCommand;
+            if (command == null) return false;
+            _lastDetails = list;
+            ConfigSliderValueListener.Attach(command);
+            Announce(command);
+            return true;
+        }
+
+        /// <summary>
+        /// Announces one config row as "Name: Value, (X of Y)". Shared by SelectCommand (navigation)
+        /// and the re-announce paths; returns true when it spoke and false when the row isn't
+        /// readable yet (or is the row just spoken), so a settle loop can retry.
         /// </summary>
         public static bool Announce(Il2CppLast.UI.KeyInput.ConfigCommandController __instance)
         {
@@ -123,17 +251,18 @@ namespace FFV_ScreenReader.Patches
                     announcement = $"{menuText}: {configValue}";
                 }
 
-                // Append list position last (after the value). SetFocus gives no index, so locate
-                // this command within the active details controller's CommandList by pointer.
+                // Append list position last (after the value): locate this command within its
+                // details controller's CommandList by pointer.
                 var (cfgIndex, cfgCount) = GetConfigCommandPosition(__instance);
                 announcement = MenuPosition.Format(announcement, cfgIndex, cfgCount);
 
                 FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
+                _spokenCount++;
                 return true;
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"Error in ConfigCommandController.SetFocus patch: {ex.Message}");
+                MelonLogger.Warning($"Error announcing config row: {ex.Message}");
             }
             return false;
         }
@@ -149,7 +278,8 @@ namespace FFV_ScreenReader.Patches
             {
                 if (controller == null) return (-1, 0);
 
-                var details = GameObjectCache.Get<Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase>();
+                // The list SelectCommand last reported; the cache only as a fallback.
+                var details = _lastDetails ?? GameObjectCache.Get<Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase>();
                 if (details == null)
                     details = GameObjectCache.Refresh<Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase>();
 
@@ -553,62 +683,101 @@ namespace FFV_ScreenReader.Patches
     }
 
     /// <summary>
-    /// Patch for SwitchSliderTypeProcess - called when left/right arrows change slider values.
-    /// Only announces when the value actually changes for the SAME option.
+    /// Slider value changes in the config menu (volumes, brightness), from Unity's own
+    /// Slider.onValueChanged event (round 2, 2026-09-24).
+    ///
+    /// Replaces a SwitchSliderTypeProcess postfix that ran every frame: the tail of
+    /// ConfigActualDetailsControllerBase.UpdateController (0x83959F) calls
+    /// SwitchSliderTypeProcess(SelectedCommand, key None) every frame while a slider row is focused,
+    /// to keep the slider in sync, and every value-writing method on that path runs every frame
+    /// with it (SetSliderValue 0x4B5FA0 → Slider.set_value, ConfigClient.SetVolume / SetBrightness).
+    /// Only the left/right path changes the value (slider.value ± step, from the input lambda
+    /// &lt;UpdateController&gt;b__0), and Slider.onValueChanged fires only when the value really
+    /// changes, so it is the one change-only signal. A listener is added once per slider, when its
+    /// row first gains focus (SelectCommand). The read waits one frame, because SetSliderValue
+    /// writes the value text right after the slider value.
+    ///
+    /// (The old postfix compared Il2Cpp wrappers with ReferenceEquals, which is never true for two
+    /// calls, so it treated every call as a newly focused row and probably never spoke a value.)
     /// </summary>
-    [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase), "SwitchSliderTypeProcess")]
-    public static class ConfigActualDetails_SwitchSliderType_Patch
+    internal static class ConfigSliderValueListener
     {
-        // Not a plain guard — these two ARE the logic. The game re-invokes this on the focused
-        // slider to keep the visual in sync, so: same slider + same value = silent; a DIFFERENT
-        // slider = the row just gained focus and ConfigCommandController.SetFocus already said
-        // "Name: Value", so stay quiet; same slider + new value = speak the value alone.
-        private static object _lastSliderController;
-        private static string _lastSliderValue;
+        // Every slider a listener was added to. Holding the wrappers keeps the objects alive, so a
+        // pointer is never reused by a new slider that would then be skipped.
+        private static readonly System.Collections.Generic.List<UnityEngine.UI.Slider> _sliders =
+            new System.Collections.Generic.List<UnityEngine.UI.Slider>();
 
-        /// <summary>Clears the tracked slider so the next adjustment announces fresh.</summary>
-        public static void ResetLastSlider()
+        private static IntPtr _lastSliderPtr;
+        private static string _lastValue;
+        private static bool _readPending;
+        private static bool _warned;
+
+        /// <summary>Forgets the last spoken value (menu exit).</summary>
+        public static void Reset()
         {
-            _lastSliderController = null;
-            _lastSliderValue = null;
+            _lastSliderPtr = IntPtr.Zero;
+            _lastValue = null;
         }
 
-        [HarmonyPostfix]
-        public static void Postfix(
-            Il2CppLast.UI.KeyInput.ConfigActualDetailsControllerBase __instance,
-            ConfigCommandController controller,
-            Key key)
+        /// <summary>Adds the value listener to the row's slider, once per slider.</summary>
+        internal static void Attach(ConfigCommandController command)
         {
             try
             {
-                if (controller == null || controller.view == null) return;
+                var slider = command?.view?.Slider;
+                if (slider == null) return;
 
-                var view = controller.view;
-                if (view.Slider == null) return;
+                IntPtr ptr = slider.Pointer;
+                if (ptr == IntPtr.Zero) return;
+                for (int i = 0; i < _sliders.Count; i++)
+                    if (_sliders[i].Pointer == ptr) return;
 
-                // Read display value from game's sliderValueText, fallback to percentage
-                string displayValue = ConfigMenuReader.GetSliderDisplayValue(view.Slider, view.sliderValueText);
-                if (string.IsNullOrEmpty(displayValue)) return;
-
-                // Track controller and value separately
-                bool controllerChanged = !ReferenceEquals(controller, _lastSliderController);
-                bool valueChanged = displayValue != _lastSliderValue;
-                _lastSliderController = controller;
-                _lastSliderValue = displayValue;
-
-                // Both unchanged - skip
-                if (!controllerChanged && !valueChanged) return;
-
-                // Newly focused slider: ConfigCommandController.SetFocus already announced the
-                // full "Name: Value", so only adjustments after this point should speak.
-                if (controllerChanged) return;
-
-                // Same controller, value changed - announce just the new value
-                FFV_ScreenReaderMod.SpeakText(displayValue, interrupt: true);
+                System.Action<float> handler = _ => OnValueChanged(ptr);
+                slider.onValueChanged.AddListener(handler);
+                _sliders.Add(slider);
             }
             catch (Exception ex)
             {
-                MelonLogger.Error($"Error in SwitchSliderTypeProcess patch: {ex.Message}");
+                if (!_warned)
+                {
+                    _warned = true;
+                    MelonLogger.Warning($"[Config Menu] Could not listen to a config slider: {ex.Message}");
+                }
+            }
+        }
+
+        private static void OnValueChanged(IntPtr sliderPtr)
+        {
+            if (_readPending) return; // several changes in one frame read once
+            _readPending = true;
+            CoroutineManager.StartManaged(ReadNextFrame(sliderPtr));
+        }
+
+        private static IEnumerator ReadNextFrame(IntPtr sliderPtr)
+        {
+            yield return null;
+            _readPending = false;
+
+            try
+            {
+                if (!ConfigMenuState.IsActive) yield break;
+
+                // Only the focused row's slider speaks (the one left/right just moved).
+                var view = ConfigActualDetails_SelectCommand_Patch.FocusedCommand?.view;
+                var slider = view?.Slider;
+                if (slider == null || slider.Pointer != sliderPtr) yield break;
+
+                string value = ConfigMenuReader.GetSliderDisplayValue(slider, view.sliderValueText);
+                if (string.IsNullOrEmpty(value)) yield break;
+                if (sliderPtr == _lastSliderPtr && value == _lastValue) yield break;
+                _lastSliderPtr = sliderPtr;
+                _lastValue = value;
+
+                FFV_ScreenReaderMod.SpeakText(value, interrupt: true);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Config Menu] Error reading slider value: {ex.Message}");
             }
         }
     }
@@ -742,13 +911,87 @@ namespace FFV_ScreenReader.Patches
     [HarmonyPatch(typeof(Il2CppLast.UI.KeyInput.OptionController), nameof(Il2CppLast.UI.KeyInput.OptionController.SetActive), new Type[] { typeof(bool) })]
     public static class OptionController_SetActive_Patch
     {
+        // SetActive calls ResetCursor (→ SelectCommand) on every page's list, visible or not; the
+        // page Init that follows reads the shown list instead (ConfigFocusEntryPatches).
+        [HarmonyPrefix]
+        public static void Prefix() => ConfigActualDetails_SelectCommand_Patch.SuppressReads = true;
+
         [HarmonyPostfix]
         public static void Postfix(bool isActive)
         {
+            ConfigActualDetails_SelectCommand_Patch.SuppressReads = false;
             if (isActive)
                 ConfigMenuState.IsActive = true;
             else
                 ConfigMenuState.ClearState();
+        }
+    }
+
+    /// <summary>
+    /// The explicit "a config list gains focus" events that replace the game's per-frame SetFocus
+    /// re-assertion (round 2, 2026-09-24). Manual patches, all private methods with unique RVAs:
+    ///   KeyInput ConfigController.InitializeSelect (0x4B8050) — the in-game config's Select state
+    ///     entry, on open and on return from a sub-screen; its SetDefaultSelect → SelectCommand reads
+    ///     the row once the guard is cleared here.
+    ///   KeyInput ConfigController.InitializeGameBoosterSetting (0x4B7F00) — the same for the booster page.
+    ///   KeyInput ConfigController.InitializeNone (0x4B7F90) — the idle state; its ResetCursor must
+    ///     not speak the first row on the way out.
+    ///   KeyInput OptionController.InitConfig (0x8619F0) / InitSelectLanguage (0x8629F0) /
+    ///     InitSelectScreenSetting (0x863130) / InitSelectSoundSettings (0x863B50) — the title
+    ///     Options pages; the shown list's row is read once the page is up.
+    /// </summary>
+    public static class ConfigFocusEntryPatches
+    {
+        public static void ApplyPatches(HarmonyLib.Harmony harmony)
+        {
+            var configType = typeof(Il2CppLast.UI.KeyInput.ConfigController);
+            var optionType = typeof(Il2CppLast.UI.KeyInput.OptionController);
+
+            Patch(harmony, configType, "InitializeSelect", nameof(ListFocus_Prefix), null);
+            Patch(harmony, configType, "InitializeGameBoosterSetting", nameof(ListFocus_Prefix), null);
+            Patch(harmony, configType, "InitializeNone", nameof(Suppress_Prefix), nameof(Suppress_Postfix));
+            foreach (var page in new[] { "InitConfig", "InitSelectLanguage", "InitSelectScreenSetting", "InitSelectSoundSettings" })
+                Patch(harmony, optionType, page, nameof(ListFocus_Prefix), nameof(OptionPage_Postfix));
+        }
+
+        private static void Patch(HarmonyLib.Harmony harmony, Type type, string method, string prefix, string postfix)
+        {
+            try
+            {
+                var target = AccessTools.Method(type, method);
+                if (target == null)
+                {
+                    MelonLogger.Warning($"[Config Menu] {type.Name}.{method} not found");
+                    return;
+                }
+                harmony.Patch(target,
+                    prefix: prefix == null ? null : new HarmonyMethod(AccessTools.Method(typeof(ConfigFocusEntryPatches), prefix)),
+                    postfix: postfix == null ? null : new HarmonyMethod(AccessTools.Method(typeof(ConfigFocusEntryPatches), postfix)));
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Config Menu] Error patching {type.Name}.{method}: {ex.Message}");
+            }
+        }
+
+        /// <summary>A config list (re)gains focus: clear the row guard so its row is read.</summary>
+        public static void ListFocus_Prefix() => ConfigActualDetails_SelectCommand_Patch.ResetLastCommand();
+
+        public static void Suppress_Prefix() => ConfigActualDetails_SelectCommand_Patch.SuppressReads = true;
+
+        public static void Suppress_Postfix() => ConfigActualDetails_SelectCommand_Patch.SuppressReads = false;
+
+        /// <summary>Title Options page Init: read the shown list's focused row once it is up.</summary>
+        public static void OptionPage_Postfix(Il2CppLast.UI.KeyInput.OptionController __instance)
+        {
+            try
+            {
+                ConfigActualDetails_SelectCommand_Patch.ScheduleOptionPageRead(__instance);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Config Menu] Error scheduling the Options row read: {ex.Message}");
+            }
         }
     }
 
@@ -791,11 +1034,10 @@ namespace FFV_ScreenReader.Patches
             PatchOption("SetDropDownItemFocus", nameof(SetDropDownItemFocus_Postfix));
 
             // NOTE: OptionController.ShowConfig / InitializeConfigList are deliberately NOT hooked
-            // for initial focus. The config settings screen already announces its focused row on
-            // entry via ConfigCommandController.SetFocus. Worse than merely duplicating, an entry
-            // hook that cleared the SetFocus guard let the game's own second SetFocus through, so
-            // entering Config spoke "Language: English" twice. Same call FF1 makes for its in-game
-            // ConfigController.
+            // for initial focus. The focused row on entry is read by SelectCommand and the page
+            // Inits (ConfigFocusEntryPatches), both behind the one text guard. (With the old
+            // per-frame SetFocus hook, an entry hook that cleared its guard let the game's own
+            // second SetFocus through, so entering Config spoke "Language: English" twice.)
 
             // Remap assign-flow speaking (ConfigKeysSettingController, all real-bodied methods).
             // KeyboardSettingInit / GamePadSettingInit fire on entering assign mode → "press a
@@ -892,8 +1134,8 @@ namespace FFV_ScreenReader.Patches
             {
                 if (__instance == null) return;
                 string label = GetFocusedLanguageLabel(__instance);
-                // Gate on the config menu being genuinely OPEN — the same lifecycle flag the SetFocus
-                // patch uses (now also driven by OptionController.SetActive). The title screen
+                // Gate on the config menu being genuinely OPEN — the same lifecycle flag the row
+                // announcements use (now also driven by OptionController.SetActive). The title screen
                 // instantiates the language OptionController during load and fires SetDropDownItemFocus
                 // BEFORE the menu is opened (IsActive=false). Real dropdown navigation happens with the
                 // menu open (IsActive=true), so this kills the title regression without muting the menu.

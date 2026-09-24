@@ -259,11 +259,6 @@ namespace FFV_ScreenReader.Core
                     () => PreferencesManager.EnemyLettersEnabled,
                     FFV_ScreenReaderMod.ToggleEnemyLetters,
                     "Adds a letter such as A or B to enemies that share a name, so you can tell them apart."),
-                new EnumItem("Multi-hit Damage",
-                    new[] { "Total only", "With hit count" },
-                    () => PreferencesManager.DamageDisplay,
-                    PreferencesManager.SetDamageDisplay,
-                    "For attacks that hit several times, reads the total damage alone or together with the number of hits."),
 
                 // Close Menu action
                 new ActionItem("Close Menu", Close,

@@ -191,7 +191,7 @@ namespace FFV_ScreenReader.Patches
                 string characterName = GetSelectedCharacterName(controller);
                 if (!string.IsNullOrEmpty(characterName))
                 {
-                    FFV_ScreenReaderMod.SpeakText($"Name: {characterName}", interrupt: true);
+                    FFV_ScreenReaderMod.SpeakText(string.Format(T("Name: {0}"), characterName), interrupt: true);
                 }
             }
             catch (Exception ex)

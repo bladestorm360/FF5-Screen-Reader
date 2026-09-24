@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using MelonLoader;
@@ -39,23 +38,23 @@ namespace FFV_ScreenReader.Core
             onCancelCallback = onCancel;
             cursorPosition = inputBuffer.Length;
 
-            CoroutineManager.StartManaged(DelayedPromptAnnouncement(prompt, inputBuffer.ToString()));
-        }
-
-        private static IEnumerator DelayedPromptAnnouncement(string promptText, string initialText)
-        {
-            yield return new WaitForSeconds(0.3f);
-            string announcement = promptText;
-            if (!string.IsNullOrEmpty(initialText))
-                announcement += $": {initialText}";
+            // Spoken at once. The old 0.3 s delay dated from the real-window version, which had to
+            // wait for NVDA's focus announcement; the window is virtual now (Rule 3: no timers).
+            string announcement = prompt;
+            if (inputBuffer.Length > 0)
+                announcement += $": {inputBuffer}";
             FFV_ScreenReaderMod.SpeakText(announcement, interrupt: true);
         }
 
-        private static IEnumerator DelayedCloseAnnouncement(string text, Action callback)
+        /// <summary>
+        /// Closes the window, speaks the echo, then runs the callback, whose own result is queued
+        /// behind the echo (FFV_ScreenReaderMod.SpeakTextQueued). A null echo speaks nothing.
+        /// </summary>
+        private static void CloseWith(string text, Action callback)
         {
             Close();
-            yield return new WaitForSeconds(0.3f);
-            FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
+            if (!string.IsNullOrEmpty(text))
+                FFV_ScreenReaderMod.SpeakText(text, interrupt: true);
             callback?.Invoke();
         }
 
@@ -116,14 +115,16 @@ namespace FFV_ScreenReader.Core
                     return true;
                 }
                 var callback = onConfirmCallback;
-                CoroutineManager.StartManaged(DelayedCloseAnnouncement(string.Format(T("Confirmed: {0}"), finalText), () => callback?.Invoke(finalText)));
+                CloseWith(string.Format(T("Confirmed: {0}"), finalText), () => callback?.Invoke(finalText));
                 return true;
             }
 
+            // Every caller's cancel callback names what was cancelled ("Rename cancelled"), so the
+            // generic echo is only spoken when there is no callback.
             if (GamepadManager.IsKeyCodePressed(KeyCode.Escape))
             {
                 var callback = onCancelCallback;
-                CoroutineManager.StartManaged(DelayedCloseAnnouncement(T("Cancelled"), callback));
+                CloseWith(callback == null ? T("Cancelled") : null, callback);
                 return true;
             }
 

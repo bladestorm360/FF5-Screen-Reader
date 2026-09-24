@@ -182,8 +182,8 @@ on a screen that is not a MenuManager menu), which is the thing to fix rather th
 
 Not a poll
 and not a timer: no standing per-frame Harmony hooks (Rule 2), budget in `yield return null` frames
-rather than `WaitForSeconds` (Rule 3). Same shape as the existing Gallery/MusicPlayer entry coroutines,
-tightened from seconds to frames. `yield` sits **outside** the `try` (yield-in-try-with-catch is illegal).
+rather than `WaitForSeconds` (Rule 3). Same shape as the old Gallery/MusicPlayer entry coroutines,
+tightened from seconds to frames; since Round 2 (2026-09-24) those two entry reads run through it too. `yield` sits **outside** the `try` (yield-in-try-with-catch is illegal).
 
 A single global generation latch (`_gen`) collapses the `Show`+`InitNone` double on open (later wins)
 and caps concurrent settle coroutines at ~1 — important given `CoroutineManager`'s 20-coroutine limit
@@ -1436,6 +1436,9 @@ otherwise the title screen would run a `FindObjectOfType` per frame.
 - Shop command bar: `InitSelectCommand` reaches `SetCursor` twice in one frame
   (`ShopInfoController.Reset` and `SetCommandFocus`); a same-index same-frame guard speaks it once.
 
+*(Removed in Round 2, 2026-09-24, by user decision: see the correction below and "Round 2 (2026-09-24)",
+Task D. The paragraph is kept as history.)*
+
 **Multi-hit damage (2026-09-23).** "Target: NxTotal damage" on weapon attacks now works in FF5. It
 never could before: the game draws its ×N (`BattleBasicFunction.CreateHitCount` →
 `DamageViewUIManager.CreateHitCount`) only when `SystemConfigData.GetBattleType()` is Command, and
@@ -1461,7 +1464,8 @@ tuple element, which looks like a damage multiplier, and it is dropped anyway.
 The Multi-hit Damage setting therefore has no audible effect in FF5; FF4 has the same finding. The
 count only exists inside the calc functions, which return tuple structs. Hooking them would mean a
 struct-return postfix under Il2CppInterop, which needs a crash test. The other options are to hide
-the setting in FF5, or to leave it (harmless). This is left to the user.
+the setting in FF5, or to leave it (harmless). This is left to the user. *(The user chose removal;
+done in Round 2, 2026-09-24.)*
 
 ### Open-issues pass (2026-09-23, session 2)
 
@@ -1634,3 +1638,236 @@ Left for review:
 - German Moogle labels now use masculine articles ("Den Mogry entdecken"); a native speaker should check them.
 
 The rules, the full old→new list and the skipped items are in `D:\Games\Dev\Unity\FFPR\tools\official_substring\`. Values were edited in place, so the diff shows only the changed value lines.
+
+### Round 2 (2026-09-24)
+
+Four user-approved tasks. Built clean (0 warnings, 0 errors); `modtext_check` and `utf8_scan` clean.
+Nothing was tested in game. Every hook below was checked for a unique `// RVA:` in dump.cs (count 1)
+and for callers with `tools\hitscan.py` / capstone.
+
+#### Task A: status removal ("{0}: {1} removed")
+
+**FF5's `Remove` is not the right hook.** `BattleConditionController.Remove(unit, id, isNegate)`
+(0x333410) has three direct callers only: the two `InterruptRemoveCondition` overloads and
+`BattleEndRecoveryCondition`. The `InterruptRemoveCondition` callers are `BattleProgressATB.UpdateAlwaysEscape`,
+`ActSelectSpSwordSky.ActSelectReceivedDamage` and `RampageConditionFunction.Start`, so cures and
+wear-off never reach `Remove`. Decoded `Remove`: `condition = conditionDic[id]`; if
+`Parameter.CurrentConditionList` (unit 0x28 → info 0x10 → 0x88) contains it, remove it (all entries
+with that id when `isNegate`); then tail-call `RemoveFunction(unit, id)`. All three call sites pass
+`isNegate = false` (`xor r9d, r9d`), so FF5 has no negation path.
+
+Every other removal takes the condition out of `CurrentConditionList` directly:
+- the action's result (cures, revive);
+- `BattleConditionFunction.NaturalRemove` (0x336060; timed wear-off from `UpdateCondtitonRecovery`):
+  `NaturalRecovery()` (vtable slot 16), then `CurrentConditionList.Remove(condition)`;
+- `BattleConditionController.Recovery(unit, untilType)` (0x332DC0): the same, for each function whose
+  condition has that until-type;
+- `Cancellation` (0x32FC50; via `ConflictCondition` when a new condition conflicts, including KO).
+
+The sync then runs: `CheckAddCondition()` (every frame from `BattlePlayController.UpdateStatusInPlayController`,
+and from `BattleActExection.InitFinishingState` after each action) → `CheckConditionFunction`
+(0x3306D0): `ConflictCondition` for new ids, then `RemoveConditionFunction` (0x332F80), which calls
+`RemoveFunction` for every id whose function count exceeds its condition count, then
+`AddConditionFunction` → `Add`.
+
+**Hook: `RemoveFunction(BattleUnitData, int id)` (0x333260).** Callers: `RemoveConditionFunction`
+and `Remove` (tail call). It finds the unit's `BattleConditionFunction` whose `condition.Id == id`,
+calls its `Remove()` (slot 17; the only slot-17 call in the condition classes), and takes it out of
+`BattleUnitDataInfo.BattleConditionFunction` (0x28). With no function it returns without doing
+anything. It is the mirror of `Add` (0x32F5E0), which creates that function and which the add
+announcement hooks. It runs only when a function is removed, never per frame.
+
+`BattleConditionController_RemoveFunction_Patch`:
+- **Prefix:** finds the function's `Condition` for the id (none → silent: nothing is removed and no
+  add was ever announced); names it with `GetConditionName` (shared with the add patch: `MesIdName`
+  → `MessageManager.GetMessage`; empty or `"None"` → silent); silent if the unit is KO
+  (`ConditionType` 5) or Stone (11) through a condition other than the one leaving. That last rule is
+  what silences death clearing statuses: KO is already in `CurrentConditionList` when `Cancellation`
+  and the sync remove the rest. A revive removes KO itself, so it speaks "X: KO removed".
+- **Postfix:** speaks only if neither the condition nor a function with that id remains (a second
+  Image stack stays silent until the last one goes), once per (unit, id) per frame, then calls
+  `BattleConditionController_Add_Patch.Forget` so a re-application in the same turn is announced again.
+- **Battle end:** a latch in the patch, set by a prefix on `BattleEndRecoveryCondition` (0x32F890;
+  only caller `BattleController.SaveRecoveryCondition`, called from `StartWinResult`,
+  `EndEscapeFadeOut`, `StartForcedOnSave` and `<StartBattle>b__29_0`) and by a prefix on
+  `BattleController.StateChange` (0x341570) entering WinWait (7) … End (20). StateChange into
+  Init (1) … Event (6) clears it (every battle starts with `StateChange(Init)` from `StartBattle`), and
+  so does `BattleState.SetActive`. The two sources are both needed: `StartForcedOnSave` and
+  `<StartBattle>b__29_0` call `SaveRecoveryCondition` before their `StateChange`.
+
+**Names.** FF5's condition master gives Poison, Blind, Stone, Toad, Mini and Float `mes_id_name`
+"None" (read from `master_assets_all`, `condition`; also one Doom row, id 16). Follow-up (user
+decision: cures must be announced): `GetConditionName` falls back to the localized status name by
+`ConditionType` (`CharacterStatusHelper.GetConditionTypeName`) for both the add and the removal line.
+- The fallback dictionary values are now mod_text keys spoken through `T()` (24 new keys, all 12
+  languages). Their translations are the game's own words for each status, from the `system`
+  message table: MSG_SYSTEM_114 Darkness, 115 Silence, 116 Old, 117 Mini, 118 Toad, 119 Petrify,
+  121 Berserk, 122 Confuse, 123 Sleep, 124 Paralyze, 125 Slow, 126 Stop, 299 KO, 334 Poison, 415
+  Zombie, and the spell names MSG_MAGIC_NAME_23 Protect, 28 Blink, 29 Shell, 32 Reflect, 57 Regen, 59
+  Haste, 60 Float, 205 Doom. "Critical" (Dying) is the only hand translation. The target reader uses
+  the same `T()` names now; it spoke the English literals in every language before.
+- The dictionary was keyed wrongly for two statuses: Haste is `Heist` (15), not 18 (`Brave`), and
+  Protect is `Proteus` (19), not 107 (`Protectra`). Neither 18 nor 107 occurs in FF5's condition
+  table, so the target reader never listed Haste or Protect; it does now. Types absent from FF5's
+  table (13, 403, 405, 406) are dropped.
+- Types 4 (Dying, "Critical": an HP threshold) and 5 (the nameless KO row 75, which only sits in
+  condition group 900 beside the named KO row 5) get no fallback on the add/remove lines, so there is
+  no "X: Critical" at low HP and no second "X: KO".
+- The KO/Stone death filter is unchanged: Stone is type 11 (rows 11 and 98).
+- Visible change: floating enemies start battle with Float (condition 69, monster initial condition
+  607), so the add line now says "Enemy: Float" at the start of such battles, as it already did for
+  named start statuses (Reflect, Haste...).
+
+**Clean-up.** The `[Battle] value-0 view:` log line is removed. FF5 never had a "{0}: cured" key.
+"0 damage" for `HitType.Zero` is unchanged.
+
+#### Task D: Multi-hit Damage removed
+
+User decision, after the correction above: FF5's calc results never carry a hit count. Removed the mod
+menu item and its description, the `MultiHitDamage` preference, the
+`DamageViewUIManager.CreateHitCount` capture, `ReadWeaponHitCount` and the "NxM" branch, and the
+mod_text keys "Multi-hit Damage", "Total only", "With hit count" and the description. Damage always
+reads "{0}: {1} damage". An existing `MultiHitDamage` line in MelonPreferences.cfg is ignored.
+
+#### Task B: per-frame and polling sweep
+
+Converted:
+- **Bestiary minimap** (`BestiaryPatches`): the `LibraryMenuController.UpdateController` postfix (every
+  frame) compared `selectState` / `selectMapIndex` with the last frame. Now:
+  - `LibraryMenuController.ChangeState(State)` (KeyInput, 0x993E70), the only writer of `selectState`
+    (0x44), for open/close. Callers: `Show`, `<InitSetup>b__12_0`, `<UpdateMonsterList>b__17_0` (open)
+    and `<UpdateEnlargedMap>b__18_0` (close). It returns early on the same state; the patch compares
+    with its own open flag, reset with the bestiary state as the old baseline was.
+  - KeyInput `LibraryMenuHabitatController.OnContentSelected(int index, MonsterData)` (0x996ED0) for
+    the map change: `<UpdateEnlargedMap>b__18_0` calls it with the new `selectMapIndex` (0x50) right
+    after left/right. Its other caller, the list's `OnContentSelected`, is filtered by the open flag.
+- **Bestiary formation:** a 3 s `Time.deltaTime` loop calling `FindObjectOfType<ArBattleTopController>`
+  every frame until `monsterPartyList` (0xC0) filled. Now `ArBattleTopController.SetActive(bool)`
+  (0x3DE3F0; callers: `ExtraArBattleTopUi` StateInit/StateExit). `SetActive(true)` builds the list
+  itself (`InitMonsterPartyList` 0x3DC140, its only caller), so the postfix reads it directly. It is
+  gated on the bestiary as a whole, because StateInit can run inside the scene manager's `ChangeState`
+  before the formation flag is set. `ChangeMonsterParty` (0x3DBAC0) writes `selectMonsterPartyIndex`
+  (0xD0) synchronously, so its postfix reads `__instance` at once (it was one frame later, through
+  `FindObjectOfType`).
+- **Gallery and Music Player entry:** 2 s `Time.deltaTime` polls for the cached focused row. Now
+  `TryAnnounceEntry` speaks the title once, then the row queued behind it, as soon as it is readable.
+  It runs from `MenuFocusAnnouncer` (frame-bounded, first try one frame after `ChangeState(1)`, where
+  the title used to be spoken) and from `SetFocusContent` / `SetFocus` while the entry is pending. If
+  the 6-frame settle gives up, the next focus change completes it. The Music Player's arrangement toggle
+  shares the suppression flag, so the entry has its own `EntryPending` flag.
+- **Save/load popups and the game-over Load popup** (`SaveLoadPatches`, `PopupPatches`,
+  `CursorNavigationPatches`). Follow-up, same pattern as FF4.
+  - Were: a `SavePopup.UpdateCommand` postfix (every frame while a save/load/quick-save popup is up;
+    its first call after a reset did the open read) and a `GameOverLoadPopup.UpdateCommand` postfix.
+    The latter has no direct caller (`GameOverPopupController.UpdateSaveLoadPopup` calls `UpdateSelect`
+    directly), so it may never have fired.
+  - Not `SetCommandSelectCursor` either: `UpdateSelect` calls it every frame while the first command
+    is hidden (a single-button popup: the cursor is forced to 1).
+  - Open: each controller's own open hook reads the popup two frames later (title + message, then the
+    focused button, queued) and registers it:
+    - `LoadGameWindowController.SetPopupActive(true)` (title Load), popup at 0x58;
+    - `LoadWindowController` / `SaveWindowController.SetPopupActive(true)` (field Load / Save), 0x28;
+    - `InterruptionWindowController.SetEnablePopup(true)` (quick-save confirmation), 0x38;
+    - `InterruptionWindowController.InitComplite` (0x802830, quick-save completion: same SavePopup,
+      no `ResetCursor`, single "Close" button), 0x38;
+    - new: `Save.KeyInput.SaveWindowController.OverwriteConfirmInit` (0x8411B0, the overwrite
+      confirmation), view 0x30 → savePopup 0x28. It was only ever read through the per-frame hook.
+    - game over: `GameOverPopupController.InitSaveLoadPopup`, view 0x30 → loadPopup 0x18.
+  - Focused button on open: `FocusedSaveStyleIndex` applies the game's single-button rule (first
+    command hidden → index 1).
+  - Moves: `SavePopup` / `GameOverLoadPopup.<UpdateSelect>b__32_0` (0x7E1DB0 / 0x7F6D40) move
+    `selectCursor` (0x58) only through `Cursor.NextIndex` / `PrevIndex`. `NextIndex` (0x582F80) writes
+    the index (0x18) before invoking the move callback. So the cursor patches call
+    `TryReadSavePopupMove` / `TryReadGameOverLoadMove` first, matched by the open popup's cursor
+    pointer, with the same index guard.
+  - Close: `SetPopupActive(false)`, `SetEnablePopup(false)`, `Close`, and the window `SetActive(false)`
+    forget the popup.
+- **Mod dialogs** (`ConfirmationDialog`, `TextInputWindow`, `SpeakTextDelayed`): `WaitForSeconds`
+  0.1 s / 0.3 s / 0.3 s. These dated from the real-window dialogs, which had to wait for NVDA's focus
+  announcement; the dialogs are virtual now. The prompt is spoken at once. The echo ("Yes", "Confirmed:
+  X") interrupts, and the callback's result is queued behind it (`SpeakTextQueued`). Escape no longer
+  echoes "Cancelled" when the callback says its own cancellation: that was "Cancelled" twice for a
+  waypoint delete, and "Cancelled, Rename cancelled" for a text input.
+
+- **Config menu rows** (`ConfigMenuPatches`). Follow-up, same pattern as FF4. The
+  `ConfigCommandController.SetFocus` postfix ran every frame:
+  `ConfigActualDetailsControllerBase.UpdateController` (0x838F70) → `UpdateFocus` (0x8395B0) →
+  `SetFocus` on every row.
+  - Now `ConfigActualDetailsControllerBase.SelectCommand` (KeyInput, private, 0x82EA70, unique). It
+    stores `SelectedCommand` (0x20). Callers: `Initialize`, `ResetCursor`, `SetDefaultSelect`, the
+    mouse lambda and the up/down callbacks. If the row is not on screen yet, one retry a frame later.
+  - The re-announce the per-frame re-assertion used to give comes from explicit events:
+    - list focus: prefixes on KeyInput `ConfigController.InitializeSelect` (0x4B8050) and
+      `InitializeGameBoosterSetting` (0x4B7F00) clear the row guard, and their `SetDefaultSelect` →
+      `SelectCommand` reads the row (open and return from a sub-screen);
+    - title Options: prefixes on `OptionController.InitConfig` / `InitSelectLanguage` /
+      `InitSelectScreenSetting` / `InitSelectSoundSettings` (0x8619F0 / 0x8629F0 / 0x863130 /
+      0x863B50) clear it, and their postfixes read the shown list's row (settle);
+    - popup close: `PopupPatches.PopupClose_Postfix` → `AnnounceFocusedRow` (config menu only);
+    - Library exit: `ConfigBestiaryStateHandler.HandleExit` → `AnnounceFocusedRow`.
+    `AnnounceFocusedRow` is a frame-bounded settle that stands down if a focus event already read a row.
+  - Suppressed: `OptionController.SetActive` (0x865000) and `ConfigController.InitializeNone`
+    (0x4B7F90) call `ResetCursor` → `SelectCommand` on lists that are not shown (every Options page;
+    the first row on the way out), so a prefix/postfix pair sets `SuppressReads` around them.
+  - The row guard stays on the text: the list scrolls, so a row controller can be reused.
+- **Config slider values**. The old `SwitchSliderTypeProcess` postfix ran every frame: the tail of
+  `UpdateController` (0x83959F) calls `SwitchSliderTypeProcess(SelectedCommand, key None)` every frame
+  while a slider row is focused. Every value-writing method runs on that path every frame too:
+  `SetSliderValue` (0x4B5FA0) → `Slider.set_value`, and `ConfigClient.SetVolume` / `SetBrightness`. So
+  no game method signals a change by itself. Unity's `Slider.onValueChanged` fires only when the value
+  really changes, from the left/right path in the input lambda `<UpdateController>b__0`.
+  `ConfigSliderValueListener` adds one listener per slider when its row first gains focus, and reads
+  the focused row's value one frame later (`SetSliderValue` writes the text after the value). The old
+  postfix compared Il2Cpp wrappers with `ReferenceEquals`, which is never true across calls, so it
+  probably never spoke a value.
+- **Config arrow values** (`SwitchArrowSelectTypeProcess`, 0x8363B0): not per-frame. Its only
+  callers are the input lambda (on left/right) and an override, so the existing postfix stays.
+
+Kept, with the reason:
+- `Timer.Update` (`TimerPatches`): patched only while the player's timer freeze (Shift+T) is on; it
+  is the freeze.
+- `InputSystemManager.GetKeyDown/GetKey/GetKeyUp/GetAnyKey` (`InputPassthroughPatches`): the
+  controller input core.
+- EXP counter loop (`BattleResultPatches.MonitorExpCounterAnimation`, `WaitForSeconds(0.1)`): an
+  allowed audio loop. The wait is the tick that keeps the SDL Counter stream fed, not a speech delay.
+- Audio loops (`AudioLoopManager`), footsteps (`OnUpdate` → `MovementSoundPatches`), map transitions
+  (`GameStatePatches`), and `InputManager.Update` / `DetermineContext` / `ControllerRouter.Update`:
+  the allowed core.
+- `MenuFocusAnnouncer` and the fixed 1–3 frame deferrals started by an event: the content is filled
+  after the hooked method returns, and no later event marks it ready.
+- The Touch config patches (`ConfigActualDetailsTouch_*`): the Touch config UI is never
+  instantiated on PC, so they never run. Left as they were.
+
+Also in the follow-up: `NamingPatches` spoke "Name: {characterName}" as an English literal; it now
+goes through `T("Name: {0}")` (new key, 12 languages).
+
+Checked and not per-frame, although an `Update*` method is among the callers: `MapUIManager.SwitchLandable`
+(per tile, from `UpdateStateSwitchLandable` ← `ChangeTransportation` / `OnScriptFinished` /
+`OnPlayerFootMonitoringFinished`), `ExtraLibraryField.NextMap/PreviousMap` (input branches),
+`BattlePauseController.SetCommandSelectCursor`, `BattleCommandSelectController.SetCommandData`
+(`TargetSelectUpdate` cancel branch), `CheatSettingsClient.SetIsEnableEncount` / `ConfigClient.SetIsAutoDash`
+(the toggle key), `OptionController.SetActive` (exit branch), `BattleTargetSelectController.SelectContent`
+(move callbacks and the roulette animations), `MainMenuController.Close` (cancel branches).
+`FieldPlayer.ChangeMoveState` is called repeatedly only by the sliding-floor gimmick, and the patch
+returns on an unchanged state.
+
+#### Task C: double-fix audit of 27daf0e and bfca299
+
+- First ally target (`PlayerInit` settle read) against ally `SelectContent`: a single `(mode, index)`
+  guard. `ShowWindow` resets it and runs before `PlayerInit`; allies have no `SelectContent` on open.
+  No double.
+- Battle back-out (`SetCommandData` → `RequestFocusedRead`) against `SetCursor`: the same index guard;
+  whichever speaks first wins. No double.
+- Battle I key gate: key-driven only. No overlap.
+- Damage-view draw rules against the new removal lines: different facts. A revive reads "X: Recovered
+  N HP" (the view) and "X: KO removed" (the condition), as the spec asks.
+- F1/F3 from the game's setters against movement speech: walk↔dash changes are not spoken by
+  `MoveStateHelper`. No double.
+- Title "Press any button", line-fade text, location banner: one path each.
+- Equip and status LB/RB: guarded (slot index guard; status character pointer).
+- Controller sync: `ControllerRouter.OpenModMenu` / `CloseModMenu` still set `State` before
+  `ModMenu.Open` / `Close`, which now set it themselves, and `HandleModMenuState` still self-heals
+  when the menu is closed. These are redundant but silent, and kept as defensive state writes (they
+  cover `Open`/`Close` returning early).
+- Found in the sweep (older than both commits): Escape in the waypoint delete dialog said "Cancelled"
+  twice. Fixed in Task B.

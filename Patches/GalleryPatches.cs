@@ -23,13 +23,45 @@ namespace FFV_ScreenReader.Patches
         public static IntPtr CachedFocusedPtr { get; set; } = IntPtr.Zero;
         public static int PreviousState { get; set; } = 0;
 
+        // Entry read: "Gallery" spoken, focused item not read yet.
+        public static bool TitleSpoken { get; set; } = false;
+
         public static void ClearState()
         {
             IsInGallery = false;
             SuppressContentChange = false;
             CachedFocusedPtr = IntPtr.Zero;
             PreviousState = 0;
+            TitleSpoken = false;
             MenuStateRegistry.Reset(MenuStateRegistry.GALLERY);
+        }
+
+        /// <summary>
+        /// The gallery entry read: "Gallery" once, then the focused item queued behind it as soon as
+        /// the item SetFocusContent cached is readable. Returns true once the item is spoken (the
+        /// entry is complete and suppression ends). Driven by MenuFocusAnnouncer from ChangeState
+        /// and, for a late or slow list, by SetFocusContent itself.
+        /// </summary>
+        internal static bool TryAnnounceEntry()
+        {
+            if (!SuppressContentChange) return true;
+
+            if (!TitleSpoken)
+            {
+                FFV_ScreenReaderMod.SpeakText(T("Gallery"), true);
+                TitleSpoken = true;
+            }
+
+            IntPtr focusedPtr = CachedFocusedPtr;
+            if (focusedPtr == IntPtr.Zero ||
+                !GalleryReader.ReadContentFromPointer(focusedPtr, out int number, out string name))
+                return false;
+
+            string entry = GalleryReader.ReadListEntry(number, name);
+            if (!string.IsNullOrEmpty(entry))
+                FFV_ScreenReaderMod.SpeakText(entry, false);
+            SuppressContentChange = false;
+            return true;
         }
     }
 
@@ -52,8 +84,12 @@ namespace FFV_ScreenReader.Patches
                         {
                             GalleryStateTracker.IsInGallery = true;
                             GalleryStateTracker.SuppressContentChange = true;
+                            GalleryStateTracker.TitleSpoken = false;
                             MenuStateRegistry.SetActiveExclusive(MenuStateRegistry.GALLERY);
-                            CoroutineManager.StartManaged(AnnounceGalleryEntry());
+                            // Frame-bounded settle, not a timer: the first try is one frame after
+                            // the state change (where "Gallery" used to be spoken), and it stops the
+                            // moment the item is read. It replaced a 2 s Time.deltaTime poll.
+                            MenuFocusAnnouncer.Request("Gallery", GalleryStateTracker.TryAnnounceEntry);
                         }
                         // Returning from Details (state 2) needs nothing: SetFocusContent fires
                         // again on the way back and is the sole announcer for the list entry.
@@ -74,40 +110,6 @@ namespace FFV_ScreenReader.Patches
             {
                 MelonLogger.Warning($"[Gallery] Error in ChangeState patch: {ex.Message}");
             }
-        }
-
-        private static IEnumerator AnnounceGalleryEntry()
-        {
-            yield return null;
-            FFV_ScreenReaderMod.SpeakText(T("Gallery"), true);
-
-            float elapsed = 0f;
-            while (elapsed < 2f)
-            {
-                yield return null;
-                elapsed += Time.deltaTime;
-
-                try
-                {
-                    IntPtr focusedPtr = GalleryStateTracker.CachedFocusedPtr;
-                    if (focusedPtr != IntPtr.Zero &&
-                        GalleryReader.ReadContentFromPointer(focusedPtr, out int number, out string name))
-                    {
-                        string entry = GalleryReader.ReadListEntry(number, name);
-                        if (!string.IsNullOrEmpty(entry))
-                            FFV_ScreenReaderMod.SpeakText(entry, false);
-                        GalleryStateTracker.SuppressContentChange = false;
-                        yield break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MelonLogger.Warning($"[Gallery] Error announcing entry item: {ex.Message}");
-                    break;
-                }
-            }
-
-            GalleryStateTracker.SuppressContentChange = false;
         }
 
     }
@@ -138,7 +140,11 @@ namespace FFV_ScreenReader.Patches
 
                 if (GalleryStateTracker.SuppressContentChange)
                 {
+                    // Entry still pending: cache the item and complete the entry read now ("Gallery"
+                    // first if the settle has not said it yet). If the item is not readable yet, the
+                    // settle retries; if that gives up, the next focus change completes it.
                     GalleryStateTracker.CachedFocusedPtr = ptr;
+                    GalleryStateTracker.TryAnnounceEntry();
                     return;
                 }
 

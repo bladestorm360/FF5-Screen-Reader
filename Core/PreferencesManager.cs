@@ -37,9 +37,6 @@ namespace FFV_ScreenReader.Core
         // Enemy HP display mode (0=Numbers, 1=Percentage, 2=Hidden)
         private static MelonPreferences_Entry<int> prefEnemyHPDisplay;
 
-        // Multi-hit damage display (0=Total only, 1=With hit count "14x1552 damage")
-        private static MelonPreferences_Entry<int> prefDamageDisplay;
-
         /// <summary>
         /// Initialize all preferences. Call once during OnInitializeMelon.
         /// </summary>
@@ -69,10 +66,8 @@ namespace FFV_ScreenReader.Core
             prefExpCounterVolume = prefsCategory.CreateEntry<int>("ExpCounterVolume", 50, "EXP Counter Volume", "Volume for EXP counter beep (0-100)");
 
             prefEnemyHPDisplay = prefsCategory.CreateEntry<int>("EnemyHPDisplay", 0, "Enemy HP Display", "0=Numbers, 1=Percentage, 2=Hidden");
-            // Stored as "MultiHitDamage" (default: with hit count) rather than the old off-by-default
-            // "DamageDisplay", which MelonPreferences had already written into every install, so the
-            // hit count is announced once after updating; choosing "Total only" afterwards sticks.
-            prefDamageDisplay = prefsCategory.CreateEntry<int>("MultiHitDamage", 1, "Multi-hit Damage", "0=Total only, 1=With hit count (e.g. 14x1552 damage)");
+            // No multi-hit damage setting: FF5's calc results never carry a hit count (see
+            // docs/debug.md, "Correction (2026-09-23, session 2)"), so damage is always the total.
         }
 
         #region Toggle Getters (saved preference values — single source of truth)
@@ -102,7 +97,6 @@ namespace FFV_ScreenReader.Core
         public static int LandingPingVolume => prefLandingPingVolume?.Value ?? 50;
         public static int ExpCounterVolume => prefExpCounterVolume?.Value ?? 50;
         public static int EnemyHPDisplay => prefEnemyHPDisplay?.Value ?? 0;
-        public static int DamageDisplay => prefDamageDisplay?.Value ?? 1;
 
         #endregion
 
@@ -127,7 +121,6 @@ namespace FFV_ScreenReader.Core
         public static void SetLandingPingVolume(int value) => SetIntPreference(prefLandingPingVolume, value, 0, 100);
         public static void SetExpCounterVolume(int value) => SetIntPreference(prefExpCounterVolume, value, 0, 100);
         public static void SetEnemyHPDisplay(int value) => SetIntPreference(prefEnemyHPDisplay, value, 0, 2);
-        public static void SetDamageDisplay(int value) => SetIntPreference(prefDamageDisplay, value, 0, 1);
 
         #endregion
 
