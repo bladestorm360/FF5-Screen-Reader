@@ -56,7 +56,7 @@ git push ff5-screen-reader V<version>
 
 Remote name is `ff5-screen-reader` (not `origin`). Default branch is `master`. Verify with `git remote -v` if unsure. Push `master` first so the branch points at the released commit (otherwise the tagged commit only reaches the remote via the tag ref, leaving remote `master` behind HEAD). Then push the tag.
 
-This is the **only** step in the release procedure that pushes `master` — and it's only authorized here, on the commit being tagged. Never push `master` outside of a release without an explicit ask.
+Pushing `master` outside a release is also fine (CLAUDE.md, user 2026-09-24). Tags are only created and pushed here, on the commit being released.
 
 ### 5. Draft the changelog
 
