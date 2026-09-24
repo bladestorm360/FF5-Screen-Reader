@@ -1871,3 +1871,15 @@ returns on an unchanged state.
   cover `Open`/`Close` returning early).
 - Found in the sweep (older than both commits): Escape in the waypoint delete dialog said "Cancelled"
   twice. Fixed in Task B.
+
+**Spanish wind drake labels (coordinator, commit bcab4a2).** The 26 Spanish 飛竜 labels said
+"Viverna…" or "vibora alada…". The game's own Spanish uses:
+- "Dragón": the speaker name (`story_cha` E0096 / N042);
+- "dragón del viento": in dialogue and in place names (`MSG_MAP_NAME_19` "Torre del Dragón del
+  viento", `MSG_KEY_INF_06`);
+- "Guiverno": only its vehicle name (`MSG_SYSTEM_392`, next to Boko / Chocobo negro / Barco), which
+  the mod reads from the game at runtime.
+
+The labels now say "Dragón del viento (cuerpo)" etc., which keeps the wind drake distinct from other
+dragons in the entity list. The bare 飛竜 key stays "Dragón". `translation.generated.json` is still
+byte-identical.
