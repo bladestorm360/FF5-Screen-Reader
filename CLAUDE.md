@@ -23,6 +23,7 @@ Screen-reader/accessibility mod for FF5 Remaster. MelonLoader + Harmony patches 
 - **Never edit** game or reference mod folders
 - No duplicates — reference existing code
 - **Build**: Always use `ff5/ff5-screen-reader/build_and_deploy.bat`
+- **Git: commit and push allowed** — it is OK for Claude to commit and push to this repo's remote (`ff5-screen-reader`, github.com/bladestorm360/FF5-Screen-Reader, branch `master`) without asking first (user, 2026-09-24)
 - **PowerShell scripts**: `ModMap.ps1`, `FindMainClass.ps1`, `ExtractCode.ps1`
 
 ## Syntax Rules
