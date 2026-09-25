@@ -62,6 +62,19 @@ namespace FFV_ScreenReader.Core
         private static bool leftTriggerWasActive = false;
         private static bool wasLeftStickActive = false;
 
+        // --- Field stick clicks (see UpdateStickClicks) ---
+        private static int stickClickButton = -1;   // the stick click being tracked, -1 if none
+        private static bool stickChordFired;        // L3+R3 already toggled during this press
+
+        // Synthetic press handed to the game for a lone stick click while Stick Click
+        // Normalization is on: "down" (GetKeyDown + GetKey) on the frame the click resolves,
+        // "up" (GetKeyUp) on the next frame. Read by InputPassthroughPatches.
+        private static int pulseButton = -1;
+        private static bool pulseDownPhase;
+
+        public static bool IsStickPulseDown(int btn) => btn >= 0 && btn == pulseButton && pulseDownPhase;
+        public static bool IsStickPulseUp(int btn) => btn >= 0 && btn == pulseButton && !pulseDownPhase;
+
         /// <summary>
         /// FF5-specific battle check. Mirrors the per-game battle helper from FF1's router.
         /// </summary>
@@ -112,6 +125,9 @@ namespace FFV_ScreenReader.Core
             // State transitions (Start → mod menu, Back → mod mode)
             HandleStateTransitions();
 
+            // Field L3 / R3 and the L3+R3 chord
+            UpdateStickClicks();
+
             // Route inputs based on current state
             switch (State)
             {
@@ -145,6 +161,11 @@ namespace FFV_ScreenReader.Core
         {
             if (State == ControllerState.ModMode)
                 Reset();
+
+            // A stick click or synthetic press in flight must not carry over to a reconnect.
+            stickClickButton = -1;
+            stickChordFired = false;
+            pulseButton = -1;
         }
 
         /// <summary>
@@ -333,26 +354,7 @@ namespace FFV_ScreenReader.Core
             var mod = FFV_ScreenReaderMod.Instance;
             if (mod == null) return;
 
-            // When Stick Click Normalization is ON, R3/L3 fall through to the game (encounter
-            // toggle / auto-dash). Mod functions move to MOD_MODE. When OFF, mod handles them.
-            if (!FFV_ScreenReaderMod.StickClickNormalizationEnabled)
-            {
-                // R3 → toggle pathfinding filter
-                if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_RIGHT_STICK))
-                {
-                    ConsumeButton(SDL3.SDL_GAMEPAD_BUTTON_RIGHT_STICK);
-                    mod.TogglePathfindingFilter();
-                    return;
-                }
-
-                // L3 → toggle beacon navigation mode
-                if (GamepadManager.IsButtonPressed(SDL3.SDL_GAMEPAD_BUTTON_LEFT_STICK))
-                {
-                    ConsumeButton(SDL3.SDL_GAMEPAD_BUTTON_LEFT_STICK);
-                    mod.ToggleAudioBeacons();
-                    return;
-                }
-            }
+            // L3 / R3 are handled by UpdateStickClicks.
 
             // Interrupt speech on any navigation input
             bool leftStickActive = GamepadManager.LeftStickX != 0f || GamepadManager.LeftStickY != 0f;
@@ -439,6 +441,75 @@ namespace FFV_ScreenReader.Core
             }
             // Note: BattleResultNavigator handles its own input via GamepadManager polling
             // (keyboard + controller) when open; SuppressGameInput keeps the game from seeing input.
+        }
+
+        // =====================================================================
+        // Field stick clicks — L3, R3 and the L3+R3 chord
+        // =====================================================================
+
+        /// <summary>
+        /// A stick click that starts in NORMAL on the active field is resolved on RELEASE, so both
+        /// clicks together can make the L3+R3 chord without the first acting alone. The chord
+        /// toggles Stick Click Normalization whatever its value. A lone click then does its job:
+        /// normalization off → L3 beacon navigation, R3 pathfinding filter; on → the click goes to
+        /// the game as a one-frame press (encounters / dash). Both clicks are consumed from the
+        /// first press until both are up, and act only if the player is still on the field in
+        /// NORMAL. Mod mode and every other screen keep their own stick-click handling.
+        /// </summary>
+        private static void UpdateStickClicks()
+        {
+            // Retire the previous synthetic press: down → up → none.
+            if (pulseButton >= 0)
+            {
+                if (pulseDownPhase) pulseDownPhase = false;
+                else pulseButton = -1;
+            }
+
+            const int L3 = SDL3.SDL_GAMEPAD_BUTTON_LEFT_STICK;
+            const int R3 = SDL3.SDL_GAMEPAD_BUTTON_RIGHT_STICK;
+
+            if (stickClickButton < 0)
+            {
+                bool l3Down = GamepadManager.IsButtonPressed(L3);
+                if (!l3Down && !GamepadManager.IsButtonPressed(R3)) return;
+                if (State != ControllerState.Normal || !IsFieldActive) return;
+
+                stickClickButton = l3Down ? L3 : R3;
+                stickChordFired = false;
+            }
+
+            ConsumeButton(L3);
+            ConsumeButton(R3);
+
+            bool l3Held = GamepadManager.IsButtonHeld(L3);
+            bool r3Held = GamepadManager.IsButtonHeld(R3);
+            bool canAct = State == ControllerState.Normal && IsFieldActive;
+
+            if (l3Held && r3Held)
+            {
+                if (!stickChordFired && canAct)
+                {
+                    stickChordFired = true;
+                    FFV_ScreenReaderMod.ToggleStickClickNormalization();
+                }
+                return;
+            }
+            if (l3Held || r3Held) return;
+
+            // Both up: the press is over.
+            int button = stickClickButton;
+            stickClickButton = -1;
+            if (stickChordFired || !canAct) return;
+
+            if (FFV_ScreenReaderMod.StickClickNormalizationEnabled)
+            {
+                pulseButton = button;
+                pulseDownPhase = true;
+            }
+            else if (button == L3)
+                FFV_ScreenReaderMod.Instance?.ToggleAudioBeacons();
+            else
+                FFV_ScreenReaderMod.Instance?.TogglePathfindingFilter();
         }
 
         // =====================================================================

@@ -158,20 +158,31 @@ namespace FFV_ScreenReader.Patches
         // SDL → InputActionType mapping (pressed/held/released)
         // =====================================================================
 
+        // A field stick click reaches the game as a synthetic press once it resolves as a lone
+        // click (ControllerRouter.UpdateStickClicks); the raw button is consumed until then.
         private static bool GetSDLKeyDown(int actionType)
         {
-            return CheckSDL(actionType, GamepadManager.IsButtonPressed, true);
+            return CheckSDL(actionType, GamepadManager.IsButtonPressed, true)
+                || ControllerRouter.IsStickPulseDown(StickButtonFor(actionType));
         }
 
         private static bool GetSDLKeyHeld(int actionType)
         {
-            return CheckSDL(actionType, GamepadManager.IsButtonHeld, false);
+            return CheckSDL(actionType, GamepadManager.IsButtonHeld, false)
+                || ControllerRouter.IsStickPulseDown(StickButtonFor(actionType));
         }
 
         private static bool GetSDLKeyReleased(int actionType)
         {
-            return CheckSDL(actionType, GamepadManager.IsButtonReleased, true);
+            return CheckSDL(actionType, GamepadManager.IsButtonReleased, true)
+                || ControllerRouter.IsStickPulseUp(StickButtonFor(actionType));
         }
+
+        /// <summary>SDL button behind a stick-click action, or -1 for any other action.</summary>
+        private static int StickButtonFor(int actionType) =>
+            actionType == ACTION_STICK_L ? SDL3.SDL_GAMEPAD_BUTTON_LEFT_STICK
+            : actionType == ACTION_STICK_R ? SDL3.SDL_GAMEPAD_BUTTON_RIGHT_STICK
+            : -1;
 
         /// <summary>
         /// Maps an InputActionType to SDL button(s) and checks the state.

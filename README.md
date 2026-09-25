@@ -143,5 +143,7 @@ On the field the right stick drives the entity scanner instead (up/down cycle en
 
 #### Stick clicks (Stick Click Normalization in the mod menu)
 
+- Both stick clicks together, on the field: toggle Stick Click Normalization, whichever way it is set. Press both sticks in at once; nothing else happens.
+- On the field a single stick click acts when you let go of it, so that it can be part of the two-stick chord.
 - Off (default): the left stick click toggles audio beacons, the right stick click toggles the pathfinding filter.
 - On: the stick clicks go to the game (walk/run and encounters, announced as above); press the mod button first to reach the mod functions.
