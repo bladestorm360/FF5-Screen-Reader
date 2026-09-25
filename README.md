@@ -141,9 +141,12 @@ On the field the right stick drives the entity scanner instead (up/down cycle en
 - On the field, Square/X reads Gil, Triangle/Y reads your location, Cross/A reads walk, run or vehicle, and the right stick teleports.
 - In battle or dialogue, right stick down while in mod mode lists what the current buttons do (on the field the right stick teleports instead). The mod button cancels mod mode.
 
-#### Stick clicks (Stick Click Normalization in the mod menu)
+#### Stick clicks (L3 and R3)
 
-- Both stick clicks together, on the field: toggle Stick Click Normalization, whichever way it is set. Press both sticks in at once; nothing else happens.
-- On the field a single stick click acts when you let go of it, so that it can be part of the two-stick chord.
-- Off (default): the left stick click toggles audio beacons, the right stick click toggles the pathfinding filter.
-- On: the stick clicks go to the game (walk/run and encounters, announced as above); press the mod button first to reach the mod functions.
+Stick Click Normalization in the mod menu decides what the stick clicks do. It is off by default.
+
+- L3 + R3 together, on the field: turn Stick Click Normalization on or off, whichever way it is set. Press both sticks in at once. You hear "Stick click normalization on" or "off", and nothing else happens.
+- On the field, a single stick click acts when you let go of it, so that it can be part of the L3 + R3 chord.
+- Normalization off: L3 toggles beacon navigation and R3 toggles the pathfinding filter.
+- Normalization on: L3 and R3 go to the game. L3 toggles walk/run and R3 toggles random encounters. The mod toggles move to mod mode: press Back/Select, then L3 for beacon navigation or R3 for the pathfinding filter.
+- Off the field, a stick click goes straight to the game.

@@ -160,6 +160,7 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | Naming screen "Name: X" | Now through `T()` |
 | Kept per-frame, by decision | `Timer.Update` (only while timer freeze is on), input passthrough, EXP counter feed tick. Reasons in `docs/debug.md` |
 | L3+R3 chord toggles Stick Click Normalization (2026-09-25, ported from FF1) | Done, **not yet verified**. Field stick clicks resolve on release; with normalization on, a lone click reaches the game as a synthetic one-frame press. Details in `docs/debug.md` → "L3+R3 chord (2026-09-25)" |
+| Beacon wording matches FF1 (2026-09-25): "Beacon navigation on/off", mod-menu row "Beacon Navigation" | Done, **not yet verified** |
 
 ## Documentation
 - **CLAUDE.md** — Rules, syntax, directory structure

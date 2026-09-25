@@ -181,7 +181,7 @@ namespace FFV_ScreenReader.Core
             else
                 StopBeaconLoop();
 
-            FFV_ScreenReaderMod.SpeakText(string.Format(T("Audio beacons {0}"), newValue ? T("on") : T("off")));
+            FFV_ScreenReaderMod.SpeakText(string.Format(T("Beacon navigation {0}"), newValue ? T("on") : T("off")));
         }
 
         public void ToggleLandingPings()

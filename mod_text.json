@@ -524,6 +524,16 @@
     "de": "Audio-Signale {0}", "es": "Balizas de audio {0}", "ko": "오디오 비콘 {0}", "zht": "音訊信標 {0}",
     "zhc": "音频信标 {0}", "ru": "Звуковые маяки {0}", "th": "สัญญาณเสียง {0}", "pt": "Sinais de áudio {0}"
   },
+  "Beacon navigation {0}": {
+    "en": "Beacon navigation {0}", "ja": "ビーコンナビ {0}", "fr": "Navigation par balises {0}", "it": "Navigazione a segnali {0}",
+    "de": "Navigation per Signal {0}", "es": "Navegación con balizas {0}", "ko": "비콘 길안내 {0}", "zht": "信標導引 {0}",
+    "zhc": "信标导引 {0}", "ru": "Навигация по маякам {0}", "th": "การนำทางด้วยบีคอน {0}", "pt": "Navegação por sinais {0}"
+  },
+  "Beacon Navigation": {
+    "en": "Beacon Navigation", "ja": "ビーコンナビ", "fr": "Navigation par balises", "it": "Navigazione a segnali",
+    "de": "Navigation per Signal", "es": "Navegación con balizas", "ko": "비콘 길안내", "zht": "信標導引",
+    "zhc": "信标导引", "ru": "Навигация по маякам", "th": "การนำทางด้วยบีคอน", "pt": "Navegação por sinais"
+  },
   "EXP counter {0}": {
     "en": "EXP counter {0}", "ja": "経験値カウンター {0}", "fr": "Compteur EXP {0}", "it": "Contatore EXP {0}",
     "de": "EXP-Zähler {0}", "es": "Contador de EXP {0}", "ko": "경험치 카운터 {0}", "zht": "經驗值計數器 {0}",

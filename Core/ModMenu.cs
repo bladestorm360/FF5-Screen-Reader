@@ -171,7 +171,7 @@ namespace FFV_ScreenReader.Core
                     () => PreferencesManager.FootstepsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleFootsteps(),
                     "Plays a click for each tile you move on foot."),
-                new ToggleItem("Audio Beacons",
+                new ToggleItem("Beacon Navigation",
                     () => PreferencesManager.AudioBeaconsEnabled,
                     () => FFV_ScreenReaderMod.Instance?.ToggleAudioBeacons(),
                     "Pings the selected entity or waypoint, panned toward it and faster as you get closer. A lower pitch means there is no path. While on, backslash and P restart the beacon instead of reading directions."),

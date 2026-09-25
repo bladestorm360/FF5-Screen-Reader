@@ -1908,6 +1908,10 @@ the existing "Stick Click Normalization on/off" keys; no new mod_text.
   mode) or a menu or battle opening mid-press cancels it. Mod mode keeps its own Back + L3/R3
   (normalization on). Off the field, stick clicks go to the game unchanged.
 - `OnGamepadRemoved` (controller unplugged) clears the tracked click and any pending pulse.
+- **Parity wording (2026-09-25):** `AudioLoopManager.ToggleAudioBeacons` now says "Beacon navigation
+  on/off" (new key `Beacon navigation {0}`) and the mod-menu row is "Beacon Navigation" (new key; menu
+  labels are mod_text keys translated when spoken, so modtext_check does not see it), as in FF1, FF2
+  and FF4. The old `Audio beacons {0}` / `Audio Beacons` keys are unused.
 
 In-game checks:
 1. Field, normalization off: L3 → "Beacon navigation on/off"; R3 → "Pathfinding filter on/off", each
