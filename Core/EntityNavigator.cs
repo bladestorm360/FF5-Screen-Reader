@@ -182,6 +182,9 @@ namespace FFV_ScreenReader.Core
             
             cache.OnEntityAdded += HandleEntityAdded;
             cache.OnEntityRemoved += HandleEntityRemoved;
+
+            // One entry per vehicle trigger pad (always on)
+            cache.EnableGroupingStrategy(new VehiclePadGroupingStrategy());
             
             RebuildNavigationList();
         }

@@ -1989,6 +1989,14 @@ validity check; the pathfinding filter lets a vehicle-hidden entity through (it 
 boarding the vehicle, not by walking). Inside the catapult, "World Map" (`sc_20231_7_to_world`) is
 the launch; it was already listed.
 
+**One entry per pad** (user, 2026-10-03, for the FF4 Underworld pads; applied to every vehicle pad
+for parity). Each pad tile is its own map object with the same name: each catapult is 3×3, Zeza's
+fleet 16 tiles around the ships. `Core/Filters/VehiclePadGroupingStrategy` (always on, enabled in
+the `EntityNavigator` constructor) keys every TransportationEventAction `EventEntity` on its raw
+developer name; the `EntityCache` grouping makes one `GroupEntity` whose position and name are the
+nearest present tile. In the map data every such name is one place per map (checked across FF1–FF5
+with `FFPR/tools/mapdump`), so the key never joins two places.
+
 **Scenery removed.** `FieldEntityState.IsScenery`: an Event, Entity, AnimEntity,
 TransportationEventAction or RandomEvent whose `PropertyEvent` has `ActionId` 0, `ScriptId` 0 and no
 `PropertyTalk.MessageKey` does nothing when checked or touched, and `EntityFactory` skips it after
@@ -2008,8 +2016,8 @@ In-game checks:
 1. Regole pub: the piano behind the hidden passage now gets directions, and following them reaches it.
 2. Castle of Bal, Dragon Grass scene: the wind drake is listed as "Interactive Object".
 3. A normal target on a passage map gives the same directions as before.
-4. First world after the catapult opens, on foot: Events lists "Enter the Catapult" (nine tiles),
-   even with the pathfinding filter on. Fly the airship over it and land: the catapult scene starts.
+4. First world after the catapult opens, on foot: Events lists "Enter the Catapult" once, even
+   with the pathfinding filter on. Fly the airship over it and land: the catapult scene starts.
    Inside, "World Map" is listed and launches.
 5. Decorative objects are gone from Events (castle and fleet sprites on the world map, door
    collisions, bed parts, speech bubbles); switches, books, pianos and anything that reacts stay.
