@@ -2043,5 +2043,19 @@
     "en": "Closes the mod menu and returns to the game.", "ja": "Modメニューを閉じてゲームに戻ります。", "fr": "Ferme le menu mod et revient au jeu.", "it": "Chiude il menu mod e torna al gioco.",
     "de": "Schließt das Mod-Menü und kehrt zum Spiel zurück.", "es": "Cierra el menú de mod y vuelve al juego.", "ko": "모드 메뉴를 닫고 게임으로 돌아갑니다.", "zht": "關閉Mod選單並返回遊戲。",
     "zhc": "关闭Mod菜单并返回游戏。", "ru": "Закрывает меню мода и возвращает в игру.", "th": "ปิดเมนูม็อดและกลับไปที่เกม", "pt": "Fecha o menu do mod e volta ao jogo."
+  },
+  "Interactive Object": {
+    "en": "Interactive Object",
+    "ja": "調べられる物",
+    "fr": "Objet interactif",
+    "it": "Oggetto interattivo",
+    "de": "Interaktives Objekt",
+    "es": "Objeto interactivo",
+    "ko": "조사 가능한 물체",
+    "zht": "可調查物品",
+    "zhc": "可调查物品",
+    "ru": "Интерактивный объект",
+    "th": "สิ่งของที่ตรวจสอบได้",
+    "pt": "Objeto interativo"
   }
 }

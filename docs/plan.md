@@ -36,6 +36,11 @@ Accessibility mod for FF5 Pixel Remaster. MelonLoader + Harmony patches hook Il2
 | All menus (cursor, item, equip, job, ability, config, shop, save, title) | Done |
 | Battle (commands, targets, messages, results, abilities) | Done |
 | Field navigation (entities, filters, grouping, waypoints) | Done |
+| Pathfinding through hidden passages (retry with the map's passages open when no ordinary path exists; 37 targets on 40 sub-maps) | Done 2026-10-03, **not yet verified in game** (debug.md "Hidden passages and event coverage") |
+| Unnamed interactive objects listed as "Interactive Object" (Castle of Bal wind drake, Castle Tycoon talk point); offline audit of every map object finds no other playable event missing | Done 2026-10-03, **not yet verified in game** |
+| Vehicle-only events listed while the game hides them for another vehicle (the catapult, Zeza's fleet, the Rift by black chocobo, …); they pass the pathfinding filter | Done 2026-10-03, **not yet verified in game** |
+| Scenery (no action, no script, no message) no longer listed as events (868 objects) | Done 2026-10-03, **not yet verified in game** |
+| Vehicle route searcher (`VehicleRouteSearcher`) | Removed 2026-10-03 at the user's request (did not work); vehicles use the game's searcher |
 | Audio system (wall tones, footsteps, beacons, landing pings, ModMenu) | Done (WaveOut backend, volume rebalanced) |
 | Vehicles (state announcements, landing detection, entity tracking) | Done |
 | Popups (common, game over, save/load, naming, info, job change, save complete) | Done |

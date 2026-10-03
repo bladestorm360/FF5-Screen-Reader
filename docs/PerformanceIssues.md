@@ -37,3 +37,25 @@ Still per-frame, on purpose:
 | `InputSystemManager.GetKey*` postfixes | Controller passthrough / game-input suppression (input core). |
 | `MonitorExpCounterAnimation` (0.1 s tick) | Allowed audio loop: feeds the SDL Counter stream while the EXP bar counts. |
 | `InputManager.DetermineContext` | Input context for the controller router and the audio gate; cache-only reads (no `FindObjectOfType`). `IsScreenFading` still goes through reflection. |
+
+## Hidden-passage retry (2026-10-03)
+
+`FindPathTo` repeats its on-foot search (target plus eight neighbours, three layers each: at most 27
+`MapRouteSearcher.Search` calls) once with the map's hidden passages open, but only when the first
+pass found nothing and only on the 40 sub-maps that have passages. On those maps an unreachable
+target costs up to twice the searches it did before (the pathfinding filter and the beacon loop call
+`FindPathTo`); every other map and every reachable target costs the same as before. The grid swap
+itself is two reference assignments.
+
+## Vehicle route searcher removed (2026-10-03)
+
+The world-map attribute grid (a 256×256 scan, about 17 ms, built on every world-map load) and the
+vehicle flood search are gone with `VehicleRouteSearcher`. Riding now costs what walking costs: the
+game's `MapRouteSearcher`.
+
+## Entity presence and scenery checks (2026-10-03)
+
+`FieldEntityState.IsPresent` adds, for an inactive entity only, a parent check, the target-vehicle
+list count and two int field reads. `IsScenery` adds up to three `TryCast` calls per entity. A
+skipped scenery object is not cached, so like every other skipped object it is re-checked on each
+scan (each navigation keypress): a few dozen casts on a busy map. Neither runs per frame.

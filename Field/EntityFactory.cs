@@ -15,9 +15,11 @@ namespace FFV_ScreenReader.Field
             if (fieldEntity == null || fieldEntity.transform == null)
                 return null;
 
+            // Inactive entities are skipped, except vehicle-only triggers the game hides while the
+            // player is in another vehicle (FieldEntityState.IsHiddenByVehicle)
             try
             {
-                if (fieldEntity.gameObject == null || !fieldEntity.gameObject.activeInHierarchy)
+                if (fieldEntity.gameObject == null || !FieldEntityState.IsPresent(fieldEntity))
                     return null;
             }
             catch
@@ -47,6 +49,10 @@ namespace FFV_ScreenReader.Field
             }
 
             if (IsNonInteractiveType(objectType))
+                return null;
+
+            // Scenery: events and map objects with no action, script or message
+            if (FieldEntityState.IsScenery(fieldEntity))
                 return null;
 
             NavigableEntity entity = CreateEntityByType(fieldEntity, objectType);
@@ -193,10 +199,38 @@ namespace FFV_ScreenReader.Field
 
                 default:
                     // Filter any remaining placeholder entities
-                    if (IsPlaceholderEntity(entityName))
+                    if (IsPlaceholderEntity(entityName) && !IsUnnamedInteractive(fieldEntity, entityName))
                         return null;
                     return new EventEntity { GameEntity = fieldEntity };
             }
+        }
+
+        // PropertyEvent.ActionId values in the map data (Tiled action_id)
+        private const int ActionRunScript = 2;
+        private const int ActionShowMessage = 4;
+
+        /// <summary>
+        /// An object with no developer label that still does something when checked: it runs a
+        /// script (action 2) or shows a message (action 4). The empty name used to filter these
+        /// as placeholders, which dropped the wind drake in Castle of Bal (the Dragon Grass
+        /// scene) and a talk point in Castle Tycoon. EventEntity names them "Interactive Object".
+        /// </summary>
+        private static bool IsUnnamedInteractive(FieldEntity fieldEntity, string entityName)
+        {
+            if (!string.IsNullOrWhiteSpace(entityName))
+                return false;
+            try
+            {
+                var ev = fieldEntity.Property?.TryCast<PropertyEvent>();
+                if (ev == null)
+                    return false;
+                if (ev.ActionId == ActionRunScript)
+                    return ev.ScriptId != 0;
+                if (ev.ActionId == ActionShowMessage)
+                    return !string.IsNullOrEmpty(ev.TryCast<PropertyTalk>()?.MessageKey);
+            }
+            catch { } // IL2CPP cast can fail on a destroyed entity
+            return false;
         }
     }
 }

@@ -941,6 +941,14 @@ NativeMethodInfoPtr_Last_Map_IEventAccessor_EventEncountBoss_Private_Virtual_Fin
 
 ## Routing architecture (2026-07-26)
 
+> **2026-10-03: the vehicle route searcher is removed** (user: "ff5 vehicle routing is not
+> working anyway and should be removed, leaving existing pathfinding as is").
+> `Field/Routing/VehicleRouteSearcher.cs`, `FindPathTo`'s riding branch (`TryVehicleRoute`), the
+> world-map attribute-grid pre-build and its invalidation in `GameStatePatches`, and the
+> map/loop/diagonal helpers in `RoutingAdapter` are gone. Riding now uses the game's
+> `MapRouteSearcher`, like walking. Breadcrumb chaining (on foot, `PathSearchMode.Full`) and
+> landing pings are unchanged. The vehicle-searcher parts below are kept as history.
+
 ### The two limits that forced a mod-owned searcher
 
 `MapRouteSearcher` cannot route a vehicle, for two independent reasons:
@@ -959,7 +967,7 @@ through it, so nothing needs its own routing logic.
 
 | Situation | Searcher |
 |---|---|
-| Riding, on a world map | `VehicleRouteSearcher` (unbounded flood over terrain attributes) |
+| Riding, on a world map | ~~`VehicleRouteSearcher`~~ removed 2026-10-03; the game's `MapRouteSearcher` |
 | Riding, in an interior | Game's `MapRouteSearcher` — see the interior guard below |
 | On foot, target within ~31 cells | Game's `MapRouteSearcher`, unchanged |
 | On foot, target beyond the window, `PathSearchMode.Full` | `BreadcrumbRouteChainer` |
@@ -1922,3 +1930,88 @@ In-game checks:
    toggle per click, spoken by the F1/F3 setter announcements).
 4. Normalization on: L3 + R3 → "Stick Click Normalization off", with no encounter or walk/run toggle.
 5. Back, then L3 or R3 with normalization on → the mod-mode toggles still work.
+
+### Hidden passages and event coverage (2026-10-03)
+
+Not yet verified in game. Testers reported missing events (the catapult among them) and missing
+pathing to secret passages.
+
+**Hidden passages.** Each sub-map can ship a `hidden_passage` asset (layers `BottomHiddenPassage`,
+`GroundHiddenPassage`, `UpperHiddenPassage`, listed in the map's `package` beside `collision`); 40
+FF5 sub-maps have one, none of them a world map. Decompiled from `FF5_Analysis`:
+`FieldController.SetupCurrentMappingData` (0x28CB20) sets `MapModel.currentMappingData` (0x78) to
+`MapUtility.CombineMappingDataByAnd([collisionMappingData (0x80), hiddenPassageMappingData (0x88)])`,
+and `ParseHiddenPassageMappingData` (0x2F7360) starts from all-open (0x3FF) and closes every passage
+cell. `MapRouteSearcher.Search` gets its grid from `CombinedGotoMapEntityCurrentMappingData` →
+`GetCombineLandingGroupMappingData`, which returns `currentMappingData` unless a vehicle landing group
+applies. NPCs (and the mod) therefore never route through a passage, while the player, who moves on
+the collision layer, walks it. `HiddenPassageController.IsPlaceHiddenPassage` only drives the
+passage visuals (and the passage-revealing ability, id 345).
+
+`FindPathTo` (on foot) first runs the usual search (target, then the eight neighbours, on each
+layer; moved unchanged into `SearchTargetAndNeighbours`). Only if that finds nothing, and only with
+collision on, `Field/HiddenPassageRouting.SearchWithPassagesOpen` swaps the route grid for
+`CollisionMappingData` (`MapModel.SetCurrentMappingData`, reached through
+`FieldController.mapManager.CurrentMapModel`), runs the same search, and restores the grid in a
+`finally`. One synchronous search on the main thread; maps without passages are untouched, so every
+path found before is found the same way. The breadcrumb chainer and the wall-tone code are
+unchanged; wall tones read the game's grid, so a passage entrance still sounds like a wall (README
+says so). `tools/find_hidden.py ff5 --passages` lists what this opens up: 22 chests,
+4 NPCs, and events such as the Regole pub piano, the Phantom Village B1 piano, "stairs appear" in
+Ghido's Cave B3, the Pyramid of Moore 2F snake trap and the Istory Falls B2 waterfall drop.
+
+**Unnamed interactive objects.** `EntityFactory` dropped every object with an empty developer label
+as a placeholder. Two of them matter: the wind drake in the Castle of Bal (group `ev_e_0104`,
+script `sc_e_0104_1`, the Dragon Grass scene; group `ev_e_0097` gives its groan message before
+that) and a talk point in Castle Tycoon (`sc_npc_20050_2`). `IsUnnamedInteractive` keeps an
+unnamed object in the default branch when its `PropertyEvent.ActionId` is 2 with a script, or 4
+with a `PropertyTalk.MessageKey`; `EventEntity.Name` speaks it as "Interactive Object" (new
+`mod_text` key, 12 languages).
+
+**Vehicle-only events were never listed (the catapult).** Testers have said since release that the
+catapult does not appear. `FieldController.ChangeTransportationSwitchEntity` (0x273B60) runs for
+every entity in `entityList` (0x138) and `colliderEntityList` (0x140), from
+`ChangeTransportationCollisionEntity` on each `SetEventEntityGroup` and `ChangeTransportation`.
+When the entity's `Property.TargetTransportationIdList` is non-empty it calls
+`RestoreCacheActive(4)`, then `CacheActive(4)` (bit 4 of `cacheActiveEnable` 0xAC /
+`cacheActiveFlag` 0xB0 records the object's own active state) and then `Show(0)` if
+`CheckTargetTransportationIds(current id)`, else `Hide(0)`; `FieldEntity.Hide(0)` (0xEF6740) is
+`GameObject.SetActive(false)`. "Enter the Catapult" (`カタパルトに入る`, airship ids 6/11/12 on the
+first world, 7/19 on the third, 3×3 tiles each) was therefore inactive whenever the player was on
+foot, and the factory's `activeInHierarchy` check dropped it. The same applies to every
+vehicle-only trigger: Zeza's fleet (wind drake), the Rift entrance by black chocobo, Ghido's
+shrine by chocobo, the round-the-world checkpoints, and the on-foot-only entrances while riding.
+New `Field/FieldEntityState`: `IsHiddenByVehicle` is true for an inactive entity whose parent is
+active, whose target list is non-empty, and whose cache bit 4 is set with the cached state active.
+`IsPresent` (active or hidden by vehicle) replaces `activeInHierarchy` in `EntityFactory`,
+`NavigableEntity.IsAlive`, `EntityNavigator.RebuildNavigationList` and the pathfinding filter's
+validity check; the pathfinding filter lets a vehicle-hidden entity through (it is reached by
+boarding the vehicle, not by walking). Inside the catapult, "World Map" (`sc_20231_7_to_world`) is
+the launch; it was already listed.
+
+**Scenery removed.** `FieldEntityState.IsScenery`: an Event, Entity, AnimEntity,
+TransportationEventAction or RandomEvent whose `PropertyEvent` has `ActionId` 0, `ScriptId` 0 and no
+`PropertyTalk.MessageKey` does nothing when checked or touched, and `EntityFactory` skips it after
+the vehicle and non-interactive checks. Vehicle map objects (`PropertyTransportation`) are never
+scenery; anything with an action, a script or a message stays. In FF5 this drops 868 objects (Zeza's
+fleet and castle sprites on the world map, door collisions, bed parts, speech bubbles, meteor
+pieces, "Catapult Object"). User decision, 2026-10-03, for all five mods.
+
+**Vehicle routing removed** (user, 2026-10-03): see the note at the top of "Routing architecture".
+
+**Offline audit.** `FFPR/tools/dump_map_objects.py` dumps every object of every map (all entity
+groups, inline and asset scripts, collision and passage grids) to `FFPR/tools/mapdump/`;
+`tools/audit_events.py ff5` mirrors this factory and now reports no dropped trigger or object apart
+from the save-point duplicates the factory skips on purpose.
+
+In-game checks:
+1. Regole pub: the piano behind the hidden passage now gets directions, and following them reaches it.
+2. Castle of Bal, Dragon Grass scene: the wind drake is listed as "Interactive Object".
+3. A normal target on a passage map gives the same directions as before.
+4. First world after the catapult opens, on foot: Events lists "Enter the Catapult" (nine tiles),
+   even with the pathfinding filter on. Fly the airship over it and land: the catapult scene starts.
+   Inside, "World Map" is listed and launches.
+5. Decorative objects are gone from Events (castle and fleet sprites on the world map, door
+   collisions, bed parts, speech bubbles); switches, books, pianos and anything that reacts stay.
+6. Riding the ship or airship: pathfinding uses the game's searcher (short range), with no
+   "[Routing] Attribute grid built" line in the log.

@@ -490,21 +490,8 @@ namespace FFV_ScreenReader.Field
                 return pathInfo;
             }
 
-            // Vehicles get their own searcher: MapRouteSearcher models walking collision, so
-            // it cannot see that a ship crosses ocean or an airship crosses mountains, and
-            // its 64x64 window puts the far side of a world map out of reach regardless.
-            // Sync first so the decision is never made on a cached state the game has moved
-            // past (same failsafe the V key uses).
-            MoveStateHelper.SyncWithActualGameState();
-            if (!RoutingAdapter.IsOnFoot())
-            {
-                var vehiclePath = TryVehicleRoute(playerWorldPos, targetWorldPos, mapHandle, player);
-                if (vehiclePath != null)
-                    return Finish(vehiclePath);
-                // Fall through: no grid, no transport id, or the searcher declined. The
-                // game's searcher is still better than nothing.
-            }
-
+            // Vehicles use the game's searcher as well: the mod's own vehicle route searcher was
+            // removed on 2026-10-03 (user: it did not work).
             try
             {
                 int mapWidth = mapHandle.GetCollisionLayerWidth();
@@ -533,63 +520,17 @@ namespace FFV_ScreenReader.Field
                 if (player != null)
                 {
                     bool playerCollisionState = player._IsOnCollision_k__BackingField;
-                    
-                    // Try pathfinding with different destination layers until one succeeds
-                    for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
+
+                    pathPoints = SearchTargetAndNeighbours(mapHandle, startCell, destCell, targetWorldPos,
+                        mapWidth, mapHeight, playerCollisionState);
+
+                    // Secret passages are closed on the game's route grid but open to the player:
+                    // retry once with them open (no-op on maps without hidden passages).
+                    if ((pathPoints == null || pathPoints.Count == 0) && playerCollisionState)
                     {
-                        destCell.z = tryDestZ;
-                        pathPoints = SafeSearch(mapHandle, startCell, destCell, playerCollisionState);
-
-                        if (pathPoints != null && pathPoints.Count > 0)
-                        {
-                            break;
-                        }
-                    }
-
-                    // If direct path failed, try adjacent tiles
-                    if (pathPoints == null || pathPoints.Count == 0)
-                    {
-                        // Try adjacent tiles (one cell = TILE_SIZE units in world space)
-                        // Try all 8 directions: cardinals first, then diagonals
-                        float t = GameConstants.TILE_SIZE;
-                        Vector3[] adjacentOffsets = new Vector3[] {
-                            new Vector3(0, t, 0),    // north
-                            new Vector3(t, 0, 0),    // east
-                            new Vector3(0, -t, 0),   // south
-                            new Vector3(-t, 0, 0),   // west
-                            new Vector3(t, t, 0),    // northeast
-                            new Vector3(t, -t, 0),   // southeast
-                            new Vector3(-t, -t, 0),  // southwest
-                            new Vector3(-t, t, 0)    // northwest
-                        };
-
-                        foreach (var offset in adjacentOffsets)
-                        {
-                            Vector3 adjacentTargetWorld = targetWorldPos + offset;
-
-                            // Convert to cell coordinates
-                            Vector3 adjacentDestCell = new Vector3(
-                                Mathf.FloorToInt(mapWidth * 0.5f + adjacentTargetWorld.x * GameConstants.TILE_SIZE_INVERSE),
-                                Mathf.FloorToInt(mapHeight * 0.5f - adjacentTargetWorld.y * GameConstants.TILE_SIZE_INVERSE),
-                                0
-                            );
-
-                            // Try pathfinding with different layers
-                            for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
-                            {
-                                adjacentDestCell.z = tryDestZ;
-                                pathPoints = SafeSearch(mapHandle, startCell, adjacentDestCell, playerCollisionState);
-
-                                if (pathPoints != null && pathPoints.Count > 0)
-                                {
-                                    break;
-                                }
-                            }
-
-                            // If we found a path, stop trying other adjacent tiles
-                            if (pathPoints != null && pathPoints.Count > 0)
-                                break;
-                        }
+                        pathPoints = HiddenPassageRouting.SearchWithPassagesOpen(mapHandle,
+                            () => SearchTargetAndNeighbours(mapHandle, startCell, destCell, targetWorldPos,
+                                mapWidth, mapHeight, playerCollisionState));
                     }
 
                     // Don't fall back to collision=false - if we can't find a valid path, report failure
@@ -661,6 +602,64 @@ namespace FFV_ScreenReader.Field
             }
         }
         
+        /// <summary>
+        /// The target cell on each destination layer, then each of its eight neighbours.
+        /// </summary>
+        private static Il2CppSystem.Collections.Generic.List<Vector3> SearchTargetAndNeighbours(
+            IMapAccessor mapHandle, Vector3 startCell, Vector3 destCell, Vector3 targetWorldPos,
+            int mapWidth, int mapHeight, bool playerCollisionState)
+        {
+            Il2CppSystem.Collections.Generic.List<Vector3> pathPoints = null;
+
+            // Try pathfinding with different destination layers until one succeeds
+            for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
+            {
+                destCell.z = tryDestZ;
+                pathPoints = SafeSearch(mapHandle, startCell, destCell, playerCollisionState);
+
+                if (pathPoints != null && pathPoints.Count > 0)
+                    return pathPoints;
+            }
+
+            // If direct path failed, try adjacent tiles (one cell = TILE_SIZE units in world space)
+            // Try all 8 directions: cardinals first, then diagonals
+            float t = GameConstants.TILE_SIZE;
+            Vector3[] adjacentOffsets = new Vector3[] {
+                new Vector3(0, t, 0),    // north
+                new Vector3(t, 0, 0),    // east
+                new Vector3(0, -t, 0),   // south
+                new Vector3(-t, 0, 0),   // west
+                new Vector3(t, t, 0),    // northeast
+                new Vector3(t, -t, 0),   // southeast
+                new Vector3(-t, -t, 0),  // southwest
+                new Vector3(-t, t, 0)    // northwest
+            };
+
+            foreach (var offset in adjacentOffsets)
+            {
+                Vector3 adjacentTargetWorld = targetWorldPos + offset;
+
+                // Convert to cell coordinates
+                Vector3 adjacentDestCell = new Vector3(
+                    Mathf.FloorToInt(mapWidth * 0.5f + adjacentTargetWorld.x * GameConstants.TILE_SIZE_INVERSE),
+                    Mathf.FloorToInt(mapHeight * 0.5f - adjacentTargetWorld.y * GameConstants.TILE_SIZE_INVERSE),
+                    0
+                );
+
+                // Try pathfinding with different layers
+                for (int tryDestZ = 2; tryDestZ >= 0; tryDestZ--)
+                {
+                    adjacentDestCell.z = tryDestZ;
+                    pathPoints = SafeSearch(mapHandle, startCell, adjacentDestCell, playerCollisionState);
+
+                    if (pathPoints != null && pathPoints.Count > 0)
+                        return pathPoints;
+                }
+            }
+
+            return pathPoints;
+        }
+
         private static bool loggedSearchThrew;
         private static bool loggedOuterCatch;
 
@@ -734,51 +733,6 @@ namespace FFV_ScreenReader.Field
             catch (Exception ex)
             {
                 RoutingAdapter.WarnOnce("chain-entry", $"Chained route failed: {ex.Message}");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Routes with the vehicle searcher. Returns null when it cannot run at all (no
-        /// field controller, no transport id, grid not built) so the caller can fall back
-        /// to the game's searcher rather than reporting a spurious failure.
-        /// </summary>
-        private static PathInfo TryVehicleRoute(Vector3 playerWorldPos, Vector3 targetWorldPos,
-            IMapAccessor mapHandle, FieldPlayer player)
-        {
-            try
-            {
-                var fieldMap = GameObjectCache.Get<FieldMap>();
-                var fieldController = fieldMap?.fieldController;
-                var transportController = fieldController?.transportation;
-                if (fieldController == null || transportController == null)
-                    return null;
-
-                var userData = Il2CppLast.Management.UserDataManager.Instance();
-                if (userData == null) return null;
-                int mapId = userData.CurrentMapId;
-
-                // Terrain attributes govern movement on world maps. Inside towns and
-                // dungeons it is layers and collision entities that decide, and the
-                // attribute grid models neither — so a route built from it there would be
-                // confidently wrong. The player can still be mounted in an interior (riding
-                // Boko in before the scripted dismount), so this needs an explicit guard
-                // rather than relying on vehicle state alone.
-                if (!RoutingAdapter.IsWorldMap(mapId))
-                    return null;
-
-                if (!RoutingAdapter.TryGetCurrentTransportId(transportController, out int transportId))
-                    return null;
-
-                if (!VehicleRouteSearcher.EnsureGrid(fieldController, mapHandle, mapId))
-                    return null;
-
-                return VehicleRouteSearcher.FindPath(fieldController, mapHandle, transportController,
-                    mapId, transportId, playerWorldPos, targetWorldPos);
-            }
-            catch (Exception ex)
-            {
-                RoutingAdapter.WarnOnce("vehicle-route", $"Vehicle route failed, falling back: {ex.Message}");
                 return null;
             }
         }

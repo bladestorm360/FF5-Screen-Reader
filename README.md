@@ -6,6 +6,8 @@ Adds NVDA output, pathfinding, sound queues and other accessibility aides to Fin
 
 ## Known Issues
 
+The pathfinder leads through secret passages when there is no other way to a destination. Wall tones still sound at the start of a passage, as if it were a wall, so follow the spoken directions into it.
+
 When reading controls, only the current page of controls will be announced. On screens that have multiple pages, the game automatically scrolls between the pages every few seconds.
 
 Pathfinding does not work correctly when sailing the pirate ship. If you get stuck early in the game between Tule and the wind shrine, use waypoint 1 (a docking point near the wind shrine) and waypoint 2 (A landmark after which tule becomes findable on the destination finder to get there.) This is the fix for now, waypoints.json can be updated as needed for other sticking points in progression.

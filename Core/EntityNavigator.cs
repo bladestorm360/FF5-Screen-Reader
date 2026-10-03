@@ -264,7 +264,7 @@ namespace FFV_ScreenReader.Core
                 try
                 {
                     if (entity?.GameEntity == null || entity.GameEntity.gameObject == null ||
-                        !entity.GameEntity.gameObject.activeInHierarchy)
+                        !FieldEntityState.IsPresent(entity.GameEntity))
                         continue;
                 }
                 catch { continue; }
